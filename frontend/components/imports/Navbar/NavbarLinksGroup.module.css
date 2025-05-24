@@ -1,0 +1,39 @@
+.control {
+  font-weight: 500;
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  color: var(--mantine-color-text);
+  border-radius: var(--mantine-radius-sm);
+  transition: background-color 150ms ease;
+  text-decoration: none;
+}
+
+.control:hover {
+  background-color: var(--mantine-color-gray-light);
+}
+
+.mainLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.link {
+  font-size: 14px;
+  padding: 8px 12px 8px 40px;
+  display: block;
+  text-decoration: none;
+  color: var(--mantine-color-dimmed);
+  border-radius: var(--mantine-radius-sm);
+  transition: background-color 150ms ease;
+}
+
+.link:hover {
+  background-color: var(--mantine-color-gray-light);
+  color: var(--mantine-color-text);
+}
+
+.chevron {
+  transition: transform 200ms ease;
+}
