@@ -35,7 +35,6 @@ class FormaCobrancaSerializer(serializers.ModelSerializer):
         fields = ('id', 'formato', 'descricao', 'valor_mensal', 'percentual_exito')
 
 class ClienteSerializer(serializers.ModelSerializer):
-    company_id = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all(), source='company', write_only=True)
     company = CompanySerializer(read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     formas_cobranca = FormaCobrancaSerializer(many=True)
@@ -43,20 +42,8 @@ class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = ('id', 'nome', 'cpf', 'email', 'telefone', 'aniversario', 'tipo',
-                  'tipo_display', 'company_id', 'company', 'formas_cobranca')
+                  'tipo_display', 'company', 'formas_cobranca')
         read_only_fields = ('company', 'tipo_display')
-
-    def validate(self, data):
-        request = self.context.get('request')
-        if request and hasattr(request, 'user') and request.user.is_authenticated:
-            if 'company' not in data and not data.get('company_id'):
-                if request.user.company:
-                    pass  # Está sendo tratado via company_id
-                else:
-                    raise serializers.ValidationError("Company must be specified.")
-        elif not data.get('company_id'):
-            raise serializers.ValidationError("Company must be specified.")
-        return data
 
     def create(self, validated_data):
         formas_data = validated_data.pop('formas_cobranca')

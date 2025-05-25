@@ -1,0 +1,123 @@
+# ===============================
+# Global ignores (geral)
+# ===============================
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pip-log.txt
+
+# IDEs e editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Ambiente Python
+venv/
+env/
+ENV/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+dist/
+build/
+.next/
+.out/
+.vercel/
+
+# Compilados ou temporários
+*.swp
+*.lock
+*.bak
+*.tmp
+*.temp
+
+# ===============================
+# Frontend específico (Next.js, React, etc.)
+# ===============================
+
+frontend/node_modules/
+frontend/.next/
+frontend/.turbo/
+frontend/.out/
+frontend/.vercel/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/.env.development
+frontend/.env.test
+
+# ===============================
+# Backend específico (Django)
+# ===============================
+
+backend/__pycache__/
+backend/db.sqlite3
+backend/media/
+backend/staticfiles/
+backend/static/
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.development
+
+# Arquivos de migração que podem ser locais (opcional)
+# backend/**/migrations/*.pyc
+# backend/**/migrations/__pycache__/
+
+# ===============================
+# Outros
+# ===============================
+
+# Ambiente Python geral
+*.egg-info/
+.eggs/
+
+# Pytest
+.pytest_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+coverage.xml
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# VSCode settings (opcional)
+ADView/.vscode/
+
+# ===============================
+# Deployment (opcional)
+# ===============================
+
+# Docker
+*.pid
+docker-compose.override.yml
+.docker/
