@@ -76,7 +76,7 @@ export default function ClientePage() {
         {/* 🔘 Botão Criar */}
         <div className="flex justify-end mb-4">
           <Button color="default" variant="solid" onClick={() => setOpenDialog(true)}>
-            Criar Novo
+            Criar Cliente
           </Button>
         </div>
 
