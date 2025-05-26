@@ -15,8 +15,26 @@ export interface Receita {
     return res.data;
   }
   
+  export async function getReceitasAbertas() {
+    const res = await api.get<Receita[]>('/api/receitas/', {
+      params: { situacao: ['A', 'V'] },
+    });
+    return res.data;
+  }
+  
+  export async function getReceitasRecebidas() {
+    const res = await api.get<Receita[]>('/api/receitas/', {
+      params: { situacao: 'P' },
+    });
+    return res.data;
+  }
   export async function createReceita(data: any) {
     const res = await api.post('/api/receitas/', data);
+    return res.data;
+  }
+
+  export async function updateReceita(id: number, data: any) {
+    const res = await api.patch(`/api/receitas/${id}/`, data);
     return res.data;
   }
   

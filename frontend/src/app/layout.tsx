@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
 import { MantineProvider } from '@mantine/core';
-import ThemeRegistry from '@/components/imports/shared-theme/ThemeProvider'; // seu ThemeRegistry (MUI)
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -34,10 +33,8 @@ export default function RootLayout({
           withGlobalStyles
           withNormalizeCSS
         >
-          <ThemeRegistry>
             {children}
             <Toaster richColors />
-          </ThemeRegistry>
         </MantineProvider>
       </body>
     </html>

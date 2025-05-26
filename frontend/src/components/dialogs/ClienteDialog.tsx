@@ -1,17 +1,20 @@
 import DialogBase from "@/components/dialogs/DialogBase";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import FormaCobrancaList, { FormaCobrancaItem } from "@/components/dialogs/FormaCobrancaList";
+import { Cliente } from "@/services/clientes";
 
 export default function ClienteDialog({
   open,
   onClose,
   onSubmit,
+  cliente, // 🔥 Cliente para edição (ou null para criar)
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
+  cliente?: Cliente | null;
 }) {
   const [formData, setFormData] = useState({
     nome: "",
@@ -24,6 +27,40 @@ export default function ClienteDialog({
 
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
 
+  // 🔥 Preenche os campos quando recebe um cliente para edição
+  useEffect(() => {
+    if (cliente) {
+      setFormData({
+        nome: cliente.nome || "",
+        cpf: cliente.cpf || "",
+        email: cliente.email || "",
+        telefone: cliente.telefone || "",
+        aniversario: cliente.aniversario || "",
+        tipo: cliente.tipo || "",
+      });
+
+      setFormas(
+        (cliente.formas_cobranca || []).map((f) => ({
+          id: String(f.id),
+          formato: f.formato,
+          descricao: f.descricao,
+          valor: f.formato === "M" ? f.valor_mensal || "" : f.percentual_exito || "",
+        }))
+      );
+    } else {
+      // Se não há cliente, limpa os campos (para criação)
+      setFormData({
+        nome: "",
+        cpf: "",
+        email: "",
+        telefone: "",
+        aniversario: "",
+        tipo: "",
+      });
+      setFormas([]);
+    }
+  }, [cliente, open]);
+
   const handleSubmit = () => {
     const payload = {
       ...formData,
@@ -34,22 +71,17 @@ export default function ClienteDialog({
         percentual_exito: f.formato === "E" ? f.valor : null,
       })),
     };
-    
     onSubmit(payload);
     onClose();
-    setFormas([]);
-    setFormData({
-      nome: "",
-      cpf: "",
-      email: "",
-      telefone: "",
-      aniversario: "",
-      tipo: "",
-    });
   };
 
   return (
-    <DialogBase open={open} onClose={onClose} title="Novo Cliente" onSubmit={handleSubmit}>
+    <DialogBase
+      open={open}
+      onClose={onClose}
+      title={cliente ? "Editar Cliente" : "Novo Cliente"}
+      onSubmit={handleSubmit}
+    >
       <div className="grid grid-cols-1 gap-6">
         {/* 🔹 Linha 1 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

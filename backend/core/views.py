@@ -116,7 +116,17 @@ class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Funcionarios, scoped by company."""
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(tipo__in=['F', 'P'])
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
+
+class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = Funcionario.objects.all()
+    serializer_class = FuncionarioSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(tipo='O')
 
 class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Receitas, scoped by company."""
@@ -125,45 +135,47 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
-        """Override to allow filtering by situation, date range etc."""
-        queryset = super().get_queryset() # Get company-scoped queryset
-        
-        # Example filtering (add more as needed for reports later)
-        situacao = self.request.query_params.get('situacao')
+        queryset = super().get_queryset()
+
+        situacao = self.request.query_params.getlist('situacao')
         cliente_id = self.request.query_params.get('cliente_id')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
 
         if situacao:
-            queryset = queryset.filter(situacao=situacao)
+            queryset = queryset.filter(situacao__in=situacao)
         if cliente_id:
             queryset = queryset.filter(cliente_id=cliente_id)
         if start_date:
             queryset = queryset.filter(data_vencimento__gte=start_date)
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
-            
+
         return queryset
+
+
 
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Despesas, scoped by company."""
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
-    # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
-        """Override to allow filtering by situation, date range etc."""
-        queryset = super().get_queryset() # Get company-scoped queryset
-        
-        # Example filtering
-        situacao = self.request.query_params.get('situacao')
-        responsavel_id = self.request.query_params.get('responsavel_id')
-        start_date = self.request.query_params.get('start_date')
-        end_date = self.request.query_params.get('end_date')
-        tipo = self.request.query_params.get('tipo')
+        queryset = super().get_queryset()  # Scoped by company
 
-        if situacao:
-            queryset = queryset.filter(situacao=situacao)
+        params = self.request.query_params
+
+        # 🔥 Filtro por múltiplas situações
+        situacoes = params.getlist('situacao')
+        if situacoes:
+            queryset = queryset.filter(situacao__in=situacoes)
+
+        # 🔸 Filtros adicionais
+        responsavel_id = params.get('responsavel_id')
+        start_date = params.get('start_date')
+        end_date = params.get('end_date')
+        tipo = params.get('tipo')
+
         if responsavel_id:
             queryset = queryset.filter(responsavel_id=responsavel_id)
         if start_date:
@@ -172,8 +184,9 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(data_vencimento__lte=end_date)
         if tipo:
             queryset = queryset.filter(tipo=tipo)
-            
+
         return queryset
+
 
 # --- Report Views (Placeholder - Step 7 will detail these) ---
 # These will likely be separate APIView or function-based views, not ViewSets

@@ -2,30 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
+import { toast } from 'sonner';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
+
 import {
-  getReceitasAbertas,
-  createReceita,
+  getReceitasRecebidas,
   updateReceita,
   deleteReceita,
   Receita,
 } from '@/services/receitas';
-import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
-import { toast } from 'sonner';
 
-export default function ReceitasPage() {
+import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
+
+export default function ReceitaRecebidasPage() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
-  // 🔄 Carregar receitas
-  const loadReceitas = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getReceitasAbertas();
+      const data = await getReceitasRecebidas();
       setReceitas(data);
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
@@ -36,31 +36,26 @@ export default function ReceitasPage() {
   };
 
   useEffect(() => {
-    loadReceitas();
+    loadData();
   }, []);
 
-  // ❌ Deletar receita
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir esta receita?')) {
       await deleteReceita(id);
-      loadReceitas();
+      loadData();
     }
   };
 
-  // ✅ Criar ou Editar receita
   const handleSubmit = async (data: any) => {
     try {
       if (editingReceita) {
         await updateReceita(editingReceita.id, data);
         toast.success('Receita atualizada com sucesso!');
-      } else {
-        await createReceita(data);
-        toast.success('Receita criada com sucesso!');
       }
 
       setOpenDialog(false);
       setEditingReceita(null);
-      loadReceitas();
+      loadData();
     } catch (error: any) {
       console.error('Erro ao salvar receita:', error);
 
@@ -73,21 +68,21 @@ export default function ReceitasPage() {
     }
   };
 
-  // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [
-    {
-      title: 'Cliente',
-      dataIndex: 'cliente',
-      render: (cliente: any) => cliente?.nome || '—',
-    },
     { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Vencimento', dataIndex: 'data_vencimento' },
+    { title: 'Cliente', dataIndex: ['cliente', 'nome'] },
     {
       title: 'Valor',
       dataIndex: 'valor',
-      render: (v) => `R$ ${Number(v).toFixed(2)}`,
+      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
     },
-    { title: 'Situação', dataIndex: 'situacao_display' },
+    { title: 'Data de Vencimento', dataIndex: 'data_vencimento' },
+    { title: 'Data de Pagamento', dataIndex: 'data_pagamento' },
+    {
+      title: 'Valor Pago',
+      dataIndex: 'valor_pago',
+      render: (valor) => (valor ? `R$ ${Number(valor).toFixed(2)}` : '—'),
+    },
     {
       title: 'Ações',
       dataIndex: 'acoes',
@@ -101,7 +96,6 @@ export default function ReceitasPage() {
           >
             Editar
           </Button>
-
           <Button danger onClick={() => handleDelete(record.id)}>
             Excluir
           </Button>
@@ -112,43 +106,22 @@ export default function ReceitasPage() {
 
   return (
     <div className="flex">
-      {/* 🔳 Navbar */}
       <NavbarNested />
-
-      {/* 🔹 Conteúdo */}
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        {/* 🔘 Botão Criar */}
-        <div className="flex justify-end mb-4">
-          <Button
-            color="default"
-            variant="solid"
-            onClick={() => {
-              setOpenDialog(true);
-              setEditingReceita(null);
-            }}
-          >
-            Criar Receita
-          </Button>
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Receitas Recebidas</h1>
         </div>
 
-        {/* 🗒️ Tabela */}
         <GenericTable<Receita> columns={columns} data={receitas} loading={loading} />
 
-        {/* 🪟 Dialog */}
-        <MovimentacaoDialog
+        <ReceitaDialog
           open={openDialog}
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
           }}
-          title={editingReceita ? 'Editar Receita' : 'Nova Receita'}
-          pessoaLabel="Cliente"
-          tipoOptions={[
-            { label: 'Fixa', value: 'F' },
-            { label: 'Variável', value: 'V' },
-            { label: 'Estorno', value: 'E' },
-          ]}
-          receita={editingReceita} // 🔥 Envia dados para edição se tiver
+          title="Editar Receita"
+          receita={editingReceita}
           onSubmit={handleSubmit}
         />
       </main>

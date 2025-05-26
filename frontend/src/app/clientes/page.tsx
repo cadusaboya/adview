@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getClientes, Cliente, deleteCliente, createCliente } from "../../services/clientes";
+import { getClientes, Cliente, deleteCliente, createCliente, updateCliente } from "../../services/clientes";
 import { Button, message } from "antd";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
@@ -13,6 +13,7 @@ export default function ClientePage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
 
   const loadClientes = async () => {
     try {
@@ -40,15 +41,23 @@ export default function ClientePage() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await createCliente(data);
-      toast.success("Cliente criado com sucesso!");
+      if (editingCliente) {
+        await updateCliente(editingCliente.id, data);
+        toast.success("Cliente atualizado com sucesso!");
+      } else {
+        await createCliente(data);
+        toast.success("Cliente criado com sucesso!");
+      }
+  
       setOpenDialog(false);
+      setEditingCliente(null);
       loadClientes();
     } catch (error) {
-      console.error("Erro ao criar cliente:", error);
-      toast.error("Erro ao criar cliente");
+      console.error("Erro ao salvar cliente:", error);
+      toast.error("Erro ao salvar cliente");
     }
   };
+  
 
   const columns: TableColumnsType<Cliente> = [
     { title: "Nome", dataIndex: "nome" },
@@ -59,12 +68,24 @@ export default function ClientePage() {
       title: "Ações",
       dataIndex: "acoes",
       render: (_: any, record: Cliente) => (
-        <Button danger onClick={() => handleDelete(record.id)}>
-          Excluir
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => {
+              setEditingCliente(record); // 👈 Aqui você seta quem está editando
+              setOpenDialog(true); // 👈 Abre o Dialog
+            }}
+          >
+            Editar
+          </Button>
+  
+          <Button danger onClick={() => handleDelete(record.id)}>
+            Excluir
+          </Button>
+        </div>
       ),
     },
   ];
+  
 
   return (
     <div className="flex">
@@ -86,9 +107,14 @@ export default function ClientePage() {
         {/* 🪟 Dialog */}
         <ClienteDialog
           open={openDialog}
-          onClose={() => setOpenDialog(false)}
+          onClose={() => {
+            setOpenDialog(false);
+            setEditingCliente(null); // 🔥 Limpa o cliente em edição
+          }}
           onSubmit={handleSubmit}
+          cliente={editingCliente} // 👈 Passa o cliente para edição se houver
         />
+
       </main>
     </div>
   );
