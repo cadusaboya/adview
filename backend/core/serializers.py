@@ -45,10 +45,25 @@ class ClienteSerializer(serializers.ModelSerializer):
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     formas_cobranca = FormaCobrancaSerializer(many=True)
 
+    cpf = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
+    telefone = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    aniversario = serializers.DateField(required=False, allow_null=True)
+
     class Meta:
         model = Cliente
-        fields = ('id', 'nome', 'cpf', 'email', 'telefone', 'aniversario', 'tipo',
-                  'tipo_display', 'company', 'formas_cobranca')
+        fields = (
+            'id',
+            'nome',
+            'cpf',
+            'email',
+            'telefone',
+            'aniversario',
+            'tipo',
+            'tipo_display',
+            'company',
+            'formas_cobranca',
+        )
         read_only_fields = ('company', 'tipo_display')
 
     def create(self, validated_data):
@@ -71,6 +86,7 @@ class ClienteSerializer(serializers.ModelSerializer):
                 FormaCobranca.objects.create(cliente=instance, **forma)
 
         return instance
+
 
 
 # 🔹 Funcionario

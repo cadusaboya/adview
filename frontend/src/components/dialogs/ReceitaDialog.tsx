@@ -67,8 +67,8 @@ export default function ReceitaDialog({
 
   useEffect(() => {
     const loadBancos = async () => {
-      const data = await getBancos();
-      setBancos(data.map((banco) => ({ id: banco.id, nome: banco.nome })));
+      const { results } = await getBancos({ page_size: 1000 }); // Pegando todos os bancos
+      setBancos(results.map((banco) => ({ id: banco.id, nome: banco.nome })));
     };
     loadBancos();
   }, []);

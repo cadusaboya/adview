@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { Button, Pagination, message } from "antd";
 import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
@@ -22,11 +22,16 @@ export default function FornecedorPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFornecedor, setEditingFornecedor] = useState<Fornecedor | null>(null);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10; // 🔥 Definido como padrão
+
   const loadFornecedores = async () => {
     try {
       setLoading(true);
-      const data = await getFornecedores();
-      setFornecedores(data);
+      const res = await getFornecedores({ page, page_size: pageSize });
+      setFornecedores(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error("Erro ao buscar fornecedores:", error);
       message.error("Erro ao buscar fornecedores");
@@ -37,7 +42,7 @@ export default function FornecedorPage() {
 
   useEffect(() => {
     loadFornecedores();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm("Deseja realmente excluir este fornecedor?")) {
@@ -66,14 +71,9 @@ export default function FornecedorPage() {
 
   const columns: TableColumnsType<Fornecedor> = [
     { title: "Nome", dataIndex: "nome" },
-    { title: "CPF", dataIndex: "cpf" },
+    { title: "CPF / CNPJ", dataIndex: "cpf" },
     { title: "Email", dataIndex: "email" },
     { title: "Tipo", dataIndex: "tipo_display" },
-    {
-      title: "Salário Mensal",
-      dataIndex: "salario_mensal",
-      render: (valor: any) => (valor ? `R$ ${Number(valor).toFixed(2)}` : "—"),
-    },
     {
       title: "Ações",
       dataIndex: "acoes",
@@ -99,10 +99,10 @@ export default function FornecedorPage() {
     <div className="flex">
       <NavbarNested />
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Fornecedores</h1>
           <Button
             color="default"
-            variant="solid"
             onClick={() => {
               setEditingFornecedor(null);
               setOpenDialog(true);
@@ -116,6 +116,12 @@ export default function FornecedorPage() {
           columns={columns}
           data={fornecedores}
           loading={loading}
+          pagination={{
+            current: page,
+            pageSize: pageSize,
+            total: total,
+            onChange: (page) => setPage(page),
+           }}
         />
 
         <FuncionarioDialog

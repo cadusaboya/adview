@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { Button, message, Pagination } from "antd";
 import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
@@ -22,11 +22,17 @@ export default function FuncionarioPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFuncionario, setEditingFuncionario] = useState<Funcionario | null>(null);
 
+  // 🔥 Estado da paginação
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10; // padrão
+
   const loadFuncionarios = async () => {
     try {
       setLoading(true);
-      const data = await getFuncionarios();
-      setFuncionarios(data);
+      const res = await getFuncionarios({ page, page_size: pageSize });
+      setFuncionarios(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error("Erro ao buscar funcionários:", error);
       message.error("Erro ao buscar funcionários");
@@ -37,7 +43,7 @@ export default function FuncionarioPage() {
 
   useEffect(() => {
     loadFuncionarios();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm("Deseja realmente excluir este funcionário?")) {
@@ -72,8 +78,7 @@ export default function FuncionarioPage() {
     {
       title: "Salário Mensal",
       dataIndex: "salario_mensal",
-      render: (valor: any) =>
-        valor ? `R$ ${Number(valor).toFixed(2)}` : "—",
+      render: (valor: any) => valor ? `R$ ${Number(valor).toFixed(2)}` : "—",
     },
     {
       title: "Ações",
@@ -100,10 +105,10 @@ export default function FuncionarioPage() {
     <div className="flex">
       <NavbarNested />
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Funcionários</h1>
           <Button
             color="default"
-            variant="solid"
             onClick={() => {
               setEditingFuncionario(null);
               setOpenDialog(true);
@@ -117,8 +122,14 @@ export default function FuncionarioPage() {
           columns={columns}
           data={funcionarios}
           loading={loading}
+          pagination={{
+            current: page,
+            pageSize: pageSize,
+            total: total,
+            onChange: (page) => setPage(page),
+           }}
         />
-
+        
         <FuncionarioDialog
           open={openDialog}
           onClose={() => {

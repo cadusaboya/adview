@@ -12,8 +12,10 @@ export interface Funcionario {
   salario_mensal: string | null;
 }
 
-export async function getFuncionarios(): Promise<Funcionario[]> {
-  const res = await api.get<Funcionario[]>('/api/funcionarios/');
+export async function getFuncionarios(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Funcionario[]; count: number }>('/api/funcionarios/', {
+    params,
+  });
   return res.data;
 }
 

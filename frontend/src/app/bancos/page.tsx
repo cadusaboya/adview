@@ -22,13 +22,13 @@ export default function BancosPage() {
   const [editingBanco, setEditingBanco] = useState<Banco | null>(null);
 
   const loadBancos = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await getBancos();
-      setBancos(data);
-    } catch (error) {
-      console.error("Erro ao buscar contas bancárias:", error);
-      message.error("Erro ao buscar contas bancárias");
+      const res = await getBancos({ page_size: 100000 }); // 👉 força pegar tudo
+      setBancos(res.results); // 👈 dados estão aqui
+    } catch (error: any) {
+      console.error('Erro ao buscar contas bancárias:', error);
+      toast.error('Erro ao buscar contas bancárias');
     } finally {
       setLoading(false);
     }

@@ -10,24 +10,28 @@ export interface Receita {
     situacao_display: string;
   }
   
-  export async function getReceitas() {
-    const res = await api.get<Receita[]>('/api/receitas/');
-    return res.data;
-  }
-  
-  export async function getReceitasAbertas() {
-    const res = await api.get<Receita[]>('/api/receitas/', {
-      params: { situacao: ['A', 'V'] },
+  export async function getReceitas(params?: { page?: number; page_size?: number }) {
+    const res = await api.get<{ results: Receita[]; count: number }>('/api/receitas/', {
+      params,
     });
     return res.data;
   }
   
-  export async function getReceitasRecebidas() {
-    const res = await api.get<Receita[]>('/api/receitas/', {
-      params: { situacao: 'P' },
+  export async function getReceitasAbertas(params?: { page?: number; page_size?: number }) {
+    const res = await api.get<{ results: Receita[]; count: number }>('/api/receitas/', {
+      params: { ...params, situacao: ['A', 'V'] },
     });
     return res.data;
   }
+  
+  export async function getReceitasRecebidas(params?: { page?: number; page_size?: number }) {
+    const res = await api.get<{ results: Receita[]; count: number }>('/api/receitas/', {
+      params: { ...params, situacao: 'P' },
+    });
+    return res.data;
+  }
+  
+
   export async function createReceita(data: any) {
     const res = await api.post('/api/receitas/', data);
     return res.data;

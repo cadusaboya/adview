@@ -12,8 +12,10 @@ export interface Fornecedor {
   salario_mensal: string | null;
 }
 
-export async function getFornecedores(): Promise<Fornecedor[]> {
-  const res = await api.get<Fornecedor[]>('/api/fornecedores/');
+export async function getFornecedores(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Fornecedor[]; count: number }>('/api/fornecedores/', {
+    params,
+  });
   return res.data;
 }
 

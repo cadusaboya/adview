@@ -5,6 +5,8 @@ from django.db.models import Sum, Q, F
 from django.utils import timezone
 from datetime import date
 from decimal import Decimal
+from .pagination import DynamicPageSizePagination
+
 
 from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria
 from .serializers import (
@@ -111,12 +113,14 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Clientes, scoped by company."""
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
+    pagination_class = DynamicPageSizePagination
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
 class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Funcionarios, scoped by company."""
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
+    pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         return super().get_queryset().filter(tipo__in=['F', 'P'])
@@ -125,6 +129,7 @@ class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
+    pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         return super().get_queryset().filter(tipo='O')
@@ -133,6 +138,7 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Receitas, scoped by company."""
     queryset = Receita.objects.all()
     serializer_class = ReceitaSerializer
+    pagination_class = DynamicPageSizePagination
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
@@ -160,6 +166,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Despesas, scoped by company."""
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
+    pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()  # Scoped by company
@@ -192,6 +199,7 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para registrar pagamentos de receitas ou despesas."""
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
+    pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -243,6 +251,7 @@ class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para gerenciar contas bancárias."""
     queryset = ContaBancaria.objects.all()
     serializer_class = ContaBancariaSerializer
+    pagination_class = DynamicPageSizePagination
 
 
 # --- Report Views (Placeholder - Step 7 will detail these) ---

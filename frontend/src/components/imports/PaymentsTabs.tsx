@@ -40,9 +40,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
 
   const loadPayments = async () => {
     try {
-      const query = tipo === 'receita' ? { receita: entityId } : { despesa: entityId };
+      const query = tipo === 'receita' ? { receita: entityId, page_size: 99999 } : { despesa: entityId, page_size: 99999 };
       const data = await getPayments(query);
-      const formatted = data.map((p) => ({
+      const formatted = (data.results || []).map((p) => ({
         id: p.id,
         data_pagamento: p.data_pagamento,
         conta_bancaria: String(p.conta_bancaria),

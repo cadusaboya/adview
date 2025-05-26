@@ -19,16 +19,16 @@ export interface Despesa {
   situacao_display: string;
 }
 
-export async function getDespesasAbertas(): Promise<Despesa[]> {
-  const res = await api.get('/api/despesas/', {
-    params: { situacao: ['A', 'V'] },
+export async function getDespesasAbertas(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Despesa[]; count: number }>('/api/despesas/', {
+    params: { situacao: ['A', 'V'], ...params },
   });
   return res.data;
 }
 
-export async function getDespesasPagas() {
-  const res = await api.get<Despesa[]>('/api/despesas/', {
-    params: { situacao: 'P' },
+export async function getDespesasPagas(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Despesa[]; count: number }>('/api/despesas/', {
+    params: { situacao: 'P', ...params },
   });
   return res.data;
 }

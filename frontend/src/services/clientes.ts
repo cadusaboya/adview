@@ -10,8 +10,10 @@ export interface Cliente {
   tipo: string;
 }
 
-export async function getClientes() {
-  const res = await api.get<Cliente[]>('/api/clientes/');
+export async function getClientes(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Cliente[]; count: number }>('/api/clientes/', {
+    params,
+  });
   return res.data;
 }
 

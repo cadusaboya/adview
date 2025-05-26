@@ -12,8 +12,10 @@ export interface Banco {
 }
 
 // 🔹 Listar bancos
-export async function getBancos() {
-  const res = await api.get<Banco[]>("/api/contas-bancarias/");
+export async function getBancos(params?: { page?: number; page_size?: number }) {
+  const res = await api.get<{ results: Banco[]; count: number }>('/api/contas-bancarias/', {
+    params,
+  });
   return res.data;
 }
 

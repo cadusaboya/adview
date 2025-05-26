@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, message } from 'antd';
+import { Button, Pagination, message } from 'antd';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
@@ -21,12 +21,17 @@ export default function ReceitasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
   // 🔄 Carregar receitas
   const loadReceitas = async () => {
     try {
       setLoading(true);
-      const data = await getReceitasAbertas();
-      setReceitas(data);
+      const res = await getReceitasAbertas({ page, page_size: pageSize });
+      setReceitas(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
       message.error('Erro ao buscar receitas');
@@ -37,7 +42,7 @@ export default function ReceitasPage() {
 
   useEffect(() => {
     loadReceitas();
-  }, []);
+  }, [page]);
 
   // ❌ Deletar receita
   const handleDelete = async (id: number) => {
@@ -64,7 +69,7 @@ export default function ReceitasPage() {
       setEditingReceita(null);
       loadReceitas();
 
-      return receitaSalva; // 🔥 Isso é FUNDAMENTAL para o Dialog conseguir criar os pagamentos
+      return receitaSalva;
     } catch (error: any) {
       console.error('Erro ao salvar receita:', error);
 
@@ -74,10 +79,9 @@ export default function ReceitasPage() {
         'Erro desconhecido';
 
       toast.error(`Erro: ${apiMessage}`);
-      throw error; // 🔥 Importante: propaga o erro para o Dialog se quiser tratar lá também
+      throw error;
     }
   };
-
 
   // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [
@@ -118,16 +122,13 @@ export default function ReceitasPage() {
 
   return (
     <div className="flex">
-      {/* 🔳 Navbar */}
       <NavbarNested />
 
-      {/* 🔹 Conteúdo */}
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        {/* 🔘 Botão Criar */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Receitas em Aberto</h1>
           <Button
             color="default"
-            variant="solid"
             onClick={() => {
               setOpenDialog(true);
               setEditingReceita(null);
@@ -137,10 +138,15 @@ export default function ReceitasPage() {
           </Button>
         </div>
 
-        {/* 🗒️ Tabela */}
-        <GenericTable<Receita> columns={columns} data={receitas} loading={loading} />
+        <GenericTable<Receita> columns={columns} data={receitas} loading={loading} 
+            pagination={{
+              current: page,
+              pageSize: pageSize,
+              total: total,
+              onChange: (page) => setPage(page),
+            }}
+        />
 
-        {/* 🪟 Dialog */}
         <MovimentacaoDialog
           open={openDialog}
           onClose={() => {
@@ -154,7 +160,7 @@ export default function ReceitasPage() {
             { label: 'Variável', value: 'V' },
             { label: 'Estorno', value: 'E' },
           ]}
-          receita={editingReceita} // 🔥 Envia dados para edição se tiver
+          receita={editingReceita}
           onSubmit={handleSubmit}
         />
       </main>

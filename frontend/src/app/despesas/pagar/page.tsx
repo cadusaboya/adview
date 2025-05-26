@@ -23,11 +23,16 @@ export default function DespesasPagarPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10; // ✅ Page Size padrão definido
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const despesasRes = await getDespesasAbertas();
-      setDespesas(despesasRes);
+      const res = await getDespesasAbertas({ page, page_size: pageSize });
+      setDespesas(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error('Erro ao buscar despesas:', error);
       toast.error('Erro ao buscar despesas');
@@ -38,7 +43,7 @@ export default function DespesasPagarPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir esta despesa?')) {
@@ -115,7 +120,17 @@ export default function DespesasPagarPage() {
           </Button>
         </div>
 
-        <GenericTable<Despesa> columns={columns} data={despesas} loading={loading} />
+        <GenericTable<Despesa>
+          columns={columns}
+          data={despesas}
+          loading={loading}
+          pagination={{
+            total,
+            current: page,
+            pageSize,
+            onChange: (page) => setPage(page),
+          }}
+        />
 
         <DespesaDialog
           open={openDialog}

@@ -12,10 +12,10 @@ export interface Payment {
   criado_em: string;
 }
 
-// 🔹 Listar pagamentos
-export async function getPayments(params?: { receita?: number; despesa?: number }) {
+// 🔹 Listar pagamentos com paginação
+export async function getPayments(params?: { receita?: number; despesa?: number; page?: number; page_size?: number }) {
   const res = await api.get('/api/pagamentos/', { params });
-  return res.data;
+  return res.data; // ⬅️ Retorna objeto com {count, next, previous, results}
 }
 
 // 🔹 Criar pagamento

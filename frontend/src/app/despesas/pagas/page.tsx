@@ -22,11 +22,16 @@ export default function DespesasPagasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getDespesasPagas();
-      setDespesas(data);
+      const res = await getDespesasPagas({ page, page_size: pageSize });
+      setDespesas(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error('Erro ao buscar despesas:', error);
       message.error('Erro ao buscar despesas');
@@ -37,7 +42,7 @@ export default function DespesasPagasPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir esta despesa?')) {
@@ -109,6 +114,12 @@ export default function DespesasPagasPage() {
           columns={columns}
           data={despesas}
           loading={loading}
+          pagination={{
+            total,
+            current: page,
+            pageSize,
+            onChange: (page) => setPage(page),
+          }}
         />
 
         <DespesaDialog

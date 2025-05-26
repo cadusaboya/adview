@@ -14,15 +14,20 @@ export default function ClientePage() {
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10; // 🔥 Pode até ser dinâmico depois
 
   const loadClientes = async () => {
     try {
       setLoading(true);
-      const data = await getClientes();
-      setClientes(data);
+      const res = await getClientes({ page, page_size: pageSize });
+      setClientes(res.results);
+      setTotal(res.count);
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
-      message.error("Erro ao buscar clientes");
+      toast.error("Erro ao buscar clientes");
     } finally {
       setLoading(false);
     }
@@ -30,7 +35,7 @@ export default function ClientePage() {
 
   useEffect(() => {
     loadClientes();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm("Deseja realmente excluir este cliente?")) {
@@ -48,7 +53,7 @@ export default function ClientePage() {
         await createCliente(data);
         toast.success("Cliente criado com sucesso!");
       }
-  
+
       setOpenDialog(false);
       setEditingCliente(null);
       loadClientes();
@@ -57,7 +62,6 @@ export default function ClientePage() {
       toast.error("Erro ao salvar cliente");
     }
   };
-  
 
   const columns: TableColumnsType<Cliente> = [
     { title: "Nome", dataIndex: "nome" },
@@ -71,13 +75,13 @@ export default function ClientePage() {
         <div className="flex gap-2">
           <Button
             onClick={() => {
-              setEditingCliente(record); // 👈 Aqui você seta quem está editando
-              setOpenDialog(true); // 👈 Abre o Dialog
+              setEditingCliente(record);
+              setOpenDialog(true);
             }}
           >
             Editar
           </Button>
-  
+
           <Button danger onClick={() => handleDelete(record.id)}>
             Excluir
           </Button>
@@ -85,36 +89,39 @@ export default function ClientePage() {
       ),
     },
   ];
-  
 
   return (
     <div className="flex">
-      {/* 🔳 Navbar */}
       <NavbarNested />
 
-      {/* 🔹 Conteúdo */}
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        {/* 🔘 Botão Criar */}
         <div className="flex justify-end mb-4">
-          <Button color="default" variant="solid" onClick={() => setOpenDialog(true)}>
+          <Button onClick={() => setOpenDialog(true)}>
             Criar Cliente
           </Button>
         </div>
 
-        {/* 🗒️ Tabela */}
-        <GenericTable<Cliente> columns={columns} data={clientes} loading={loading} />
+        <GenericTable<Cliente>
+          columns={columns}
+          data={clientes}
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize: pageSize,
+            total: total,
+            onChange: (page) => setPage(page),
+          }}
+        />
 
-        {/* 🪟 Dialog */}
         <ClienteDialog
           open={openDialog}
           onClose={() => {
             setOpenDialog(false);
-            setEditingCliente(null); // 🔥 Limpa o cliente em edição
+            setEditingCliente(null);
           }}
           onSubmit={handleSubmit}
-          cliente={editingCliente} // 👈 Passa o cliente para edição se houver
+          cliente={editingCliente}
         />
-
       </main>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, message } from 'antd';
+import { Button, Pagination, message } from 'antd';
 import { toast } from 'sonner';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
@@ -22,11 +22,16 @@ export default function ReceitaRecebidasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getReceitasRecebidas();
-      setReceitas(data);
+      const data = await getReceitasRecebidas({ page, page_size: pageSize });
+      setReceitas(data.results);
+      setTotal(data.count);
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
       message.error('Erro ao buscar receitas');
@@ -37,7 +42,7 @@ export default function ReceitaRecebidasPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir esta receita?')) {
@@ -112,7 +117,14 @@ export default function ReceitaRecebidasPage() {
           <h1 className="text-xl font-semibold">Receitas Recebidas</h1>
         </div>
 
-        <GenericTable<Receita> columns={columns} data={receitas} loading={loading} />
+        <GenericTable<Receita> columns={columns} data={receitas} loading={loading}           
+            pagination={{
+              current: page,
+              pageSize: pageSize,
+              total: total,
+              onChange: (page) => setPage(page),
+             }}
+        />
 
         <ReceitaDialog
           open={openDialog}
