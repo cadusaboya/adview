@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CompanyViewSet, CustomUserViewSet, ClienteViewSet, 
     FuncionarioViewSet, ReceitaViewSet, DespesaViewSet,
-    FornecedorViewSet,
+    FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,  # 👈 adiciona aqui
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
@@ -18,8 +18,9 @@ router.register(r'funcionarios', FuncionarioViewSet, basename='funcionario')
 router.register(r'receitas', ReceitaViewSet, basename='receita')
 router.register(r'despesas', DespesaViewSet, basename='despesa')
 router.register(r'fornecedores', FornecedorViewSet, basename='Fornecedor')
+router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')  # 👈 novo
+router.register(r'pagamentos', PaymentViewSet, basename='payment')  # 👈 novo
 
-# The API URLs are now determined automatically by the router.
 urlpatterns = [
     path('', include(router.urls)),
     # Report URLs
@@ -31,4 +32,3 @@ urlpatterns = [
     path('relatorios/comissionamento/', RelatorioComissionamentoView.as_view(), name='relatorio-comissionamento'),
     path('relatorios/resultado-mensal/', RelatorioResultadoMensalView.as_view(), name='relatorio-resultado-mensal'),
 ]
-

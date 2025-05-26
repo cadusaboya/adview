@@ -50,17 +50,21 @@ export default function ReceitasPage() {
   // ✅ Criar ou Editar receita
   const handleSubmit = async (data: any) => {
     try {
+      let receitaSalva;
+
       if (editingReceita) {
-        await updateReceita(editingReceita.id, data);
+        receitaSalva = await updateReceita(editingReceita.id, data);
         toast.success('Receita atualizada com sucesso!');
       } else {
-        await createReceita(data);
+        receitaSalva = await createReceita(data);
         toast.success('Receita criada com sucesso!');
       }
 
       setOpenDialog(false);
       setEditingReceita(null);
       loadReceitas();
+
+      return receitaSalva; // 🔥 Isso é FUNDAMENTAL para o Dialog conseguir criar os pagamentos
     } catch (error: any) {
       console.error('Erro ao salvar receita:', error);
 
@@ -70,8 +74,10 @@ export default function ReceitasPage() {
         'Erro desconhecido';
 
       toast.error(`Erro: ${apiMessage}`);
+      throw error; // 🔥 Importante: propaga o erro para o Dialog se quiser tratar lá também
     }
   };
+
 
   // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [

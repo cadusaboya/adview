@@ -10,11 +10,13 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import PaymentsTabs from '@/components/imports/PaymentsTabs';
+import { getBancos } from '@/services/bancos';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<any>; // Criação ou edição da receita
   receita?: any | null;
 }
 
@@ -33,12 +35,9 @@ export default function ReceitaDialog({
     tipo: '',
     forma_pagamento: '',
     comissionado_id: '',
-    situacao: 'A',
-    data_pagamento: '',
-    valor_pago: '',
   });
 
-  const [situacao, setSituacao] = useState<'A' | 'P' | 'V'>('A');
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
 
   useEffect(() => {
     if (receita) {
@@ -51,11 +50,7 @@ export default function ReceitaDialog({
         tipo: receita.tipo || '',
         forma_pagamento: receita.forma_pagamento || '',
         comissionado_id: receita.comissionado_id ? String(receita.comissionado_id) : '',
-        situacao: receita.situacao || 'A',
-        data_pagamento: receita.data_pagamento || '',
-        valor_pago: receita.valor_pago || '',
       });
-      setSituacao(receita.situacao || 'A');
     } else {
       setFormData({
         nome: '',
@@ -66,22 +61,21 @@ export default function ReceitaDialog({
         tipo: '',
         forma_pagamento: '',
         comissionado_id: '',
-        situacao: 'A',
-        data_pagamento: '',
-        valor_pago: '',
       });
-      setSituacao('A');
     }
   }, [receita, open]);
 
-  const handleSubmit = () => {
-    const payload = {
-      ...formData,
-      data_pagamento: situacao === 'P' ? formData.data_pagamento : null,
-      valor_pago: situacao === 'P' ? formData.valor_pago : null,
-      situacao,
+  useEffect(() => {
+    const loadBancos = async () => {
+      const data = await getBancos();
+      setBancos(data.map((banco) => ({ id: banco.id, nome: banco.nome })));
     };
-    onSubmit(payload);
+    loadBancos();
+  }, []);
+
+  const handleSubmit = async () => {
+    const payload = { ...formData };
+    await onSubmit(payload);
     onClose();
   };
 
@@ -162,8 +156,8 @@ export default function ReceitaDialog({
           </div>
         </div>
 
-        {/* 🔸 Forma Pgto + Situação + Comissionado */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 🔸 Forma Pgto + Comissionado */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Forma de Pagamento</label>
             <Select
@@ -181,23 +175,6 @@ export default function ReceitaDialog({
           </div>
 
           <div>
-            <label className="text-sm">Situação</label>
-            <Select
-              value={situacao}
-              onValueChange={(val) => setSituacao(val as 'A' | 'P' | 'V')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A">Em Aberto</SelectItem>
-                <SelectItem value="P">Pago</SelectItem>
-                <SelectItem value="V">Vencida</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
             <label className="text-sm">Comissionado (ID) - Opcional</label>
             <Input
               placeholder="ID do Comissionado"
@@ -207,28 +184,13 @@ export default function ReceitaDialog({
           </div>
         </div>
 
-        {/* 🔥 Mostrar pagamento se situação = Pago */}
-        {situacao === 'P' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm">Data de Pagamento</label>
-              <Input
-                type="date"
-                value={formData.data_pagamento}
-                onChange={(e) => setFormData({ ...formData, data_pagamento: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm">Valor Pago (R$)</label>
-              <Input
-                type="number"
-                placeholder="Ex.: 1500"
-                value={formData.valor_pago}
-                onChange={(e) => setFormData({ ...formData, valor_pago: e.target.value })}
-              />
-            </div>
-          </div>
+        {/* 🔥 Pagamentos */}
+        {receita && (
+          <PaymentsTabs
+            tipo="receita"
+            entityId={receita.id}
+            contasBancarias={bancos}
+          />
         )}
       </div>
     </DialogBase>

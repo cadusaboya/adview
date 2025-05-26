@@ -6,10 +6,11 @@ from django.utils import timezone
 from datetime import date
 from decimal import Decimal
 
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer, 
-    FuncionarioSerializer, ReceitaSerializer, DespesaSerializer
+    FuncionarioSerializer, ReceitaSerializer, DespesaSerializer,
+    PaymentSerializer, ContaBancariaSerializer
 )
 
 # --- Base ViewSet for Company context ---
@@ -186,6 +187,62 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(tipo=tipo)
 
         return queryset
+
+class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """API endpoint para registrar pagamentos de receitas ou despesas."""
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        receita_id = self.request.query_params.get('receita')
+        despesa_id = self.request.query_params.get('despesa')
+
+        if receita_id:
+            queryset = queryset.filter(receita_id=receita_id)
+
+        if despesa_id:
+            queryset = queryset.filter(despesa_id=despesa_id)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        instance = serializer.save(company=self.request.user.company)
+        instance.conta_bancaria.atualizar_saldo()
+
+        if instance.receita:
+            instance.receita.atualizar_status()
+        else:
+            instance.despesa.atualizar_status()
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.conta_bancaria.atualizar_saldo()
+
+        if instance.receita:
+            instance.receita.atualizar_status()
+        else:
+            instance.despesa.atualizar_status()
+
+    def perform_destroy(self, instance):
+        conta = instance.conta_bancaria
+        receita = instance.receita
+        despesa = instance.despesa
+
+        instance.delete()
+        conta.atualizar_saldo()
+
+        if receita:
+            receita.atualizar_status()
+        if despesa:
+            despesa.atualizar_status()
+        
+
+class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """API endpoint para gerenciar contas bancárias."""
+    queryset = ContaBancaria.objects.all()
+    serializer_class = ContaBancariaSerializer
 
 
 # --- Report Views (Placeholder - Step 7 will detail these) ---

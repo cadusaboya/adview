@@ -39,6 +39,7 @@ const menuItems = [
   { label: 'Clientes', icon: IconUsers, link: '/clientes' },
   { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
   { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
+  { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
   { label: 'Relatórios', icon: IconFileAnalytics, link: '/relatorios' },
 ];
 

@@ -10,12 +10,14 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import PaymentsTabs from '@/components/imports/PaymentsTabs';
+import { getBancos } from '@/services/bancos';
 import { Despesa } from '@/services/despesas';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<any>;
   despesa?: Despesa | null;
 }
 
@@ -32,51 +34,47 @@ export default function DespesaDialog({
     valor: '',
     data_vencimento: '',
     tipo: '',
-    situacao: 'A',
-    data_pagamento: '',
-    valor_pago: '',
   });
 
-  const [situacao, setSituacao] = useState<'A' | 'P' | 'V'>('A');
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
 
   useEffect(() => {
-    if (despesa) {
-      setFormData({
-        nome: despesa.nome || '',
-        descricao: despesa.descricao || '',
-        responsavel_id: String(despesa.responsavel?.id || ''),
-        valor: despesa.valor || '',
-        data_vencimento: despesa.data_vencimento || '',
-        tipo: despesa.tipo || '',
-        situacao: despesa.situacao || 'A',
-        data_pagamento: despesa.data_pagamento || '',
-        valor_pago: despesa.valor_pago || '',
-      });
-      setSituacao((despesa.situacao as 'A' | 'P' | 'V') || 'A');
-    } else {
-      setFormData({
-        nome: '',
-        descricao: '',
-        responsavel_id: '',
-        valor: '',
-        data_vencimento: '',
-        tipo: '',
-        situacao: 'A',
-        data_pagamento: '',
-        valor_pago: '',
-      });
-      setSituacao('A');
-    }
+    const loadData = async () => {
+      if (despesa) {
+        setFormData({
+          nome: despesa.nome || '',
+          descricao: despesa.descricao || '',
+          responsavel_id: String(despesa.responsavel?.id || ''),
+          valor: despesa.valor || '',
+          data_vencimento: despesa.data_vencimento || '',
+          tipo: despesa.tipo || '',
+        });
+      } else {
+        setFormData({
+          nome: '',
+          descricao: '',
+          responsavel_id: '',
+          valor: '',
+          data_vencimento: '',
+          tipo: '',
+        });
+      }
+    };
+
+    loadData();
   }, [despesa, open]);
 
-  const handleSubmit = () => {
-    const payload = {
-      ...formData,
-      data_pagamento: situacao === 'P' ? formData.data_pagamento : null,
-      valor_pago: situacao === 'P' ? formData.valor_pago : null,
-      situacao: situacao,
+  useEffect(() => {
+    const loadBancos = async () => {
+      const data = await getBancos();
+      setBancos(data.map((banco) => ({ id: banco.id, nome: banco.nome })));
     };
-    onSubmit(payload);
+    loadBancos();
+  }, []);
+
+  const handleSubmit = async () => {
+    const payload = { ...formData };
+    await onSubmit(payload);
     onClose();
   };
 
@@ -88,26 +86,22 @@ export default function DespesaDialog({
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-4">
-        {/* 🔹 Favorecido + Nome */}
+        {/* 🔹 Responsável + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Favorecido (ID)</label>
             <Input
-              placeholder="ID do Fornecedor"
+              placeholder="ID do fornecedor"
               value={formData.responsavel_id}
-              onChange={(e) =>
-                setFormData({ ...formData, responsavel_id: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, responsavel_id: e.target.value })}
             />
           </div>
           <div>
             <label className="text-sm">Nome</label>
             <Input
-              placeholder="Nome da Despesa"
+              placeholder="Nome da despesa"
               value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
             />
           </div>
         </div>
@@ -116,15 +110,13 @@ export default function DespesaDialog({
         <div>
           <label className="text-sm">Descrição</label>
           <Input
-            placeholder="Observações ou descrição"
+            placeholder="Descrição ou observações"
             value={formData.descricao}
-            onChange={(e) =>
-              setFormData({ ...formData, descricao: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
           />
         </div>
 
-        {/* 🔸 Valor, Vencimento e Tipo */}
+        {/* 🔸 Valor + Vencimento + Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm">Valor (R$)</label>
@@ -132,9 +124,7 @@ export default function DespesaDialog({
               type="number"
               placeholder="Ex.: 1500"
               value={formData.valor}
-              onChange={(e) =>
-                setFormData({ ...formData, valor: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
             />
           </div>
 
@@ -143,9 +133,7 @@ export default function DespesaDialog({
             <Input
               type="date"
               value={formData.data_vencimento}
-              onChange={(e) =>
-                setFormData({ ...formData, data_vencimento: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
             />
           </div>
 
@@ -168,52 +156,13 @@ export default function DespesaDialog({
           </div>
         </div>
 
-        {/* 🔸 Situação */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm">Situação</label>
-            <Select
-              value={situacao}
-              onValueChange={(val) => setSituacao(val as 'A' | 'P' | 'V')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A">Em Aberto</SelectItem>
-                <SelectItem value="P">Pago</SelectItem>
-                <SelectItem value="V">Vencida</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* 🔥 Se Pago */}
-        {situacao === 'P' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm">Data de Pagamento</label>
-              <Input
-                type="date"
-                value={formData.data_pagamento}
-                onChange={(e) =>
-                  setFormData({ ...formData, data_pagamento: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <label className="text-sm">Valor Pago (R$)</label>
-              <Input
-                type="number"
-                placeholder="Ex.: 1500"
-                value={formData.valor_pago}
-                onChange={(e) =>
-                  setFormData({ ...formData, valor_pago: e.target.value })
-                }
-              />
-            </div>
-          </div>
+        {/* 🔥 Pagamentos */}
+        {despesa && (
+          <PaymentsTabs
+            tipo="despesa"
+            entityId={despesa.id}
+            contasBancarias={bancos}
+          />
         )}
       </div>
     </DialogBase>

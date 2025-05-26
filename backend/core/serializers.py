@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, FormaCobranca
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, FormaCobranca, ContaBancaria, Payment
 
 
 # 🔹 Company
@@ -154,3 +154,78 @@ class DespesaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Valor Pago é obrigatório quando Situação é 'Paga'.")
 
         return data
+
+# 🔹 Conta Bancaria
+class ContaBancariaSerializer(serializers.ModelSerializer):
+    saldo_atual = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = ContaBancaria
+        fields = (
+            'id',
+            'company',
+            'nome',
+            'descricao',
+            'saldo_inicial',
+            'saldo_atual',
+            'criado_em',
+            'atualizado_em'
+        )
+        read_only_fields = (
+            'id',
+            'company',
+            'saldo_atual',
+            'criado_em',
+            'atualizado_em'
+        )
+
+# 🔹 Payment
+class PaymentSerializer(serializers.ModelSerializer):
+    receita_nome = serializers.CharField(
+        source='receita.nome', read_only=True
+    )
+    despesa_nome = serializers.CharField(
+        source='despesa.nome', read_only=True
+    )
+    conta_bancaria_nome = serializers.CharField(
+        source='conta_bancaria.nome', read_only=True
+    )
+
+    class Meta:
+        model = Payment
+        fields = (
+            'id',
+            'company',
+            'receita',
+            'receita_nome',
+            'despesa',
+            'despesa_nome',
+            'conta_bancaria',
+            'conta_bancaria_nome',
+            'valor',
+            'data_pagamento',
+            'observacao',
+            'criado_em'
+        )
+        read_only_fields = (
+            'id',
+            'company',
+            'receita_nome',
+            'despesa_nome',
+            'conta_bancaria_nome',
+            'criado_em'
+        )
+
+    def validate(self, data):
+        if not data.get('receita') and not data.get('despesa'):
+            raise serializers.ValidationError(
+                "O pagamento deve estar associado a uma Receita ou Despesa."
+            )
+        if data.get('receita') and data.get('despesa'):
+            raise serializers.ValidationError(
+                "O pagamento não pode estar vinculado a Receita e Despesa ao mesmo tempo."
+            )
+        return data
+
