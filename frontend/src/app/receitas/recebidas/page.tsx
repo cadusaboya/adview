@@ -74,15 +74,9 @@ export default function ReceitaRecebidasPage() {
   };
 
   const columns: TableColumnsType<Receita> = [
-    { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Cliente', dataIndex: ['cliente', 'nome'] },
-    {
-      title: 'Valor',
-      dataIndex: 'valor',
-      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
-    },
-    { title: 'Data de Vencimento', dataIndex: 'data_vencimento' },
     { title: 'Data de Pagamento', dataIndex: 'data_pagamento' },
+    { title: 'Cliente', dataIndex: ['cliente', 'nome'] },
+    { title: 'Nome', dataIndex: 'nome' },
     {
       title: 'Valor Pago',
       dataIndex: 'valor_pago',

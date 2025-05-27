@@ -67,15 +67,9 @@ export default function DespesasPagasPage() {
   };
 
   const columns: TableColumnsType<Despesa> = [
-    { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
-    {
-      title: 'Valor',
-      dataIndex: 'valor',
-      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
-    },
-    { title: 'Data de Vencimento', dataIndex: 'data_vencimento' },
     { title: 'Data de Pagamento', dataIndex: 'data_pagamento' },
+    { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
+    { title: 'Nome', dataIndex: 'nome' },
     {
       title: 'Valor Pago',
       dataIndex: 'valor_pago',

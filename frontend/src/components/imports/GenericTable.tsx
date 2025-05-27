@@ -32,6 +32,7 @@ export default function GenericTable<T extends object>({
           onChange(pagination);
         }
       }}
+      className='shadow-md bg-white'
     />
   );
 }

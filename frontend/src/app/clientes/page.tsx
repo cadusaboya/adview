@@ -96,7 +96,7 @@ export default function ClientePage() {
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         <div className="flex justify-end mb-4">
-          <Button onClick={() => setOpenDialog(true)}>
+          <Button className='shadow-md' onClick={() => setOpenDialog(true)}>
             Criar Cliente
           </Button>
         </div>

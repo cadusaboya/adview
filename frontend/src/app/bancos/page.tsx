@@ -68,11 +68,6 @@ export default function BancosPage() {
     { title: "Nome", dataIndex: "nome" },
     { title: "Descrição", dataIndex: "descricao" },
     {
-      title: "Saldo Inicial",
-      dataIndex: "saldo_inicial",
-      render: (value) => `R$ ${Number(value).toFixed(2)}`,
-    },
-    {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
       render: (value) => `R$ ${Number(value).toFixed(2)}`,
@@ -104,10 +99,11 @@ export default function BancosPage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-end mb-4">
+       <div className="flex justify-between mb-4">
+        <h1 className="text-xl font-semibold">Contas Bancárias</h1>
           <Button
             color="default"
-            variant="solid"
+            className='shadow-md'
             onClick={() => setOpenDialog(true)}
           >
             Criar Conta Bancária

@@ -73,7 +73,6 @@ export default function FornecedorPage() {
     { title: "Nome", dataIndex: "nome" },
     { title: "CPF / CNPJ", dataIndex: "cpf" },
     { title: "Email", dataIndex: "email" },
-    { title: "Tipo", dataIndex: "tipo_display" },
     {
       title: "Ações",
       dataIndex: "acoes",
@@ -103,6 +102,7 @@ export default function FornecedorPage() {
           <h1 className="text-xl font-semibold">Fornecedores</h1>
           <Button
             color="default"
+            className='shadow-md'
             onClick={() => {
               setEditingFornecedor(null);
               setOpenDialog(true);

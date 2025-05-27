@@ -85,19 +85,19 @@ export default function ReceitasPage() {
 
   // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [
+    { title: 'Vencimento', dataIndex: 'data_vencimento' },
     {
       title: 'Cliente',
       dataIndex: 'cliente',
       render: (cliente: any) => cliente?.nome || '—',
     },
     { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Vencimento', dataIndex: 'data_vencimento' },
+    { title: 'Situação', dataIndex: 'situacao_display' },
     {
       title: 'Valor',
       dataIndex: 'valor',
       render: (v) => `R$ ${Number(v).toFixed(2)}`,
     },
-    { title: 'Situação', dataIndex: 'situacao_display' },
     {
       title: 'Ações',
       dataIndex: 'acoes',
@@ -129,6 +129,7 @@ export default function ReceitasPage() {
           <h1 className="text-xl font-semibold">Receitas em Aberto</h1>
           <Button
             color="default"
+            className='shadow-md'
             onClick={() => {
               setOpenDialog(true);
               setEditingReceita(null);

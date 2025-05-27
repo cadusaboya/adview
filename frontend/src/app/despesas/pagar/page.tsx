@@ -71,16 +71,15 @@ export default function DespesasPagarPage() {
   };
 
   const columns: TableColumnsType<Despesa> = [
+    { title: 'Vencimento', dataIndex: 'data_vencimento' },
     { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
     { title: 'Nome', dataIndex: 'nome' },
+    { title: 'Situação', dataIndex: 'situacao_display' },
     {
       title: 'Valor',
       dataIndex: 'valor',
       render: (v) => `R$ ${Number(v).toFixed(2)}`,
     },
-    { title: 'Vencimento', dataIndex: 'data_vencimento' },
-    { title: 'Tipo', dataIndex: 'tipo_display' },
-    { title: 'Situação', dataIndex: 'situacao_display' },
     {
       title: 'Ações',
       dataIndex: 'acoes',
@@ -107,10 +106,11 @@ export default function DespesasPagarPage() {
     <div className="flex">
       <NavbarNested />
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Despesas em Aberto</h1>
           <Button
             color="default"
-            variant="solid"
+            className='shadow-md'
             onClick={() => {
               setOpenDialog(true);
               setEditingDespesa(null);

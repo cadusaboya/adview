@@ -74,7 +74,6 @@ export default function FuncionarioPage() {
     { title: "Nome", dataIndex: "nome" },
     { title: "CPF", dataIndex: "cpf" },
     { title: "Email", dataIndex: "email" },
-    { title: "Tipo", dataIndex: "tipo_display" },
     {
       title: "Salário Mensal",
       dataIndex: "salario_mensal",
@@ -109,6 +108,7 @@ export default function FuncionarioPage() {
           <h1 className="text-xl font-semibold">Funcionários</h1>
           <Button
             color="default"
+            className='shadow-md'
             onClick={() => {
               setEditingFuncionario(null);
               setOpenDialog(true);
