@@ -39,7 +39,7 @@ export default function LoginPage() {
     if (hasError) return;
 
     try {
-      const data = await login(username, password);
+      await login(username, password);
       toast.success("Login realizado com sucesso!");
       router.push("/clientes");
     } catch (error: any) {
@@ -54,31 +54,41 @@ export default function LoginPage() {
     <div className="flex min-h-screen">
       {/* 🔹 Esquerda */}
       <div className="hidden md:flex flex-col justify-center items-start flex-1 px-20 bg-white">
-        <h1 className="text-2xl font-bold text-blue-700 mb-10">⚡ Sitemark</h1>
+        <h1 className="text-2xl font-bold text-blue-700 mb-2">
+          ⚖️ ADView
+        </h1>
+        <p className="text-sm text-muted-foreground mb-10">
+          Gestão financeira simples e eficiente para escritórios de advocacia.
+        </p>
 
         <div className="space-y-8">
           <div>
-            <h2 className="font-semibold">⚙️ Adaptable performance</h2>
+            <h2 className="font-semibold">
+              💼 Financeiro por cliente e processo
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Our product effortlessly adjusts to your needs, boosting efficiency and simplifying your tasks.
+              Organize receitas e despesas vinculadas a cada cliente ou caso jurídico.
             </p>
           </div>
+
           <div>
-            <h2 className="font-semibold">🛠️ Built to last</h2>
+            <h2 className="font-semibold">📊 Visão clara do caixa</h2>
             <p className="text-sm text-muted-foreground">
-              Experience unmatched durability that goes above and beyond with lasting investment.
+              Acompanhe entradas, saídas e saldos em tempo real, sem planilhas.
             </p>
           </div>
+
           <div>
-            <h2 className="font-semibold">👍 Great user experience</h2>
+            <h2 className="font-semibold">⏱️ Menos tempo com números</h2>
             <p className="text-sm text-muted-foreground">
-              Integrate our product into your routine with an intuitive and easy-to-use interface.
+              Automatize rotinas financeiras e foque no que realmente importa: advogar.
             </p>
           </div>
+
           <div>
-            <h2 className="font-semibold">🪄 Innovative functionality</h2>
+            <h2 className="font-semibold">🔒 Seguro e profissional</h2>
             <p className="text-sm text-muted-foreground">
-              Stay ahead with features that set new standards, addressing your evolving needs better than the rest.
+              Controle financeiro confiável, pensado para a realidade jurídica.
             </p>
           </div>
         </div>
@@ -90,7 +100,10 @@ export default function LoginPage() {
           onSubmit={handleSubmit}
           className="w-full max-w-sm rounded-xl border bg-white p-6 shadow-md"
         >
-          <h1 className="text-2xl font-bold mb-6">Entrar</h1>
+          <h1 className="text-2xl font-bold mb-2">Acesso ao sistema</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Entre com suas credenciais para acessar o financeiro do escritório.
+          </p>
 
           <div className="space-y-4">
             <div className="space-y-1">

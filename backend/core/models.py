@@ -183,6 +183,13 @@ class Despesa(models.Model):
     valor_pago = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)
     situacao = models.CharField(max_length=1, choices=SITUACAO_CHOICES, default='A')
+    receita_origem = models.ForeignKey(
+        Receita,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='despesas_comissao'
+    )
 
     def __str__(self):
         return f'{self.nome} - {self.responsavel.nome}'

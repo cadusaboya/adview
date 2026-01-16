@@ -3,22 +3,24 @@
 import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
-import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
-import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
 
-import {
-  getDespesasPagas,
-  deleteDespesa,
-  updateDespesa,
-  Despesa,
-} from '@/services/despesas';
-
+import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
+import GenericTable from '@/components/imports/GenericTable';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
 
+import {
+  getPayments,
+  deletePayment,
+  Payment,
+} from '@/services/payments';
+
+import { Despesa } from '@/services/despesas';
+
 export default function DespesasPagasPage() {
-  const [despesas, setDespesas] = useState<Despesa[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
@@ -29,12 +31,22 @@ export default function DespesasPagasPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await getDespesasPagas({ page, page_size: pageSize });
-      setDespesas(res.results);
+
+      const res = await getPayments({
+        page,
+        page_size: pageSize,
+      });
+
+      // 🔹 Apenas pagamentos vinculados a despesas
+      const despesaPayments = res.results.filter(
+        (p: Payment) => p.despesa !== null
+      );
+
+      setPayments(despesaPayments);
       setTotal(res.count);
     } catch (error) {
-      console.error('Erro ao buscar despesas:', error);
-      message.error('Erro ao buscar despesas');
+      console.error(error);
+      message.error('Erro ao buscar pagamentos');
     } finally {
       setLoading(false);
     }
@@ -44,51 +56,58 @@ export default function DespesasPagasPage() {
     loadData();
   }, [page]);
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Deseja realmente excluir esta despesa?')) {
-      await deleteDespesa(id);
-      loadData();
-    }
-  };
+  const handleDeletePayment = async (id: number) => {
+    if (!confirm('Deseja realmente excluir este pagamento?')) return;
 
-  const handleSubmit = async (data: any) => {
     try {
-      if (editingDespesa) {
-        await updateDespesa(editingDespesa.id, data);
-        toast.success('Despesa atualizada com sucesso!');
-      }
-      setOpenDialog(false);
-      setEditingDespesa(null);
+      await deletePayment(id);
+      toast.success('Pagamento excluído com sucesso!');
       loadData();
     } catch (error) {
-      console.error('Erro ao editar despesa:', error);
-      toast.error('Erro ao editar despesa');
+      console.error(error);
+      toast.error('Erro ao excluir pagamento');
     }
   };
 
-  const columns: TableColumnsType<Despesa> = [
-    { title: 'Data de Pagamento', dataIndex: 'data_pagamento' },
-    { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
-    { title: 'Nome', dataIndex: 'nome' },
+  const handleEditDespesa = (despesaId?: number | null) => {
+    if (!despesaId) return;
+
+    // 🔹 O dialog já sabe buscar a despesa completa
+    setEditingDespesa({ id: despesaId } as Despesa);
+    setOpenDialog(true);
+  };
+
+  const columns: TableColumnsType<Payment> = [
+    {
+      title: 'Data de Pagamento',
+      dataIndex: 'data_pagamento',
+    },
+    {
+      title: 'Favorecido',
+      dataIndex: 'favorecido_nome',
+      render: (nome) => nome ?? '—',
+    },
+    {
+      title: 'Nome',
+      dataIndex: 'despesa_nome',
+      render: (nome) => nome ?? '—',
+    },
     {
       title: 'Valor Pago',
-      dataIndex: 'valor_pago',
-      render: (valor) => (valor ? `R$ ${Number(valor).toFixed(2)}` : '—'),
+      dataIndex: 'valor',
+      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
     },
     {
       title: 'Ações',
-      dataIndex: 'acoes',
-      render: (_: any, record: Despesa) => (
+      render: (_, record) => (
         <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              setEditingDespesa(record);
-              setOpenDialog(true);
-            }}
-          >
+          <Button onClick={() => handleEditDespesa(record.despesa)}>
             Editar
           </Button>
-          <Button danger onClick={() => handleDelete(record.id)}>
+          <Button
+            danger
+            onClick={() => handleDeletePayment(record.id)}
+          >
             Excluir
           </Button>
         </div>
@@ -104,9 +123,9 @@ export default function DespesasPagasPage() {
           <h1 className="text-xl font-semibold">Despesas Pagas</h1>
         </div>
 
-        <GenericTable<Despesa>
+        <GenericTable<Payment>
           columns={columns}
-          data={despesas}
+          data={payments}
           loading={loading}
           pagination={{
             total,
@@ -123,7 +142,11 @@ export default function DespesasPagasPage() {
             setEditingDespesa(null);
           }}
           despesa={editingDespesa}
-          onSubmit={handleSubmit}
+          onSubmit={() => {
+            setOpenDialog(false);
+            setEditingDespesa(null);
+            loadData();
+          }}
         />
       </main>
     </div>

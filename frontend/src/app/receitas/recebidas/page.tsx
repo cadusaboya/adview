@@ -1,24 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Pagination, message } from 'antd';
+import { Button, message } from 'antd';
 import { toast } from 'sonner';
-import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
-import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
 
-import {
-  getReceitasRecebidas,
-  updateReceita,
-  deleteReceita,
-  Receita,
-} from '@/services/receitas';
-
+import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
+import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 
+import {
+  getPayments,
+  deletePayment,
+  Payment,
+} from '@/services/payments';
+
+import { Receita } from '@/services/receitas';
+
 export default function ReceitaRecebidasPage() {
-  const [receitas, setReceitas] = useState<Receita[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
@@ -29,12 +31,22 @@ export default function ReceitaRecebidasPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getReceitasRecebidas({ page, page_size: pageSize });
-      setReceitas(data.results);
-      setTotal(data.count);
+
+      const res = await getPayments({
+        page,
+        page_size: pageSize,
+      });
+
+      // 🔹 Apenas pagamentos vinculados a receitas
+      const receitaPayments = res.results.filter(
+        (p: Payment) => p.receita !== null
+      );
+
+      setPayments(receitaPayments);
+      setTotal(res.count);
     } catch (error) {
-      console.error('Erro ao buscar receitas:', error);
-      message.error('Erro ao buscar receitas');
+      console.error(error);
+      message.error('Erro ao buscar recebimentos');
     } finally {
       setLoading(false);
     }
@@ -44,58 +56,58 @@ export default function ReceitaRecebidasPage() {
     loadData();
   }, [page]);
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Deseja realmente excluir esta receita?')) {
-      await deleteReceita(id);
-      loadData();
-    }
-  };
+  const handleDeletePayment = async (id: number) => {
+    if (!confirm('Deseja realmente excluir este recebimento?')) return;
 
-  const handleSubmit = async (data: any) => {
     try {
-      if (editingReceita) {
-        await updateReceita(editingReceita.id, data);
-        toast.success('Receita atualizada com sucesso!');
-      }
-
-      setOpenDialog(false);
-      setEditingReceita(null);
+      await deletePayment(id);
+      toast.success('Recebimento excluído com sucesso!');
       loadData();
-    } catch (error: any) {
-      console.error('Erro ao salvar receita:', error);
-
-      const apiMessage =
-        error?.response?.data?.detail ||
-        JSON.stringify(error?.response?.data) ||
-        'Erro desconhecido';
-
-      toast.error(`Erro: ${apiMessage}`);
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir recebimento');
     }
   };
 
-  const columns: TableColumnsType<Receita> = [
-    { title: 'Data de Pagamento', dataIndex: 'data_pagamento' },
-    { title: 'Cliente', dataIndex: ['cliente', 'nome'] },
-    { title: 'Nome', dataIndex: 'nome' },
+  const handleEditReceita = (receitaId?: number | null) => {
+    if (!receitaId) return;
+
+    // 🔹 O dialog já sabe buscar a receita completa
+    setEditingReceita({ id: receitaId } as Receita);
+    setOpenDialog(true);
+  };
+
+  const columns: TableColumnsType<Payment> = [
     {
-      title: 'Valor Pago',
-      dataIndex: 'valor_pago',
-      render: (valor) => (valor ? `R$ ${Number(valor).toFixed(2)}` : '—'),
+      title: 'Data de Recebimento',
+      dataIndex: 'data_pagamento',
+    },
+    {
+      title: 'Cliente',
+      dataIndex: 'cliente_nome',
+      render: (nome) => nome ?? '—',
+    },
+    {
+      title: 'Descrição',
+      dataIndex: 'receita_nome',
+      render: (nome) => nome ?? '—',
+    },
+    {
+      title: 'Valor Recebido',
+      dataIndex: 'valor',
+      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
     },
     {
       title: 'Ações',
-      dataIndex: 'acoes',
-      render: (_: any, record: Receita) => (
+      render: (_, record) => (
         <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              setEditingReceita(record);
-              setOpenDialog(true);
-            }}
-          >
+          <Button onClick={() => handleEditReceita(record.receita)}>
             Editar
           </Button>
-          <Button danger onClick={() => handleDelete(record.id)}>
+          <Button
+            danger
+            onClick={() => handleDeletePayment(record.id)}
+          >
             Excluir
           </Button>
         </div>
@@ -111,13 +123,16 @@ export default function ReceitaRecebidasPage() {
           <h1 className="text-xl font-semibold">Receitas Recebidas</h1>
         </div>
 
-        <GenericTable<Receita> columns={columns} data={receitas} loading={loading}           
-            pagination={{
-              current: page,
-              pageSize: pageSize,
-              total: total,
-              onChange: (page) => setPage(page),
-             }}
+        <GenericTable<Payment>
+          columns={columns}
+          data={payments}
+          loading={loading}
+          pagination={{
+            total,
+            current: page,
+            pageSize,
+            onChange: (page) => setPage(page),
+          }}
         />
 
         <ReceitaDialog
@@ -126,9 +141,12 @@ export default function ReceitaRecebidasPage() {
             setOpenDialog(false);
             setEditingReceita(null);
           }}
-          title="Editar Receita"
           receita={editingReceita}
-          onSubmit={handleSubmit}
+          onSubmit={() => {
+            setOpenDialog(false);
+            setEditingReceita(null);
+            loadData();
+          }}
         />
       </main>
     </div>

@@ -139,7 +139,6 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Receita.objects.all()
     serializer_class = ReceitaSerializer
     pagination_class = DynamicPageSizePagination
-    # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -160,6 +159,37 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        # 🔹 deixa o mixin salvar com company
+        super().perform_create(serializer)
+
+        # 🔹 agora a instância JÁ EXISTE no banco
+        receita = serializer.instance
+
+        PERCENTUAL_COMISSAO = Decimal('20')
+
+        if receita.comissionado:
+            valor_comissao = (
+                Decimal(receita.valor) * PERCENTUAL_COMISSAO / Decimal('100')
+            )
+
+            ja_existe = Despesa.objects.filter(
+                receita_origem=receita,
+                tipo='C'
+            ).exists()
+
+            if not ja_existe:
+                Despesa.objects.create(
+                    company=receita.company,
+                    nome=f'Comissão - {receita.nome}',
+                    descricao=f'Comissão de 20% referente à receita "{receita.nome}"',
+                    valor=valor_comissao,
+                    responsavel=receita.comissionado,
+                    tipo='C',
+                    situacao='A',
+                    data_vencimento=receita.data_vencimento,
+                    receita_origem=receita
+                )
 
 
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):

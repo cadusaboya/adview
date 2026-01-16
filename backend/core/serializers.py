@@ -208,6 +208,12 @@ class PaymentSerializer(serializers.ModelSerializer):
     conta_bancaria_nome = serializers.CharField(
         source='conta_bancaria.nome', read_only=True
     )
+    favorecido_nome = serializers.CharField(
+        source='despesa.responsavel.nome', read_only=True
+    )
+    cliente_nome = serializers.CharField(
+        source='receita.cliente.nome', read_only=True
+    )
 
     class Meta:
         model = Payment
@@ -218,6 +224,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             'receita_nome',
             'despesa',
             'despesa_nome',
+            'favorecido_nome',
+            'cliente_nome',
             'conta_bancaria',
             'conta_bancaria_nome',
             'valor',
