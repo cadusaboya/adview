@@ -14,6 +14,7 @@ import {
 } from '@/services/receitas';
 import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
 import { toast } from 'sonner';
+import { formatDateBR } from '@/lib/formatters';
 
 export default function ReceitasPage() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
@@ -85,7 +86,7 @@ export default function ReceitasPage() {
 
   // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [
-    { title: 'Vencimento', dataIndex: 'data_vencimento' },
+    { title: 'Vencimento', dataIndex: 'data_vencimento', render: (value) => formatDateBR(value),},
     {
       title: 'Cliente',
       dataIndex: 'cliente',

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
-
+import { formatDateBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
@@ -81,6 +81,7 @@ export default function ReceitaRecebidasPage() {
     {
       title: 'Data de Recebimento',
       dataIndex: 'data_pagamento',
+      render: (value) => formatDateBR(value),
     },
     {
       title: 'Cliente',

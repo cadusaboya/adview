@@ -1,5 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { formatDateBR } from '@/lib/formatters';
 
 export default function PaymentsTable({
   payments,
@@ -25,7 +26,7 @@ export default function PaymentsTable({
         <TableBody>
           {payments.map((p) => (
             <TableRow key={p.id}>
-              <TableCell>{p.data_pagamento}</TableCell>
+              <TableCell>{formatDateBR(p.data_pagamento)}</TableCell>
               <TableCell>{p.observacao || '—'}</TableCell>
               <TableCell>
                 {contasBancarias.find((c) => String(c.id) === String(p.conta_bancaria))?.nome ||

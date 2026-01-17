@@ -5,6 +5,7 @@ import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
+import { formatDateBR } from '@/lib/formatters';
 import type { TableColumnsType } from 'antd';
 
 import {
@@ -71,7 +72,7 @@ export default function DespesasPagarPage() {
   };
 
   const columns: TableColumnsType<Despesa> = [
-    { title: 'Vencimento', dataIndex: 'data_vencimento' },
+    { title: 'Vencimento', dataIndex: 'data_vencimento', render: (value) => formatDateBR(value),},
     { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
     { title: 'Nome', dataIndex: 'nome' },
     { title: 'Situação', dataIndex: 'situacao_display' },
