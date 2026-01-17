@@ -15,6 +15,7 @@ import {
 import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
 import { toast } from 'sonner';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 export default function ReceitasPage() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
@@ -93,7 +94,12 @@ export default function ReceitasPage() {
       render: (cliente: any) => cliente?.nome || '—',
     },
     { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Situação', dataIndex: 'situacao_display' },
+    {
+      title: 'Situação',
+      dataIndex: 'situacao',
+      render: (value) => <StatusBadge status={value} />,
+    },
+
     {
       title: 'Valor',
       dataIndex: 'valor',

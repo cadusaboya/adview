@@ -16,7 +16,7 @@ import {
   deleteDespesa,
   Despesa,
 } from '@/services/despesas';
-
+import StatusBadge from '@/components/ui/StatusBadge';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
 
 export default function DespesasPagarPage() {
@@ -76,7 +76,11 @@ export default function DespesasPagarPage() {
     { title: 'Vencimento', dataIndex: 'data_vencimento', render: (value) => formatDateBR(value),},
     { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
     { title: 'Nome', dataIndex: 'nome' },
-    { title: 'Situação', dataIndex: 'situacao_display' },
+    {
+      title: 'Situação',
+      dataIndex: 'situacao',
+      render: (value) => <StatusBadge status={value} />,
+    },
     {
       title: 'Valor',
       dataIndex: 'valor',
