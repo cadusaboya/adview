@@ -143,14 +143,15 @@ class FavorecidoViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return super().get_queryset().filter(tipo__in=['F', 'P', 'O'])
 
+
 class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
-    """API endpoint for Receitas, scoped by company."""
     queryset = Receita.objects.all()
     serializer_class = ReceitaSerializer
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        hoje = now().date()
 
         params = self.request.query_params
         situacoes = params.getlist('situacao')
@@ -158,6 +159,13 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         start_date = params.get('start_date')
         end_date = params.get('end_date')
 
+        # 🔥 Atualiza automaticamente vencidas
+        queryset.filter(
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
+        # 🔹 Filtros
         if situacoes:
             queryset = queryset.filter(situacao__in=situacoes)
         if cliente_id:
@@ -167,19 +175,18 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
-        # 🔥 ORDENAÇÃO PADRÃO
-        if situacoes and set(situacoes).issubset({'P', 'V'}):
-            # Receitas pagas / vencidas → mais recentes primeiro
-            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
-        else:
-            # Receitas em aberto → vencidos primeiro + vencimento mais próximo
+        # 🔥 ORDENAÇÃO
+        # 📌 Recebidas → pagamento mais recente primeiro
+        if situacoes and set(situacoes).issubset({'P'}):
             queryset = queryset.annotate(
-                vencida=Case(
-                    When(data_vencimento__lt=now().date(), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ).order_by('-vencida', 'data_vencimento')
+                ultima_data_pagamento=Max('payments__data_pagamento')
+            ).order_by(
+                '-ultima_data_pagamento'
+            )
+
+        # 📌 A receber / vencidas → vencimento crescente
+        else:
+            queryset = queryset.order_by('data_vencimento')
 
         return queryset
 
@@ -187,7 +194,6 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # 🔹 deixa o mixin salvar com company
         super().perform_create(serializer)
 
-        # 🔹 agora a instância JÁ EXISTE no banco
         receita = serializer.instance
 
         PERCENTUAL_COMISSAO = Decimal('20')
@@ -215,15 +221,14 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                     receita_origem=receita
                 )
 
-
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
-    """API endpoint for Despesas, scoped by company."""
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        hoje = now().date()
 
         params = self.request.query_params
         situacoes = params.getlist('situacao')
@@ -232,6 +237,13 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         end_date = params.get('end_date')
         tipo = params.get('tipo')
 
+        # 🔥 Atualiza automaticamente vencidas
+        queryset.filter(
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
+        # 🔹 Filtros
         if situacoes:
             queryset = queryset.filter(situacao__in=situacoes)
         if responsavel_id:
@@ -243,17 +255,18 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
-        # 🔥 ORDENAÇÃO PADRÃO
-        if situacoes and set(situacoes).issubset({'P', 'V'}):
-            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
-        else:
+        # 🔥 ORDENAÇÃO
+        # 📌 Pagas → pagamento mais recente
+        if situacoes and set(situacoes).issubset({'P'}):
             queryset = queryset.annotate(
-                vencida=Case(
-                    When(data_vencimento__lt=now().date(), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ).order_by('-vencida', 'data_vencimento')
+                ultima_data_pagamento=Max('payments__data_pagamento')
+            ).order_by(
+                '-ultima_data_pagamento'
+            )
+
+        # 📌 A pagar / vencidas → vencimento crescente
+        else:
+            queryset = queryset.order_by('data_vencimento')
 
         return queryset
 
