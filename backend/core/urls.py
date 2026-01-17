@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CompanyViewSet, CustomUserViewSet, ClienteViewSet, 
     FuncionarioViewSet, ReceitaViewSet, DespesaViewSet,
-    FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,  # 👈 adiciona aqui
+    FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,
+    FavorecidoViewSet,  # 👈 adiciona aqui
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
@@ -20,6 +21,7 @@ router.register(r'despesas', DespesaViewSet, basename='despesa')
 router.register(r'fornecedores', FornecedorViewSet, basename='Fornecedor')
 router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')  # 👈 novo
 router.register(r'pagamentos', PaymentViewSet, basename='payment')  # 👈 novo
+router.register(r'favorecidos', FavorecidoViewSet, basename='favorecido')  # 👈 novo
 
 urlpatterns = [
     path('', include(router.urls)),

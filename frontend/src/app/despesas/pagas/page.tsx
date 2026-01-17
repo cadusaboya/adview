@@ -15,7 +15,7 @@ import {
   Payment,
 } from '@/services/payments';
 
-import { Despesa } from '@/services/despesas';
+import { Despesa, getDespesaById } from '@/services/despesas';
 
 export default function DespesasPagasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -69,12 +69,22 @@ export default function DespesasPagasPage() {
     }
   };
 
-  const handleEditDespesa = (despesaId?: number | null) => {
+  // ✅ AGORA BUSCA A DESPESA COMPLETA
+  const handleEditDespesa = async (despesaId?: number | null) => {
     if (!despesaId) return;
 
-    // 🔹 O dialog já sabe buscar a despesa completa
-    setEditingDespesa({ id: despesaId } as Despesa);
-    setOpenDialog(true);
+    try {
+      setLoading(true);
+
+      const despesa = await getDespesaById(despesaId);
+      setEditingDespesa(despesa);
+      setOpenDialog(true);
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao carregar despesa');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const columns: TableColumnsType<Payment> = [

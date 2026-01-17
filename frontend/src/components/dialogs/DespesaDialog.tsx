@@ -29,7 +29,7 @@ import {
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
-import { getFuncionarios, Funcionario } from '@/services/funcionarios';
+import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { Despesa } from '@/services/despesas';
 
 interface Props {
@@ -56,7 +56,7 @@ export default function DespesaDialog({
 
   const [valorDisplay, setValorDisplay] = useState('');
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
 
   /* 🔹 Preencher formulário ao editar */
   useEffect(() => {
@@ -100,15 +100,15 @@ export default function DespesaDialog({
 
   /* 🔹 Carregar funcionários (favorecidos) */
   useEffect(() => {
-    const loadFuncionarios = async () => {
+    const loadFavorecidos = async () => {
       try {
-        const { results } = await getFuncionarios({ page_size: 1000 });
-        setFuncionarios(results);
+        const { results } = await getFavorecidos({ page_size: 1000 });
+        setFavorecidos(results);
       } catch (error) {
         console.error('Erro ao carregar funcionários', error);
       }
     };
-    loadFuncionarios();
+    loadFavorecidos();
   }, []);
 
   const handleSubmit = async () => {
@@ -138,7 +138,7 @@ export default function DespesaDialog({
                   className="w-full justify-between"
                 >
                   {formData.responsavel_id
-                    ? funcionarios.find(
+                    ? favorecidos.find(
                         (f) => String(f.id) === formData.responsavel_id
                       )?.nome
                     : 'Selecione um favorecido'}
@@ -157,7 +157,7 @@ export default function DespesaDialog({
                   <CommandEmpty>Nenhum favorecido encontrado.</CommandEmpty>
 
                   <CommandGroup>
-                    {funcionarios.map((func) => (
+                    {favorecidos.map((func) => (
                       <CommandItem
                         key={func.id}
                         value={func.nome}

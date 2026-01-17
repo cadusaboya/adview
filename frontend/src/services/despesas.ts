@@ -53,3 +53,9 @@ export async function deleteDespesa(id: number) {
   const res = await api.delete(`/api/despesas/${id}/`);
   return res.data;
 }
+
+export async function getDespesaById(id: number) {
+  const res = await api.get<Despesa>(`/api/despesas/${id}/`);
+  return res.data;
+}
+

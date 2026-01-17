@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
+
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
@@ -15,7 +16,7 @@ import {
   Payment,
 } from '@/services/payments';
 
-import { Receita } from '@/services/receitas';
+import { Receita, getReceitaById } from '@/services/receitas';
 
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -37,7 +38,6 @@ export default function ReceitaRecebidasPage() {
         page_size: pageSize,
       });
 
-      // 🔹 Apenas pagamentos vinculados a receitas
       const receitaPayments = res.results.filter(
         (p: Payment) => p.receita !== null
       );
@@ -69,12 +69,21 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
-  const handleEditReceita = (receitaId?: number | null) => {
+  const handleEditReceita = async (receitaId?: number | null) => {
     if (!receitaId) return;
 
-    // 🔹 O dialog já sabe buscar a receita completa
-    setEditingReceita({ id: receitaId } as Receita);
-    setOpenDialog(true);
+    try {
+      setLoading(true);
+
+      const receita = await getReceitaById(receitaId);
+      setEditingReceita(receita);
+      setOpenDialog(true);
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao carregar receita');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const columns: TableColumnsType<Payment> = [

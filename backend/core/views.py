@@ -135,6 +135,14 @@ class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return super().get_queryset().filter(tipo='O')
 
+class FavorecidoViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = Funcionario.objects.all()
+    serializer_class = FuncionarioSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        return super().get_queryset().filter(tipo__in=['F', 'P', 'O'])
+
 class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Receitas, scoped by company."""
     queryset = Receita.objects.all()

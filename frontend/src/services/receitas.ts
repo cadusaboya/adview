@@ -46,4 +46,9 @@ export interface Receita {
     const res = await api.delete(`/api/receitas/${id}/`);
     return res.data;
   }
+
+  export async function getReceitaById(id: number) {
+    const res = await api.get<Receita>(`/api/receitas/${id}/`);
+    return res.data;
+  }
   
