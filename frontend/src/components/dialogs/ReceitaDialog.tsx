@@ -22,6 +22,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from '@/lib/formatters';
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
 import { getBancos } from '@/services/bancos';
@@ -56,6 +60,7 @@ export default function ReceitaDialog({
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [valorDisplay, setValorDisplay] = useState('');
 
 
   /* 🔹 Preencher formulário ao editar */
@@ -73,6 +78,10 @@ export default function ReceitaDialog({
           ? String(receita.comissionado_id)
           : '',
       });
+  
+      setValorDisplay(
+        receita.valor ? formatCurrencyInput(receita.valor) : ''
+      );
     } else {
       setFormData({
         nome: '',
@@ -84,8 +93,11 @@ export default function ReceitaDialog({
         forma_pagamento: '',
         comissionado_id: '',
       });
+  
+      setValorDisplay('');
     }
   }, [receita, open]);
+  
 
   /* 🔹 Carregar bancos */
   useEffect(() => {
@@ -223,13 +235,35 @@ export default function ReceitaDialog({
           <div>
             <label className="text-sm">Valor (R$)</label>
             <Input
-              type="number"
-              placeholder="Ex.: 1500"
-              value={formData.valor}
-              onChange={(e) =>
-                setFormData({ ...formData, valor: e.target.value })
-              }
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={valorDisplay}
+
+              onChange={(e) => {
+                // NÃO formatar aqui
+                setValorDisplay(e.target.value);
+              }}
+
+              onBlur={() => {
+                const parsed = parseCurrencyBR(valorDisplay);
+
+                // formata SOMENTE ao sair
+                setValorDisplay(
+                  parsed ? formatCurrencyInput(parsed) : ''
+                );
+
+                setFormData({ ...formData, valor: parsed });
+              }}
+
+              onFocus={() => {
+                // remove pontos ao focar para facilitar edição
+                setValorDisplay(
+                  valorDisplay.replace(/\./g, '')
+                );
+              }}
             />
+
           </div>
 
           <div>

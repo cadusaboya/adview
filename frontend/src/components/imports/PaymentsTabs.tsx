@@ -12,6 +12,12 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from '@/lib/formatters';
+
 import { createPayment, deletePayment, getPayments } from '@/services/payments';
 import PaymentsTable from './PaymentsTable';
 
@@ -34,14 +40,21 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
   const [form, setForm] = useState({
     data_pagamento: '',
     conta_bancaria: '',
-    valor: '',
+    valor: 0, // 🔹 valor REAL
     observacao: '',
   });
 
+  const [valorDisplay, setValorDisplay] = useState('');
+
   const loadPayments = async () => {
     try {
-      const query = tipo === 'receita' ? { receita: entityId, page_size: 99999 } : { despesa: entityId, page_size: 99999 };
+      const query =
+        tipo === 'receita'
+          ? { receita: entityId, page_size: 99999 }
+          : { despesa: entityId, page_size: 99999 };
+
       const data = await getPayments(query);
+
       const formatted = (data.results || []).map((p) => ({
         id: p.id,
         data_pagamento: p.data_pagamento,
@@ -49,8 +62,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
         valor: String(p.valor),
         observacao: p.observacao || '',
       }));
+
       setPayments(formatted);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao carregar pagamentos');
     }
   };
@@ -71,13 +85,13 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
       const novo = await createPayment({
         [tipo]: entityId,
         conta_bancaria: Number(form.conta_bancaria),
-        valor: Number(form.valor),
+        valor: form.valor, // 🔥 número limpo
         data_pagamento: form.data_pagamento,
         observacao: form.observacao,
       });
 
-      setPayments([
-        ...payments,
+      setPayments((prev) => [
+        ...prev,
         {
           id: novo.id,
           data_pagamento: novo.data_pagamento,
@@ -92,10 +106,12 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
       setForm({
         data_pagamento: '',
         conta_bancaria: '',
-        valor: '',
+        valor: 0,
         observacao: '',
       });
-    } catch (err) {
+
+      setValorDisplay('');
+    } catch {
       toast.error('Erro ao adicionar pagamento');
     }
   };
@@ -103,9 +119,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
   const handleDelete = async (id: number) => {
     try {
       await deletePayment(id);
-      setPayments(payments.filter((p) => p.id !== id));
+      setPayments((prev) => prev.filter((p) => p.id !== id));
       toast.success('Pagamento removido');
-    } catch (err) {
+    } catch {
       toast.error('Erro ao remover pagamento');
     }
   };
@@ -133,7 +149,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
               <Input
                 type="date"
                 value={form.data_pagamento}
-                onChange={(e) => setForm({ ...form, data_pagamento: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, data_pagamento: e.target.value })
+                }
               />
             </div>
 
@@ -141,7 +159,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
               <label className="text-sm">Conta Bancária</label>
               <Select
                 value={form.conta_bancaria}
-                onValueChange={(val) => setForm({ ...form, conta_bancaria: val })}
+                onValueChange={(val) =>
+                  setForm({ ...form, conta_bancaria: val })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -157,13 +177,37 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
             </div>
           </div>
 
+          {/* 🔹 VALOR COM UX CORRETA */}
           <div>
             <label className="text-sm">Valor</label>
             <Input
-              type="number"
-              placeholder="Ex.: 1500"
-              value={form.valor}
-              onChange={(e) => setForm({ ...form, valor: e.target.value })}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={valorDisplay}
+
+              onChange={(e) => {
+                setValorDisplay(e.target.value);
+              }}
+
+              onFocus={() => {
+                setValorDisplay(
+                  valorDisplay.replace(/[^\d,]/g, '')
+                );
+              }}
+
+              onBlur={() => {
+                const parsed = parseCurrencyBR(valorDisplay);
+
+                setValorDisplay(
+                  parsed ? formatCurrencyInput(parsed) : ''
+                );
+
+                setForm((prev) => ({
+                  ...prev,
+                  valor: parsed,
+                }));
+              }}
             />
           </div>
 
@@ -172,7 +216,9 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
             <Input
               placeholder="Ex.: Pix, Boleto, Referente a..."
               value={form.observacao}
-              onChange={(e) => setForm({ ...form, observacao: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, observacao: e.target.value })
+              }
             />
           </div>
 

@@ -1,8 +1,9 @@
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.db.models import Sum, Q, F
+from django.db.models import Sum, Q, F, Case, When, IntegerField
 from django.utils import timezone
+from django.utils.timezone import now
 from datetime import date
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
@@ -143,19 +144,34 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        situacao = self.request.query_params.getlist('situacao')
-        cliente_id = self.request.query_params.get('cliente_id')
-        start_date = self.request.query_params.get('start_date')
-        end_date = self.request.query_params.get('end_date')
+        params = self.request.query_params
+        situacoes = params.getlist('situacao')
+        cliente_id = params.get('cliente_id')
+        start_date = params.get('start_date')
+        end_date = params.get('end_date')
 
-        if situacao:
-            queryset = queryset.filter(situacao__in=situacao)
+        if situacoes:
+            queryset = queryset.filter(situacao__in=situacoes)
         if cliente_id:
             queryset = queryset.filter(cliente_id=cliente_id)
         if start_date:
             queryset = queryset.filter(data_vencimento__gte=start_date)
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
+
+        # 🔥 ORDENAÇÃO PADRÃO
+        if situacoes and set(situacoes).issubset({'P', 'V'}):
+            # Receitas pagas / vencidas → mais recentes primeiro
+            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
+        else:
+            # Receitas em aberto → vencidos primeiro + vencimento mais próximo
+            queryset = queryset.annotate(
+                vencida=Case(
+                    When(data_vencimento__lt=now().date(), then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ).order_by('-vencida', 'data_vencimento')
 
         return queryset
 
@@ -199,21 +215,17 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        queryset = super().get_queryset()  # Scoped by company
+        queryset = super().get_queryset()
 
         params = self.request.query_params
-
-        # 🔥 Filtro por múltiplas situações
         situacoes = params.getlist('situacao')
-        if situacoes:
-            queryset = queryset.filter(situacao__in=situacoes)
-
-        # 🔸 Filtros adicionais
         responsavel_id = params.get('responsavel_id')
         start_date = params.get('start_date')
         end_date = params.get('end_date')
         tipo = params.get('tipo')
 
+        if situacoes:
+            queryset = queryset.filter(situacao__in=situacoes)
         if responsavel_id:
             queryset = queryset.filter(responsavel_id=responsavel_id)
         if start_date:
@@ -223,7 +235,20 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
+        # 🔥 ORDENAÇÃO PADRÃO
+        if situacoes and set(situacoes).issubset({'P', 'V'}):
+            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
+        else:
+            queryset = queryset.annotate(
+                vencida=Case(
+                    When(data_vencimento__lt=now().date(), then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ).order_by('-vencida', 'data_vencimento')
+
         return queryset
+
 
 class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para registrar pagamentos de receitas ou despesas."""
@@ -239,11 +264,11 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         if receita_id:
             queryset = queryset.filter(receita_id=receita_id)
-
         if despesa_id:
             queryset = queryset.filter(despesa_id=despesa_id)
 
-        return queryset
+        return queryset.order_by('-data_pagamento', '-id')
+
 
     def perform_create(self, serializer):
         instance = serializer.save(company=self.request.user.company)

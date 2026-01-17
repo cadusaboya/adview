@@ -7,6 +7,7 @@ import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
 import FuncionarioDialog from "@/components/dialogs/FuncionarioDialog";
+import { formatCurrencyBR } from "@/lib/formatters";
 
 import {
   getFuncionarios,
@@ -77,7 +78,7 @@ export default function FuncionarioPage() {
     {
       title: "Salário Mensal",
       dataIndex: "salario_mensal",
-      render: (valor: any) => valor ? `R$ ${Number(valor).toFixed(2)}` : "—",
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: "Ações",

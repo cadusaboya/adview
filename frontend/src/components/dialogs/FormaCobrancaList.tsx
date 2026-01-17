@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,12 +7,21 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from "@/lib/formatters";
 
 export interface FormaCobrancaItem {
   id: string;
   formato: "M" | "E";
   descricao?: string;
-  valor?: string; // 🔥 Um único campo genérico para valor ou % exito
+
+  // 🔥 valor REAL (sempre sincronizado)
+  valor?: number;
+
+  // 🔥 valor VISUAL
+  valor_display?: string;
 }
 
 interface Props {
@@ -22,11 +30,10 @@ interface Props {
 }
 
 export default function FormaCobrancaList({ formas, setFormas }: Props) {
-  const handleChange = (id: string, key: string, value: string) => {
-    const atualizadas = formas.map((f) =>
-      f.id === id ? { ...f, [key]: value } : f
+  const updateForma = (id: string, data: Partial<FormaCobrancaItem>) => {
+    setFormas(
+      formas.map((f) => (f.id === id ? { ...f, ...data } : f))
     );
-    setFormas(atualizadas);
   };
 
   const handleAdd = () => {
@@ -36,7 +43,8 @@ export default function FormaCobrancaList({ formas, setFormas }: Props) {
         id: crypto.randomUUID(),
         formato: "M",
         descricao: "",
-        valor: "",
+        valor: undefined,
+        valor_display: "",
       },
     ]);
   };
@@ -60,15 +68,21 @@ export default function FormaCobrancaList({ formas, setFormas }: Props) {
           className="border rounded-md p-4 space-y-2 bg-muted"
         >
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-            {/* 🔸 Formato */}
+            {/* Formato */}
             <div className="md:col-span-2">
               <label className="text-sm">Formato</label>
               <Select
                 value={forma.formato}
-                onValueChange={(val) => handleChange(forma.id, "formato", val)}
+                onValueChange={(val) =>
+                  updateForma(forma.id, {
+                    formato: val as "M" | "E",
+                    valor: undefined,
+                    valor_display: "",
+                  })
+                }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="M">Mensal</SelectItem>
@@ -77,36 +91,62 @@ export default function FormaCobrancaList({ formas, setFormas }: Props) {
               </Select>
             </div>
 
-            {/* 🔸 Descrição */}
+            {/* Descrição */}
             <div className="md:col-span-6">
               <label className="text-sm">Descrição</label>
               <Input
-                placeholder="Ex.: Trabalhista, Tributário"
                 value={forma.descricao || ""}
                 onChange={(e) =>
-                  handleChange(forma.id, "descricao", e.target.value)
+                  updateForma(forma.id, { descricao: e.target.value })
                 }
               />
             </div>
 
-            {/* 🔸 Valor */}
+            {/* Valor */}
             <div className="md:col-span-3">
               <label className="text-sm">
-                {forma.formato === "M" ? "Valor Mensal (R$)" : "% Êxito"}
+                {forma.formato === "M"
+                  ? "Valor Mensal (R$)"
+                  : "% Êxito"}
               </label>
+
               <Input
-                type="number"
-                placeholder={forma.formato === "M" ? "Ex.: 5000" : "Ex.: 30"}
-                value={forma.valor || ""}
-                onChange={(e) =>
-                  handleChange(forma.id, "valor", e.target.value)
-                }
+                type="text"
+                inputMode="decimal"
+                value={forma.valor_display || ""}
+                placeholder={forma.formato === "M" ? "0,00" : "Ex.: 30"}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  if (forma.formato === "M") {
+                    updateForma(forma.id, {
+                      valor_display: raw,
+                      valor: parseCurrencyBR(raw),
+                    });
+                  } else {
+                    const num = Number(raw.replace(",", "."));
+                    updateForma(forma.id, {
+                      valor_display: raw,
+                      valor: isNaN(num) ? undefined : num,
+                    });
+                  }
+                }}
+                onBlur={() => {
+                  if (forma.formato === "M" && forma.valor) {
+                    updateForma(forma.id, {
+                      valor_display: formatCurrencyInput(forma.valor),
+                    });
+                  }
+                }}
               />
             </div>
 
-            {/* 🔸 Botão remover */}
+            {/* Remover */}
             <div className="md:col-span-1 flex justify-end">
-              <Button variant="destructive" onClick={() => handleRemove(forma.id)}>
+              <Button
+                variant="destructive"
+                onClick={() => handleRemove(forma.id)}
+              >
                 Remover
               </Button>
             </div>

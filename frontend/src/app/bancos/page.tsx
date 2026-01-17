@@ -12,6 +12,7 @@ import { Button, message } from "antd";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
+import { formatCurrencyBR } from "@/lib/formatters";
 import { toast } from "sonner";
 import BancoDialog from "@/components/dialogs/BancoDialog";
 
@@ -70,7 +71,7 @@ export default function BancosPage() {
     {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
-      render: (value) => `R$ ${Number(value).toFixed(2)}`,
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: "Ações",

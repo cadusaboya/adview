@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { formatDateBR } from '@/lib/formatters';
+import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 
 export default function PaymentsTable({
   payments,
@@ -32,7 +32,7 @@ export default function PaymentsTable({
                 {contasBancarias.find((c) => String(c.id) === String(p.conta_bancaria))?.nome ||
                   'Conta não encontrada'}
               </TableCell>
-              <TableCell>R$ {Number(p.valor).toFixed(2)}</TableCell>
+              <TableCell>{formatCurrencyBR(p.valor)}</TableCell>
               <TableCell>
                 <Button variant="destructive" size="sm" onClick={() => onDelete(p.id)}>
                   Excluir

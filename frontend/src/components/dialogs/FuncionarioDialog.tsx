@@ -1,23 +1,28 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import DialogBase from "@/components/dialogs/DialogBase";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from 'react';
+import DialogBase from '@/components/dialogs/DialogBase';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@/components/ui/select";
-import { Funcionario } from "@/services/funcionarios";
-import { Fornecedor } from "@/services/fornecedores";
+} from '@/components/ui/select';
+import { Funcionario } from '@/services/funcionarios';
+import { Fornecedor } from '@/services/fornecedores';
+
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from '@/lib/formatters';
 
 export default function FuncionarioDialog({
   open,
   onClose,
   onSubmit,
-  funcionario, // 🔥 Novo: recebe funcionario para edição
+  funcionario,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,63 +30,69 @@ export default function FuncionarioDialog({
   funcionario?: Funcionario | Fornecedor | null;
 }) {
   const [formData, setFormData] = useState<any>({
-    nome: "",
-    cpf: "",
-    email: "",
-    telefone: "",
-    aniversario: "",
-    tipo: "",
-    salario_mensal: "",
+    nome: '',
+    cpf: '',
+    email: '',
+    telefone: '',
+    aniversario: '',
+    tipo: '',
+    salario_mensal: 0, // 🔹 valor REAL
   });
+
+  const [salarioDisplay, setSalarioDisplay] = useState('');
 
   useEffect(() => {
     if (funcionario) {
       setFormData({
-        nome: funcionario.nome || "",
-        cpf: funcionario.cpf || "",
-        email: funcionario.email || "",
-        telefone: funcionario.telefone || "",
-        aniversario: funcionario.aniversario || "",
-        tipo: funcionario.tipo || "",
-        salario_mensal: funcionario.salario_mensal || "",
+        nome: funcionario.nome || '',
+        cpf: funcionario.cpf || '',
+        email: funcionario.email || '',
+        telefone: funcionario.telefone || '',
+        aniversario: funcionario.aniversario || '',
+        tipo: funcionario.tipo || '',
+        salario_mensal: funcionario.salario_mensal
+          ? Number(funcionario.salario_mensal)
+          : 0,
       });
+
+      setSalarioDisplay(
+        funcionario.salario_mensal
+          ? formatCurrencyInput(funcionario.salario_mensal)
+          : ''
+      );
     } else {
       setFormData({
-        nome: "",
-        cpf: "",
-        email: "",
-        telefone: "",
-        aniversario: "",
-        tipo: "",
-        salario_mensal: "",
+        nome: '',
+        cpf: '',
+        email: '',
+        telefone: '',
+        aniversario: '',
+        tipo: '',
+        salario_mensal: 0,
       });
+
+      setSalarioDisplay('');
     }
   }, [funcionario, open]);
 
   const handleSubmit = () => {
     const payload = {
       ...formData,
-      salario_mensal: formData.tipo === "F" ? formData.salario_mensal : null,
-      aniversario: formData.aniversario === "" ? null : formData.aniversario,
+      salario_mensal:
+        formData.tipo === 'F' ? formData.salario_mensal : null,
+      aniversario:
+        formData.aniversario === '' ? null : formData.aniversario,
     };
+
     onSubmit(payload);
     onClose();
-    setFormData({
-      nome: "",
-      cpf: "",
-      email: "",
-      telefone: "",
-      aniversario: "",
-      tipo: "",
-      salario_mensal: "",
-    });
   };
 
   return (
     <DialogBase
       open={open}
       onClose={onClose}
-      title={funcionario ? "Editar Funcionário" : "Novo Funcionário"}
+      title={funcionario ? 'Editar Funcionário' : 'Novo Funcionário'}
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-4">
@@ -92,15 +103,20 @@ export default function FuncionarioDialog({
             <Input
               placeholder="Digite o nome"
               value={formData.nome}
-              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, nome: e.target.value })
+              }
             />
           </div>
+
           <div>
             <label className="text-sm">CPF</label>
             <Input
               placeholder="Digite o CPF"
               value={formData.cpf}
-              onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, cpf: e.target.value })
+              }
             />
           </div>
         </div>
@@ -112,15 +128,20 @@ export default function FuncionarioDialog({
             <Input
               placeholder="Digite o email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
             />
           </div>
+
           <div>
             <label className="text-sm">Telefone</label>
             <Input
               placeholder="Digite o telefone"
               value={formData.telefone}
-              onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, telefone: e.target.value })
+              }
             />
           </div>
         </div>
@@ -132,14 +153,22 @@ export default function FuncionarioDialog({
             <Input
               type="date"
               value={formData.aniversario}
-              onChange={(e) => setFormData({ ...formData, aniversario: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  aniversario: e.target.value,
+                })
+              }
             />
           </div>
+
           <div>
             <label className="text-sm">Tipo</label>
             <Select
               value={formData.tipo}
-              onValueChange={(val) => setFormData({ ...formData, tipo: val })}
+              onValueChange={(val) =>
+                setFormData({ ...formData, tipo: val })
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione" />
@@ -154,16 +183,37 @@ export default function FuncionarioDialog({
         </div>
 
         {/* 🔥 Salário Mensal */}
-        {formData.tipo === "F" && (
+        {formData.tipo === 'F' && (
           <div>
             <label className="text-sm">Salário Mensal (R$)</label>
             <Input
-              type="number"
-              placeholder="Ex.: 3500"
-              value={formData.salario_mensal}
-              onChange={(e) =>
-                setFormData({ ...formData, salario_mensal: e.target.value })
-              }
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={salarioDisplay}
+
+              onChange={(e) => {
+                setSalarioDisplay(e.target.value);
+              }}
+
+              onFocus={() => {
+                setSalarioDisplay(
+                  salarioDisplay.replace(/[^\d,]/g, '')
+                );
+              }}
+
+              onBlur={() => {
+                const parsed = parseCurrencyBR(salarioDisplay);
+
+                setSalarioDisplay(
+                  parsed ? formatCurrencyInput(parsed) : ''
+                );
+
+                setFormData((prev: any) => ({
+                  ...prev,
+                  salario_mensal: parsed,
+                }));
+              }}
             />
           </div>
         )}

@@ -14,7 +14,7 @@ import {
 } from '@/services/receitas';
 import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
 import { toast } from 'sonner';
-import { formatDateBR } from '@/lib/formatters';
+import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 
 export default function ReceitasPage() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
@@ -97,7 +97,7 @@ export default function ReceitasPage() {
     {
       title: 'Valor',
       dataIndex: 'valor',
-      render: (v) => `R$ ${Number(v).toFixed(2)}`,
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',

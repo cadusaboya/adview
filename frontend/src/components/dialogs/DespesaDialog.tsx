@@ -22,6 +22,11 @@ import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from '@/lib/formatters';
+
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
 import { getFuncionarios, Funcionario } from '@/services/funcionarios';
@@ -49,6 +54,7 @@ export default function DespesaDialog({
     tipo: '',
   });
 
+  const [valorDisplay, setValorDisplay] = useState('');
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
 
@@ -65,6 +71,10 @@ export default function DespesaDialog({
         data_vencimento: despesa.data_vencimento || '',
         tipo: despesa.tipo || '',
       });
+
+      setValorDisplay(
+        despesa.valor ? formatCurrencyInput(despesa.valor) : ''
+      );
     } else {
       setFormData({
         nome: '',
@@ -74,6 +84,8 @@ export default function DespesaDialog({
         data_vencimento: '',
         tipo: '',
       });
+
+      setValorDisplay('');
     }
   }, [despesa, open]);
 
@@ -115,7 +127,6 @@ export default function DespesaDialog({
       <div className="grid grid-cols-1 gap-4">
         {/* 🔹 Favorecido + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ✅ COMBOBOX DE FAVORECIDO */}
           <div>
             <label className="text-sm">Favorecido</label>
 
@@ -203,12 +214,33 @@ export default function DespesaDialog({
           <div>
             <label className="text-sm">Valor (R$)</label>
             <Input
-              type="number"
-              placeholder="Ex.: 1500"
-              value={formData.valor}
-              onChange={(e) =>
-                setFormData({ ...formData, valor: e.target.value })
-              }
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={valorDisplay}
+
+              onChange={(e) => {
+                setValorDisplay(e.target.value);
+              }}
+
+              onFocus={() => {
+                setValorDisplay(
+                  valorDisplay.replace(/[^\d,]/g, '')
+                );
+              }}
+
+              onBlur={() => {
+                const parsed = parseCurrencyBR(valorDisplay);
+
+                setValorDisplay(
+                  parsed ? formatCurrencyInput(parsed) : ''
+                );
+
+                setFormData((prev: any) => ({
+                  ...prev,
+                  valor: parsed,
+                }));
+              }}
             />
           </div>
 

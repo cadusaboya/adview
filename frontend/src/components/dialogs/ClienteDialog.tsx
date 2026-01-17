@@ -1,15 +1,24 @@
 import DialogBase from "@/components/dialogs/DialogBase";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import FormaCobrancaList, { FormaCobrancaItem } from "@/components/dialogs/FormaCobrancaList";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import FormaCobrancaList, {
+  FormaCobrancaItem,
+} from "@/components/dialogs/FormaCobrancaList";
 import { Cliente } from "@/services/clientes";
+import { formatCurrencyInput } from "@/lib/formatters";
 
 export default function ClienteDialog({
   open,
   onClose,
   onSubmit,
-  cliente, // 🔥 Cliente para edição (ou null para criar)
+  cliente,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,7 +36,7 @@ export default function ClienteDialog({
 
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
 
-  // 🔥 Preenche os campos quando recebe um cliente para edição
+  /* 🔹 Preencher formulário ao editar */
   useEffect(() => {
     if (cliente) {
       setFormData({
@@ -40,15 +49,29 @@ export default function ClienteDialog({
       });
 
       setFormas(
-        (cliente.formas_cobranca || []).map((f) => ({
-          id: String(f.id),
-          formato: f.formato,
-          descricao: f.descricao,
-          valor: f.formato === "M" ? f.valor_mensal || "" : f.percentual_exito || "",
-        }))
+        (cliente.formas_cobranca || []).map((f) => {
+          const valor =
+            f.formato === "M"
+              ? Number(f.valor_mensal)
+              : Number(f.percentual_exito);
+
+          return {
+            id: String(f.id),
+            formato: f.formato,
+            descricao: f.descricao || "",
+            valor,
+            valor_display:
+              f.formato === "M"
+                ? valor
+                  ? formatCurrencyInput(valor)
+                  : ""
+                : valor
+                ? String(valor)
+                : "",
+          };
+        })
       );
     } else {
-      // Se não há cliente, limpa os campos (para criação)
       setFormData({
         nome: "",
         cpf: "",
@@ -61,9 +84,11 @@ export default function ClienteDialog({
     }
   }, [cliente, open]);
 
+  /* 🔹 Submit */
   const handleSubmit = () => {
     const payload = {
       ...formData,
+      aniversario: formData.aniversario || null,
       formas_cobranca: formas.map((f) => ({
         formato: f.formato,
         descricao: f.descricao,
@@ -71,6 +96,7 @@ export default function ClienteDialog({
         percentual_exito: f.formato === "E" ? f.valor : null,
       })),
     };
+
     onSubmit(payload);
     onClose();
   };
@@ -85,50 +111,56 @@ export default function ClienteDialog({
       <div className="grid grid-cols-1 gap-6">
         {/* 🔹 Linha 1 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">CPF / CNPJ</label>
+          <div>
+            <label className="text-sm font-medium">CPF / CNPJ</label>
             <Input
-              placeholder="Digite o CPF ou CNPJ"
               value={formData.cpf}
-              onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, cpf: e.target.value })
+              }
             />
           </div>
 
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium block">Nome</label>
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium">Nome</label>
             <Input
-              placeholder="Digite o nome"
               value={formData.nome}
-              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, nome: e.target.value })
+              }
             />
           </div>
         </div>
 
         {/* 🔹 Linha 2 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Email</label>
+          <div>
+            <label className="text-sm font-medium">Email</label>
             <Input
-              placeholder="Digite o email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Telefone</label>
+          <div>
+            <label className="text-sm font-medium">Telefone</label>
             <Input
-              placeholder="Digite o telefone"
               value={formData.telefone}
-              onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, telefone: e.target.value })
+              }
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Tipo de Cliente</label>
+          <div>
+            <label className="text-sm font-medium">Tipo de Cliente</label>
             <Select
               value={formData.tipo}
-              onValueChange={(val) => setFormData({ ...formData, tipo: val })}
+              onValueChange={(val) =>
+                setFormData({ ...formData, tipo: val })
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione" />
@@ -140,21 +172,23 @@ export default function ClienteDialog({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Data de Nascimento</label>
+          <div>
+            <label className="text-sm font-medium">Data de Nascimento</label>
             <Input
               type="date"
-              placeholder="Data de Nascimento"
               value={formData.aniversario}
-              onChange={(e) => setFormData({ ...formData, aniversario: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  aniversario: e.target.value,
+                })
+              }
             />
           </div>
         </div>
 
         {/* 🔥 Formas de cobrança */}
-        <div>
-          <FormaCobrancaList formas={formas} setFormas={setFormas} />
-        </div>
+        <FormaCobrancaList formas={formas} setFormas={setFormas} />
       </div>
     </DialogBase>
   );

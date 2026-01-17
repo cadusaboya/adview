@@ -1,13 +1,20 @@
-import DialogBase from "@/components/dialogs/DialogBase";
-import { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Banco } from "@/services/bancos";
+'use client';
+
+import DialogBase from '@/components/dialogs/DialogBase';
+import { useEffect, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Banco } from '@/services/bancos';
+
+import {
+  formatCurrencyInput,
+  parseCurrencyBR,
+} from '@/lib/formatters';
 
 export default function BancoDialog({
   open,
   onClose,
   onSubmit,
-  banco, // 🔥 Banco para edição (ou null para criar)
+  banco,
 }: {
   open: boolean;
   onClose: () => void;
@@ -15,26 +22,37 @@ export default function BancoDialog({
   banco?: Banco | null;
 }) {
   const [formData, setFormData] = useState({
-    nome: "",
-    descricao: "",
-    saldo_inicial: "",
+    nome: '',
+    descricao: '',
+    saldo_inicial: 0, // 🔹 valor REAL
   });
 
-  // 🔥 Preenche os campos quando recebe um banco para edição
+  const [saldoDisplay, setSaldoDisplay] = useState('');
+
+  /* 🔹 Preenche os campos quando edita */
   useEffect(() => {
     if (banco) {
       setFormData({
-        nome: banco.nome || "",
-        descricao: banco.descricao || "",
-        saldo_inicial: banco.saldo_inicial || "",
+        nome: banco.nome || '',
+        descricao: banco.descricao || '',
+        saldo_inicial: banco.saldo_inicial
+          ? Number(banco.saldo_inicial)
+          : 0,
       });
+
+      setSaldoDisplay(
+        banco.saldo_inicial
+          ? formatCurrencyInput(banco.saldo_inicial)
+          : ''
+      );
     } else {
-      // Se não há banco, limpa os campos (para criação)
       setFormData({
-        nome: "",
-        descricao: "",
-        saldo_inicial: "",
+        nome: '',
+        descricao: '',
+        saldo_inicial: 0,
       });
+
+      setSaldoDisplay('');
     }
   }, [banco, open]);
 
@@ -42,8 +60,9 @@ export default function BancoDialog({
     const payload = {
       nome: formData.nome,
       descricao: formData.descricao,
-      saldo_inicial: Number(formData.saldo_inicial),
+      saldo_inicial: formData.saldo_inicial, // 🔥 número limpo
     };
+
     onSubmit(payload);
     onClose();
   };
@@ -52,7 +71,7 @@ export default function BancoDialog({
     <DialogBase
       open={open}
       onClose={onClose}
-      title={banco ? "Editar Conta Bancária" : "Nova Conta Bancária"}
+      title={banco ? 'Editar Conta Bancária' : 'Nova Conta Bancária'}
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-6">
@@ -72,12 +91,33 @@ export default function BancoDialog({
           <div className="space-y-1">
             <label className="text-sm font-medium block">Saldo Inicial</label>
             <Input
-              type="number"
-              placeholder="R$"
-              value={formData.saldo_inicial}
-              onChange={(e) =>
-                setFormData({ ...formData, saldo_inicial: e.target.value })
-              }
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={saldoDisplay}
+
+              onChange={(e) => {
+                setSaldoDisplay(e.target.value);
+              }}
+
+              onFocus={() => {
+                setSaldoDisplay(
+                  saldoDisplay.replace(/[^\d,]/g, '')
+                );
+              }}
+
+              onBlur={() => {
+                const parsed = parseCurrencyBR(saldoDisplay);
+
+                setSaldoDisplay(
+                  parsed ? formatCurrencyInput(parsed) : ''
+                );
+
+                setFormData((prev) => ({
+                  ...prev,
+                  saldo_inicial: parsed,
+                }));
+              }}
             />
           </div>
         </div>

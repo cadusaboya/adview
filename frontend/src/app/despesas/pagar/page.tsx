@@ -5,7 +5,8 @@ import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
-import { formatDateBR } from '@/lib/formatters';
+import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+
 import type { TableColumnsType } from 'antd';
 
 import {
@@ -79,7 +80,7 @@ export default function DespesasPagarPage() {
     {
       title: 'Valor',
       dataIndex: 'valor',
-      render: (v) => `R$ ${Number(v).toFixed(2)}`,
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',

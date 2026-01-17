@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
-import { formatDateBR } from '@/lib/formatters';
+import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
@@ -96,7 +96,7 @@ export default function DespesasPagasPage() {
     {
       title: 'Valor Pago',
       dataIndex: 'valor',
-      render: (valor) => `R$ ${Number(valor).toFixed(2)}`,
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
