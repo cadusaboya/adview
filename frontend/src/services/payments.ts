@@ -2,20 +2,36 @@ import { api } from "./api";
 
 export interface Payment {
   id: number;
-  receita?: number; // Opcional se for vinculado a Receita
-  despesa?: number;  // Opcional se for vinculado a Despesa
+  receita?: number;   // Opcional se for Receita
+  despesa?: number;   // Opcional se for Despesa
   conta_bancaria: number;
   valor: number;
   data_pagamento: string;
   observacao?: string;
   company: number;
   criado_em: string;
+
+  // 🔹 Campos extras vindos do backend (para tabelas)
+  cliente_nome?: string;
+  receita_nome?: string;
+  favorecido_nome?: string;
+  despesa_nome?: string;
 }
 
-// 🔹 Listar pagamentos com paginação
-export async function getPayments(params?: { receita?: number; despesa?: number; page?: number; page_size?: number }) {
-  const res = await api.get('/api/pagamentos/', { params });
-  return res.data; // ⬅️ Retorna objeto com {count, next, previous, results}
+// 🔹 Listar pagamentos (com paginação + search)
+export async function getPayments(params?: {
+  receita?: number;
+  despesa?: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}) {
+  const res = await api.get<{
+    count: number;
+    results: Payment[];
+  }>('/api/pagamentos/', { params });
+
+  return res.data;
 }
 
 // 🔹 Criar pagamento

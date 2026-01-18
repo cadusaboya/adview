@@ -16,12 +16,14 @@ import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
 import { toast } from 'sonner';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { Input } from '@/components/ui/input';
 
 export default function ReceitasPage() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
+  const [search, setSearch] = useState('');
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -31,7 +33,7 @@ export default function ReceitasPage() {
   const loadReceitas = async () => {
     try {
       setLoading(true);
-      const res = await getReceitasAbertas({ page, page_size: pageSize });
+      const res = await getReceitasAbertas({ page, page_size: pageSize, search });
       setReceitas(res.results);
       setTotal(res.count);
     } catch (error) {
@@ -45,6 +47,16 @@ export default function ReceitasPage() {
   useEffect(() => {
     loadReceitas();
   }, [page]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);      // sempre volta pra página 1
+      loadReceitas();
+    }, 300); // debounce
+  
+    return () => clearTimeout(timeout);
+  }, [search]);
+  
 
   // ❌ Deletar receita
   const handleDelete = async (id: number) => {
@@ -132,11 +144,28 @@ export default function ReceitasPage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Receitas em Aberto</h1>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          {/* 🔹 Título */}
+          <h1 className="text-xl font-semibold whitespace-nowrap">
+            Receitas em Aberto
+          </h1>
+
+          {/* 🔍 Busca */}
+          <div className="flex-1 md:px-6">
+            <Input
+              placeholder="Buscar por nome, cliente, valor, data..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full"
+            />
+          </div>
+
+          {/* ➕ Ação */}
           <Button
-            color="default"
-            className='shadow-md'
+            className="shadow-md whitespace-nowrap"
             onClick={() => {
               setOpenDialog(true);
               setEditingReceita(null);
@@ -145,6 +174,7 @@ export default function ReceitasPage() {
             Criar Receita
           </Button>
         </div>
+
 
         <GenericTable<Receita> columns={columns} data={receitas} loading={loading} 
             pagination={{

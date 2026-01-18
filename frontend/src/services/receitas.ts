@@ -17,12 +17,23 @@ export interface Receita {
     return res.data;
   }
   
-  export async function getReceitasAbertas(params?: { page?: number; page_size?: number }) {
-    const res = await api.get<{ results: Receita[]; count: number }>('/api/receitas/', {
-      params: { ...params, situacao: ['A', 'V'] },
-    });
+  export async function getReceitasAbertas(params?: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+  }) {
+    const res = await api.get<{ results: Receita[]; count: number }>(
+      '/api/receitas/',
+      {
+        params: {
+          ...params,
+          situacao: ['A', 'V'],
+        },
+      }
+    );
     return res.data;
   }
+  
   
   export async function getReceitasRecebidas(params?: { page?: number; page_size?: number }) {
     const res = await api.get<{ results: Receita[]; count: number }>('/api/receitas/', {

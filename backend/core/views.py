@@ -144,6 +144,9 @@ class FavorecidoViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         return super().get_queryset().filter(tipo__in=['F', 'P', 'O'])
 
 
+from django.db.models import Q
+from django.utils.timezone import now
+
 class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Receita.objects.all()
     serializer_class = ReceitaSerializer
@@ -151,40 +154,39 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        hoje = now().date()
-
         params = self.request.query_params
+
+        # 🔎 FILTRO GLOBAL
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(descricao__icontains=search) |
+                Q(cliente__nome__icontains=search) |
+                Q(valor__icontains=search) |
+                Q(data_vencimento__icontains=search)
+            )
+
+        # 🔸 filtros já existentes
         situacoes = params.getlist('situacao')
+        if situacoes:
+            queryset = queryset.filter(situacao__in=situacoes)
+
         cliente_id = params.get('cliente_id')
+        if cliente_id:
+            queryset = queryset.filter(cliente_id=cliente_id)
+
         start_date = params.get('start_date')
         end_date = params.get('end_date')
 
-        # 🔥 Atualiza automaticamente vencidas
-        queryset.filter(
-            situacao='A',
-            data_vencimento__lt=hoje
-        ).update(situacao='V')
-
-        # 🔹 Filtros
-        if situacoes:
-            queryset = queryset.filter(situacao__in=situacoes)
-        if cliente_id:
-            queryset = queryset.filter(cliente_id=cliente_id)
         if start_date:
             queryset = queryset.filter(data_vencimento__gte=start_date)
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
         # 🔥 ORDENAÇÃO
-        # 📌 Recebidas → pagamento mais recente primeiro
-        if situacoes and set(situacoes).issubset({'P'}):
-            queryset = queryset.annotate(
-                ultima_data_pagamento=Max('payments__data_pagamento')
-            ).order_by(
-                '-ultima_data_pagamento'
-            )
-
-        # 📌 A receber / vencidas → vencimento crescente
+        if situacoes and set(situacoes).issubset({'P', 'V'}):
+            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
         else:
             queryset = queryset.order_by('data_vencimento')
 
@@ -236,6 +238,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         start_date = params.get('start_date')
         end_date = params.get('end_date')
         tipo = params.get('tipo')
+        search = params.get('search')
 
         # 🔥 Atualiza automaticamente vencidas
         queryset.filter(
@@ -243,7 +246,17 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             data_vencimento__lt=hoje
         ).update(situacao='V')
 
-        # 🔹 Filtros
+        # 🔎 SEARCH GLOBAL
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(descricao__icontains=search) |
+                Q(responsavel__nome__icontains=search) |
+                Q(valor__icontains=search) |
+                Q(data_vencimento__icontains=search)
+            )
+
+        # 🔹 Filtros específicos
         if situacoes:
             queryset = queryset.filter(situacao__in=situacoes)
         if responsavel_id:
@@ -260,9 +273,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if situacoes and set(situacoes).issubset({'P'}):
             queryset = queryset.annotate(
                 ultima_data_pagamento=Max('payments__data_pagamento')
-            ).order_by(
-                '-ultima_data_pagamento'
-            )
+            ).order_by('-ultima_data_pagamento')
 
         # 📌 A pagar / vencidas → vencimento crescente
         else:
@@ -270,6 +281,10 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         return queryset
 
+
+from django.db.models import Q
+from django.utils.timezone import now
+from rest_framework import viewsets
 
 class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para registrar pagamentos de receitas ou despesas."""
@@ -280,16 +295,31 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        receita_id = self.request.query_params.get('receita')
-        despesa_id = self.request.query_params.get('despesa')
+        params = self.request.query_params
+        receita_id = params.get('receita')
+        despesa_id = params.get('despesa')
+        search = params.get('search')
 
         if receita_id:
             queryset = queryset.filter(receita_id=receita_id)
+
         if despesa_id:
             queryset = queryset.filter(despesa_id=despesa_id)
 
-        return queryset.order_by('-data_pagamento', '-id')
+        # 🔍 SEARCH GLOBAL (pagamentos + entidades relacionadas)
+        if search:
+            queryset = queryset.filter(
+                Q(valor__icontains=search) |
+                Q(observacao__icontains=search) |
+                Q(data_pagamento__icontains=search) |
+                Q(receita__nome__icontains=search) |
+                Q(receita__cliente__nome__icontains=search) |
+                Q(despesa__nome__icontains=search) |
+                Q(despesa__responsavel__nome__icontains=search)
+            )
 
+        # 📌 Ordenação padrão: pagamentos mais recentes primeiro
+        return queryset.order_by('-data_pagamento', '-id')
 
     def perform_create(self, serializer):
         instance = serializer.save(company=self.request.user.company)
@@ -321,6 +351,7 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             receita.atualizar_status()
         if despesa:
             despesa.atualizar_status()
+
         
 
 class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):

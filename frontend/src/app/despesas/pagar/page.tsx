@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, message } from 'antd';
+import { Button } from 'antd';
 import { toast } from 'sonner';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
@@ -16,23 +16,44 @@ import {
   deleteDespesa,
   Despesa,
 } from '@/services/despesas';
+
 import StatusBadge from '@/components/ui/StatusBadge';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
+import { Input } from '@/components/ui/input';
 
 export default function DespesasPagarPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10; // ✅ Page Size padrão definido
+  const pageSize = 10;
+
+  // 🔎 SEARCH
+  const [search, setSearch] = useState('');
+
+  // 🔁 Debounce do search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);      // sempre volta pra página 1
+      loadData();
+    }, 300); // debounce
+  
+    return () => clearTimeout(timeout);
+  }, [search]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await getDespesasAbertas({ page, page_size: pageSize });
+      const res = await getDespesasAbertas({
+        page,
+        page_size: pageSize,
+        search: search,
+      });
+
       setDespesas(res.results);
       setTotal(res.count);
     } catch (error) {
@@ -48,10 +69,9 @@ export default function DespesasPagarPage() {
   }, [page]);
 
   const handleDelete = async (id: number) => {
-    if (confirm('Deseja realmente excluir esta despesa?')) {
-      await deleteDespesa(id);
-      loadData();
-    }
+    if (!confirm('Deseja realmente excluir esta despesa?')) return;
+    await deleteDespesa(id);
+    loadData();
   };
 
   const handleSubmit = async (data: any) => {
@@ -63,6 +83,7 @@ export default function DespesasPagarPage() {
         await createDespesa(data);
         toast.success('Despesa criada com sucesso!');
       }
+
       setOpenDialog(false);
       setEditingDespesa(null);
       loadData();
@@ -73,8 +94,15 @@ export default function DespesasPagarPage() {
   };
 
   const columns: TableColumnsType<Despesa> = [
-    { title: 'Vencimento', dataIndex: 'data_vencimento', render: (value) => formatDateBR(value),},
-    { title: 'Favorecido', dataIndex: ['responsavel', 'nome'] },
+    {
+      title: 'Vencimento',
+      dataIndex: 'data_vencimento',
+      render: (value) => formatDateBR(value),
+    },
+    {
+      title: 'Favorecido',
+      dataIndex: ['responsavel', 'nome'],
+    },
     { title: 'Nome', dataIndex: 'nome' },
     {
       title: 'Situação',
@@ -88,8 +116,7 @@ export default function DespesasPagarPage() {
     },
     {
       title: 'Ações',
-      dataIndex: 'acoes',
-      render: (_: any, record: Despesa) => (
+      render: (_, record) => (
         <div className="flex gap-2">
           <Button
             onClick={() => {
@@ -111,12 +138,28 @@ export default function DespesasPagarPage() {
   return (
     <div className="flex">
       <NavbarNested />
+
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Despesas em Aberto</h1>
+        {/* 🔝 HEADER */}
+        <div className="flex items-center gap-4 mb-4">
+          <h1 className="text-xl font-semibold whitespace-nowrap">
+            Despesas em Aberto
+          </h1>
+
+          <Input
+            placeholder="Buscar por nome, favorecido, valor, data..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-md"
+          />
+
+          <div className="flex-1" />
+
           <Button
-            color="default"
-            className='shadow-md'
+            className="shadow-md"
             onClick={() => {
               setOpenDialog(true);
               setEditingDespesa(null);

@@ -19,43 +19,74 @@ export interface Despesa {
   situacao_display: string;
 }
 
-export async function getDespesasAbertas(params?: { page?: number; page_size?: number }) {
-  const res = await api.get<{ results: Despesa[]; count: number }>('/api/despesas/', {
-    params: { situacao: ['A', 'V'], ...params },
-  });
+/* 🔍 Params padrão de listagem */
+export interface DespesaListParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}
+
+/* 📌 Despesas em aberto */
+export async function getDespesasAbertas(params?: DespesaListParams) {
+  const res = await api.get<{ results: Despesa[]; count: number }>(
+    '/api/despesas/',
+    {
+      params: {
+        situacao: ['A', 'V'],
+        ...params,
+      },
+    }
+  );
   return res.data;
 }
 
-export async function getDespesasPagas(params?: { page?: number; page_size?: number }) {
-  const res = await api.get<{ results: Despesa[]; count: number }>('/api/despesas/', {
-    params: { situacao: 'P', ...params },
-  });
+/* 📌 Despesas pagas */
+export async function getDespesasPagas(params?: DespesaListParams) {
+  const res = await api.get<{ results: Despesa[]; count: number }>(
+    '/api/despesas/',
+    {
+      params: {
+        situacao: 'P',
+        ...params,
+      },
+    }
+  );
   return res.data;
 }
 
+/* ✏️ Atualizar despesa */
 export async function updateDespesa(
   id: number,
-  despesa: Partial<Omit<Despesa, 'id' | 'responsavel' | 'tipo_display' | 'situacao_display'>>
+  despesa: Partial<
+    Omit<
+      Despesa,
+      'id' | 'responsavel' | 'tipo_display' | 'situacao_display'
+    >
+  >
 ) {
   const res = await api.patch<Despesa>(`/api/despesas/${id}/`, despesa);
   return res.data;
 }
 
-
+/* ➕ Criar despesa */
 export async function createDespesa(
-  despesa: Omit<Despesa, 'id' | 'responsavel' | 'tipo_display' | 'situacao_display'>
+  despesa: Omit<
+    Despesa,
+    'id' | 'responsavel' | 'tipo_display' | 'situacao_display'
+  >
 ) {
   const res = await api.post<Despesa>('/api/despesas/', despesa);
   return res.data;
 }
 
+/* ❌ Deletar despesa */
 export async function deleteDespesa(id: number) {
   const res = await api.delete(`/api/despesas/${id}/`);
   return res.data;
 }
 
+/* 🔎 Buscar despesa por ID */
 export async function getDespesaById(id: number) {
   const res = await api.get<Despesa>(`/api/despesas/${id}/`);
   return res.data;
 }
-

@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
+
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
+import { Input } from '@/components/ui/input';
 
 import {
   getPayments,
@@ -28,6 +30,19 @@ export default function DespesasPagasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // 🔎 SEARCH
+  const [search, setSearch] = useState('');
+
+  // 🔁 Debounce do search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      loadData();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -35,6 +50,7 @@ export default function DespesasPagasPage() {
       const res = await getPayments({
         page,
         page_size: pageSize,
+        search,
       });
 
       // 🔹 Apenas pagamentos vinculados a despesas
@@ -69,7 +85,7 @@ export default function DespesasPagasPage() {
     }
   };
 
-  // ✅ AGORA BUSCA A DESPESA COMPLETA
+  // ✅ Busca a despesa completa antes de abrir o dialog
   const handleEditDespesa = async (despesaId?: number | null) => {
     if (!despesaId) return;
 
@@ -115,10 +131,7 @@ export default function DespesasPagasPage() {
           <Button onClick={() => handleEditDespesa(record.despesa)}>
             Editar
           </Button>
-          <Button
-            danger
-            onClick={() => handleDeletePayment(record.id)}
-          >
+          <Button danger onClick={() => handleDeletePayment(record.id)}>
             Excluir
           </Button>
         </div>
@@ -129,9 +142,25 @@ export default function DespesasPagasPage() {
   return (
     <div className="flex">
       <NavbarNested />
+
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Despesas Pagas</h1>
+        {/* 🔝 HEADER */}
+        <div className="flex items-center gap-4 mb-4">
+          <h1 className="text-xl font-semibold whitespace-nowrap">
+            Despesas Pagas
+          </h1>
+
+          <Input
+            placeholder="Buscar por favorecido, nome, valor, data..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-md"
+          />
+
+          <div className="flex-1" />
         </div>
 
         <GenericTable<Payment>

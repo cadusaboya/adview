@@ -9,6 +9,7 @@ import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
+import { Input } from '@/components/ui/input';
 
 import {
   getPayments,
@@ -29,6 +30,19 @@ export default function ReceitaRecebidasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // 🔎 SEARCH
+  const [search, setSearch] = useState('');
+
+  // 🔁 Debounce do search (IGUAL Despesas)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      loadData();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -36,8 +50,10 @@ export default function ReceitaRecebidasPage() {
       const res = await getPayments({
         page,
         page_size: pageSize,
+        search: search,
       });
 
+      // 🔹 Apenas pagamentos vinculados a receitas
       const receitaPayments = res.results.filter(
         (p: Payment) => p.receita !== null
       );
@@ -74,7 +90,6 @@ export default function ReceitaRecebidasPage() {
 
     try {
       setLoading(true);
-
       const receita = await getReceitaById(receitaId);
       setEditingReceita(receita);
       setOpenDialog(true);
@@ -114,10 +129,7 @@ export default function ReceitaRecebidasPage() {
           <Button onClick={() => handleEditReceita(record.receita)}>
             Editar
           </Button>
-          <Button
-            danger
-            onClick={() => handleDeletePayment(record.id)}
-          >
+          <Button danger onClick={() => handleDeletePayment(record.id)}>
             Excluir
           </Button>
         </div>
@@ -128,9 +140,25 @@ export default function ReceitaRecebidasPage() {
   return (
     <div className="flex">
       <NavbarNested />
+
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Receitas Recebidas</h1>
+        {/* 🔝 HEADER */}
+        <div className="flex items-center gap-4 mb-4">
+          <h1 className="text-xl font-semibold whitespace-nowrap">
+            Receitas Recebidas
+          </h1>
+
+          <Input
+            placeholder="Buscar por cliente, descrição, valor, data..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-md"
+          />
+
+          <div className="flex-1" />
         </div>
 
         <GenericTable<Payment>
