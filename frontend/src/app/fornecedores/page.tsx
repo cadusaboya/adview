@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Pagination, message } from "antd";
+import { Button, message } from "antd";
 import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
 import FuncionarioDialog from "@/components/dialogs/FuncionarioDialog";
+import { FuncionarioProfileDialog } from "@/components/dialogs/FuncionarioProfileDialog";
 
 import {
   getFornecedores,
@@ -20,11 +21,13 @@ export default function FornecedorPage() {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingFornecedor, setEditingFornecedor] = useState<Fornecedor | null>(null);
+  const [editingFornecedor, setEditingFornecedor] =
+    useState<Fornecedor | null>(null);
 
+  // 🔹 Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10; // 🔥 Definido como padrão
+  const pageSize = 10;
 
   const loadFornecedores = async () => {
     try {
@@ -47,6 +50,7 @@ export default function FornecedorPage() {
   const handleDelete = async (id: number) => {
     if (confirm("Deseja realmente excluir este fornecedor?")) {
       await deleteFornecedor(id);
+      toast.success("Fornecedor excluído com sucesso!");
       loadFornecedores();
     }
   };
@@ -60,6 +64,7 @@ export default function FornecedorPage() {
         await createFornecedor(data);
         toast.success("Fornecedor criado com sucesso!");
       }
+
       setOpenDialog(false);
       setEditingFornecedor(null);
       loadFornecedores();
@@ -75,9 +80,14 @@ export default function FornecedorPage() {
     { title: "Email", dataIndex: "email" },
     {
       title: "Ações",
-      dataIndex: "acoes",
       render: (_: any, record: Fornecedor) => (
         <div className="flex gap-2">
+          {/* 🔹 FINANCEIRO (REUSO TOTAL) */}
+          <FuncionarioProfileDialog funcionarioId={record.id}>
+            <Button type="default">Financeiro</Button>
+          </FuncionarioProfileDialog>
+
+          {/* 🔹 EDITAR */}
           <Button
             onClick={() => {
               setEditingFornecedor(record);
@@ -86,6 +96,8 @@ export default function FornecedorPage() {
           >
             Editar
           </Button>
+
+          {/* 🔹 EXCLUIR */}
           <Button danger onClick={() => handleDelete(record.id)}>
             Excluir
           </Button>
@@ -97,12 +109,13 @@ export default function FornecedorPage() {
   return (
     <div className="flex">
       <NavbarNested />
+
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
           <h1 className="text-xl font-semibold">Fornecedores</h1>
+
           <Button
-            color="default"
-            className='shadow-md'
+            className="shadow-md"
             onClick={() => {
               setEditingFornecedor(null);
               setOpenDialog(true);
@@ -118,12 +131,13 @@ export default function FornecedorPage() {
           loading={loading}
           pagination={{
             current: page,
-            pageSize: pageSize,
-            total: total,
+            pageSize,
+            total,
             onChange: (page) => setPage(page),
-           }}
+          }}
         />
 
+        {/* 🔹 DIALOG CRIAR / EDITAR */}
         <FuncionarioDialog
           open={openDialog}
           onClose={() => {

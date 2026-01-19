@@ -7,8 +7,7 @@ from django.utils.timezone import now
 from datetime import date
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
-
-
+from django.shortcuts import get_object_or_404
 from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer, 
@@ -415,50 +414,171 @@ class BaseReportView(APIView):
         return filters
 
 class RelatorioClienteView(BaseReportView):
-    """Relatório de Receitas Pagas e a Pagar por Cliente."""
+    """
+    Resumo financeiro do cliente baseado em PAYMENTS (fonte da verdade)
+    """
+
     def get(self, request, cliente_id):
+        # 🔹 Cliente (com escopo da empresa)
         cliente_qs = self.get_company_queryset(Cliente)
-        try:
-            cliente = cliente_qs.get(pk=cliente_id)
-        except Cliente.DoesNotExist:
-            return Response({"detail": "Cliente not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+        cliente = get_object_or_404(cliente_qs, pk=cliente_id)
 
-        receitas_qs = self.get_company_queryset(Receita).filter(cliente=cliente)
-        
-        filters = self.get_common_filters() # Apply date filters if provided
-        receitas_qs = receitas_qs.filter(**filters)
+        # 🔹 Receitas do cliente
+        receitas_qs = self.get_company_queryset(Receita).filter(
+            cliente=cliente
+        )
 
-        pagas = ReceitaSerializer(receitas_qs.filter(situacao='P'), many=True).data
-        a_pagar = ReceitaSerializer(receitas_qs.filter(situacao__in=['A', 'V']), many=True).data # Em Aberto ou Vencida
+        # 🔹 Payments ligados às receitas do cliente
+        payments_qs = self.get_company_queryset(Payment).filter(
+            receita__cliente=cliente
+        )
+
+        # 🔹 Filtros comuns (data inicial / final, etc)
+        filters = self.get_common_filters()
+        if filters:
+            receitas_qs = receitas_qs.filter(**filters)
+            payments_qs = payments_qs.filter(**filters)
+
+        # 🔹 Soma dos payments por receita
+        payments_por_receita = (
+            payments_qs
+            .values("receita_id")
+            .annotate(total_pago=Sum("valor"))
+        )
+
+        payments_map = {
+            item["receita_id"]: item["total_pago"] or 0
+            for item in payments_por_receita
+        }
+
+        # 🔹 Pendências reais (saldo > 0)
+        pendings = []
+        total_open = 0
+
+        for receita in receitas_qs:
+            total_pago = payments_map.get(receita.id, 0)
+            saldo = receita.valor - total_pago
+
+            if saldo > 0:
+                pendings.append({
+                    "id": receita.id,
+                    "nome": receita.nome,
+                    "description": receita.descricao,
+                    "valor_total": receita.valor,
+                    "valor_pago": total_pago,
+                    "saldo": saldo,
+                    "due_date": receita.data_vencimento,
+                })
+                total_open += saldo
+
+        # 🔹 Payments realizados (histórico)
+        payments = PaymentSerializer(
+            payments_qs.order_by("-data_pagamento"),
+            many=True
+        ).data
+
+        # 🔹 Total pago
+        total_paid = payments_qs.aggregate(
+            total=Sum("valor")
+        )["total"] or 0
 
         return Response({
-            "cliente": ClienteSerializer(cliente).data,
-            "receitas_pagas": pagas,
-            "receitas_a_pagar": a_pagar
-        })
+            "client": ClienteSerializer(cliente).data,
+            "pendings": pendings,
+            "payments": payments,
+            "totals": {
+                "open": total_open,
+                "paid": total_paid,
+            }
+        }, status=status.HTTP_200_OK)
+
+from rest_framework.response import Response
+from rest_framework import status
+
+from decimal import Decimal
+from rest_framework.response import Response
+from rest_framework import status
 
 class RelatorioFuncionarioView(BaseReportView):
-    """Relatório de Despesas Pagas e a Pagar por Funcionário/Responsável."""
+    """
+    Resumo financeiro do funcionário baseado em PAYMENTS (fonte da verdade)
+    """
+
     def get(self, request, funcionario_id):
-        func_qs = self.get_company_queryset(Funcionario)
-        try:
-            funcionario = func_qs.get(pk=funcionario_id)
-        except Funcionario.DoesNotExist:
-            return Response({"detail": "Funcionário not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+        # 🔹 Funcionário (escopo da empresa)
+        funcionario_qs = self.get_company_queryset(Funcionario)
+        funcionario = get_object_or_404(funcionario_qs, pk=funcionario_id)
 
-        despesas_qs = self.get_company_queryset(Despesa).filter(responsavel=funcionario)
-        
-        filters = self.get_common_filters() # Apply date filters if provided
-        despesas_qs = despesas_qs.filter(**filters)
+        # 🔹 Despesas do funcionário
+        despesas_qs = self.get_company_queryset(Despesa).filter(
+            responsavel=funcionario
+        )
 
-        pagas = DespesaSerializer(despesas_qs.filter(situacao='P'), many=True).data
-        a_pagar = DespesaSerializer(despesas_qs.filter(situacao__in=['A', 'V']), many=True).data
+        # 🔹 Payments ligados às despesas do funcionário
+        payments_qs = self.get_company_queryset(Payment).filter(
+            despesa__responsavel=funcionario
+        )
+
+        # 🔹 Filtros comuns (data inicial / final, etc)
+        filters = self.get_common_filters()
+        if filters:
+            despesas_qs = despesas_qs.filter(**filters)
+            payments_qs = payments_qs.filter(**filters)
+
+        # 🔹 Soma dos payments por despesa
+        payments_por_despesa = (
+            payments_qs
+            .values("despesa_id")
+            .annotate(total_pago=Sum("valor"))
+        )
+
+        payments_map = {
+            item["despesa_id"]: item["total_pago"] or 0
+            for item in payments_por_despesa
+        }
+
+        # 🔹 Pendências reais (saldo > 0)
+        pendings = []
+        total_open = 0
+
+        for despesa in despesas_qs:
+            total_pago = payments_map.get(despesa.id, 0)
+            saldo = despesa.valor - total_pago
+
+            if saldo > 0:
+                pendings.append({
+                    "id": despesa.id,
+                    "nome": despesa.nome,
+                    "description": despesa.descricao,
+                    "valor_total": despesa.valor,
+                    "valor_pago": total_pago,
+                    "saldo": saldo,
+                    "due_date": despesa.data_vencimento,
+                })
+                total_open += saldo
+
+        # 🔹 Payments realizados (histórico)
+        payments = PaymentSerializer(
+            payments_qs.order_by("-data_pagamento"),
+            many=True
+        ).data
+
+        # 🔹 Total pago
+        total_paid = payments_qs.aggregate(
+            total=Sum("valor")
+        )["total"] or 0
 
         return Response({
             "funcionario": FuncionarioSerializer(funcionario).data,
-            "despesas_pagas": pagas,
-            "despesas_a_pagar": a_pagar
-        })
+            "pendings": pendings,
+            "payments": payments,
+            "totals": {
+                "open": total_open,
+                "paid": total_paid,
+            }
+        }, status=status.HTTP_200_OK)
+
+
 
 class RelatorioTipoPeriodoView(BaseReportView):
     """Relatório de Receitas ou Despesas por Tipo e/ou Período."""
