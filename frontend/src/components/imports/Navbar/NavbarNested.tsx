@@ -40,7 +40,15 @@ const menuItems = [
   { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
   { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
   { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
-  { label: 'Relatórios', icon: IconFileAnalytics, link: '/relatorios' },
+  {
+    label: 'Relatórios',
+    icon: IconFileAnalytics,
+    initiallyOpened: true,
+    links: [
+      { label: 'Demonstração de Resultado', link: '/relatorios/dre' },
+      { label: 'Fluxo de Caixa', link: '/relatorios/fluxo' },
+    ],
+  },
 ];
 
 export function NavbarNested() {

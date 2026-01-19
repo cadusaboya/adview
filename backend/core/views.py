@@ -298,6 +298,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         params = self.request.query_params
         receita_id = params.get('receita')
         despesa_id = params.get('despesa')
+        start_date = params.get('start_date')
+        end_date = params.get('end_date')
         search = params.get('search')
 
         if receita_id:
@@ -305,6 +307,13 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         if despesa_id:
             queryset = queryset.filter(despesa_id=despesa_id)
+
+        if start_date:
+            queryset = queryset.filter(data_pagamento__gte=start_date)
+
+        if end_date:
+            queryset = queryset.filter(data_pagamento__lte=end_date)
+
 
         # 🔍 SEARCH GLOBAL (pagamentos + entidades relacionadas)
         if search:

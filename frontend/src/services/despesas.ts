@@ -24,6 +24,20 @@ export interface DespesaListParams {
   page?: number;
   page_size?: number;
   search?: string;
+  situacao?: string | string[];
+  tipo?: 'F' | 'V' | 'C' | 'R';
+  start_date?: string; // YYYY-MM-DD
+  end_date?: string;   // YYYY-MM-DD
+  responsavel_id?: number;
+}
+
+export async function getDespesas(params?: DespesaListParams) {
+  const res = await api.get<{ results: Despesa[]; count: number }>(
+    "/api/despesas/",
+    { params }
+  );
+
+  return res.data;
 }
 
 /* 📌 Despesas em aberto */
