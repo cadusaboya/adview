@@ -20,3 +20,8 @@ export async function getRelatorioFuncionario(funcionarioId: number) {
 
   return response.data;
 }
+
+export async function getDashboardData() {
+  const response = await api.get("/api/dashboard/");
+  return response.data;
+}

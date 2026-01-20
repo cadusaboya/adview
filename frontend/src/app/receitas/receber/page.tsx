@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button, Pagination, message } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
@@ -12,7 +13,11 @@ import {
   deleteReceita,
   Receita,
 } from '@/services/receitas';
+import { getClientes, Cliente } from '@/services/clientes';
 import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
+import { gerarRelatorioPDF } from '@/services/pdf';
+import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { toast } from 'sonner';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -24,6 +29,11 @@ export default function ReceitasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
   const [search, setSearch] = useState('');
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -44,19 +54,32 @@ export default function ReceitasPage() {
     }
   };
 
+  // Carregar clientes para o modal de relatório
+  useEffect(() => {
+    loadClientes();
+  }, []);
+
+  const loadClientes = async () => {
+    try {
+      const res = await getClientes({ page_size: 1000 });
+      setClientes(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+    }
+  };
+
   useEffect(() => {
     loadReceitas();
   }, [page]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setPage(1);      // sempre volta pra página 1
+      setPage(1); // sempre volta pra página 1
       loadReceitas();
     }, 300); // debounce
-  
+
     return () => clearTimeout(timeout);
   }, [search]);
-  
 
   // ❌ Deletar receita
   const handleDelete = async (id: number) => {
@@ -97,9 +120,27 @@ export default function ReceitasPage() {
     }
   };
 
+  // 📊 Gerar relatório com filtros
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      await gerarRelatorioPDF('receitas-a-receber', filtros);
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar relatório');
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   // 🏛️ Colunas da tabela
   const columns: TableColumnsType<Receita> = [
-    { title: 'Vencimento', dataIndex: 'data_vencimento', render: (value) => formatDateBR(value),},
+    {
+      title: 'Vencimento',
+      dataIndex: 'data_vencimento',
+      render: (value) => formatDateBR(value),
+    },
     {
       title: 'Cliente',
       dataIndex: 'cliente',
@@ -114,7 +155,7 @@ export default function ReceitasPage() {
 
     {
       title: 'Valor',
-      dataIndex: 'valor',
+      dataIndex: 'valor_aberto',
       render: (v) => formatCurrencyBR(v),
     },
     {
@@ -144,7 +185,7 @@ export default function ReceitasPage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {/* 🔹 Título */}
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Receitas em Aberto
@@ -163,6 +204,17 @@ export default function ReceitasPage() {
             />
           </div>
 
+          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+            className="whitespace-nowrap"
+          >
+            Gerar Relatório PDF
+          </Button>
+
           {/* ➕ Ação */}
           <Button
             className="shadow-md whitespace-nowrap"
@@ -175,14 +227,16 @@ export default function ReceitasPage() {
           </Button>
         </div>
 
-
-        <GenericTable<Receita> columns={columns} data={receitas} loading={loading} 
-            pagination={{
-              current: page,
-              pageSize: pageSize,
-              total: total,
-              onChange: (page) => setPage(page),
-            }}
+        <GenericTable<Receita>
+          columns={columns}
+          data={receitas}
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize: pageSize,
+            total: total,
+            onChange: (page) => setPage(page),
+          }}
         />
 
         <MovimentacaoDialog
@@ -200,6 +254,19 @@ export default function ReceitasPage() {
           ]}
           receita={editingReceita}
           onSubmit={handleSubmit}
+        />
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Receitas a Receber"
+          tipoRelatorio="receitas-a-receber"
+          clientes={clientes.map((c) => ({
+            id: c.id,
+            nome: c.nome,
+          }))}
         />
       </main>
     </div>

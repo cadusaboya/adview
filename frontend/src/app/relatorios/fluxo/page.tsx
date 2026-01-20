@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
+import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
+import { gerarRelatorioPDF } from "@/services/pdf";
+import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
 import { formatCurrencyBR } from "@/lib/formatters";
 
 import { getPayments, Payment } from "@/services/payments";
@@ -73,6 +79,24 @@ export default function FluxoCaixaPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [contas, setContas] = useState<Banco[]>([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+
+  useEffect(() => {
+    loadContas();
+  }, []);
+
+  const loadContas = async () => {
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setContas(res.results);
+    } catch (error) {
+      console.error("Erro ao carregar contas:", error);
+    }
+  };
 
   useEffect(() => {
     async function buildFlow() {
@@ -170,12 +194,42 @@ export default function FluxoCaixaPage() {
     buildFlow();
   }, [startDate, endDate]);
 
+  // 📊 Gerar relatório de fluxo de caixa
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      await gerarRelatorioPDF("fluxo-de-caixa", {
+        conta_bancaria_id: filtros.conta_bancaria_id,
+        data_inicio: filtros.data_inicio || startDate,
+        data_fim: filtros.data_fim || endDate,
+      });
+      toast.success("Relatório de Fluxo de Caixa gerado com sucesso!");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Erro ao gerar relatório");
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   return (
     <div className="flex">
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6 space-y-6">
-        <h1 className="text-2xl font-semibold">Fluxo de Caixa Realizado</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold">Fluxo de Caixa Realizado</h1>
+
+          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+          >
+            Gerar Relatório PDF
+          </Button>
+        </div>
 
         {/* FILTRO */}
         <div className="flex gap-4">
@@ -304,6 +358,19 @@ export default function FluxoCaixaPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Fluxo de Caixa"
+          tipoRelatorio="fluxo-de-caixa"
+          contas={contas.map((c) => ({
+            id: c.id,
+            nome: c.nome,
+          }))}
+        />
       </main>
     </div>
   );

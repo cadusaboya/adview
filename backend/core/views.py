@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer, 
-    FuncionarioSerializer, ReceitaSerializer, DespesaSerializer,
+    FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, DespesaSerializer, DespesaAbertaSerializer,
     PaymentSerializer, ContaBancariaSerializer
 )
 
@@ -151,12 +151,26 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = ReceitaSerializer
     pagination_class = DynamicPageSizePagination
 
+    def get_serializer_class(self):
+        situacoes = self.request.query_params.getlist("situacao")
+
+        # 🔹 Receitas em aberto → serializer com saldo
+        if situacoes and set(situacoes).issubset({"A", "V"}):
+            return ReceitaAbertaSerializer
+
+        return ReceitaSerializer
+
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related(
+            "cliente", "company"
+        ).prefetch_related(
+            "payments"
+        )
+
         params = self.request.query_params
 
         # 🔎 FILTRO GLOBAL
-        search = params.get('search')
+        search = params.get("search")
         if search:
             queryset = queryset.filter(
                 Q(nome__icontains=search) |
@@ -166,17 +180,17 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(data_vencimento__icontains=search)
             )
 
-        # 🔸 filtros já existentes
-        situacoes = params.getlist('situacao')
+        # 🔸 filtros
+        situacoes = params.getlist("situacao")
         if situacoes:
             queryset = queryset.filter(situacao__in=situacoes)
 
-        cliente_id = params.get('cliente_id')
+        cliente_id = params.get("cliente_id")
         if cliente_id:
             queryset = queryset.filter(cliente_id=cliente_id)
 
-        start_date = params.get('start_date')
-        end_date = params.get('end_date')
+        start_date = params.get("start_date")
+        end_date = params.get("end_date")
 
         if start_date:
             queryset = queryset.filter(data_vencimento__gte=start_date)
@@ -184,68 +198,38 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
         # 🔥 ORDENAÇÃO
-        if situacoes and set(situacoes).issubset({'P', 'V'}):
-            queryset = queryset.order_by('-data_pagamento', '-data_vencimento')
+        if situacoes and set(situacoes).issubset({"P", "V"}):
+            queryset = queryset.order_by("-data_pagamento", "-data_vencimento")
         else:
-            queryset = queryset.order_by('data_vencimento')
+            queryset = queryset.order_by("data_vencimento")
 
         return queryset
 
-    def perform_create(self, serializer):
-        # 🔹 deixa o mixin salvar com company
-        super().perform_create(serializer)
-
-        receita = serializer.instance
-
-        PERCENTUAL_COMISSAO = Decimal('20')
-
-        if receita.comissionado:
-            valor_comissao = (
-                Decimal(receita.valor) * PERCENTUAL_COMISSAO / Decimal('100')
-            )
-
-            ja_existe = Despesa.objects.filter(
-                receita_origem=receita,
-                tipo='C'
-            ).exists()
-
-            if not ja_existe:
-                Despesa.objects.create(
-                    company=receita.company,
-                    nome=f'Comissão - {receita.nome}',
-                    descricao=f'Comissão de 20% referente à receita "{receita.nome}"',
-                    valor=valor_comissao,
-                    responsavel=receita.comissionado,
-                    tipo='C',
-                    situacao='A',
-                    data_vencimento=receita.data_vencimento,
-                    receita_origem=receita
-                )
 
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
     pagination_class = DynamicPageSizePagination
 
+    def get_serializer_class(self):
+        situacoes = self.request.query_params.getlist("situacao")
+
+        if situacoes and set(situacoes).issubset({"A", "V"}):
+            return DespesaAbertaSerializer
+
+        return DespesaSerializer
+
     def get_queryset(self):
-        queryset = super().get_queryset()
-        hoje = now().date()
+        queryset = super().get_queryset().select_related(
+            "responsavel", "company"
+        ).prefetch_related(
+            "payments"
+        )
 
         params = self.request.query_params
-        situacoes = params.getlist('situacao')
-        responsavel_id = params.get('responsavel_id')
-        start_date = params.get('start_date')
-        end_date = params.get('end_date')
-        tipo = params.get('tipo')
-        search = params.get('search')
 
-        # 🔥 Atualiza automaticamente vencidas
-        queryset.filter(
-            situacao='A',
-            data_vencimento__lt=hoje
-        ).update(situacao='V')
-
-        # 🔎 SEARCH GLOBAL
+        # 🔎 BUSCA
+        search = params.get("search")
         if search:
             queryset = queryset.filter(
                 Q(nome__icontains=search) |
@@ -255,30 +239,31 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(data_vencimento__icontains=search)
             )
 
-        # 🔹 Filtros específicos
+        # 🔸 filtros
+        situacoes = params.getlist("situacao")
         if situacoes:
             queryset = queryset.filter(situacao__in=situacoes)
+
+        responsavel_id = params.get("responsavel_id")
         if responsavel_id:
             queryset = queryset.filter(responsavel_id=responsavel_id)
+
+        start_date = params.get("start_date")
+        end_date = params.get("end_date")
+
         if start_date:
             queryset = queryset.filter(data_vencimento__gte=start_date)
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
-        if tipo:
-            queryset = queryset.filter(tipo=tipo)
 
         # 🔥 ORDENAÇÃO
-        # 📌 Pagas → pagamento mais recente
-        if situacoes and set(situacoes).issubset({'P'}):
-            queryset = queryset.annotate(
-                ultima_data_pagamento=Max('payments__data_pagamento')
-            ).order_by('-ultima_data_pagamento')
-
-        # 📌 A pagar / vencidas → vencimento crescente
+        if situacoes and set(situacoes).issubset({"P", "V"}):
+            queryset = queryset.order_by("-data_pagamento", "-data_vencimento")
         else:
-            queryset = queryset.order_by('data_vencimento')
+            queryset = queryset.order_by("data_vencimento")
 
         return queryset
+
 
 
 from django.db.models import Q
@@ -383,9 +368,374 @@ class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 #         # ... filter Receitas for this cliente_id and user's company ...
 #         pass
 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db.models import Sum, Q, F
+from django.utils import timezone
+from datetime import timedelta, date
+from decimal import Decimal
+from .models import (
+    Company, CustomUser, Cliente, Funcionario, Receita, Despesa, 
+    Payment, ContaBancaria
+)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_view(request):
+    """
+    Retorna dados consolidados do dashboard para o usuário autenticado.
+    (Alinhado ao modelo financeiro do sistema: Payment = fonte da verdade)
+    """
+    user = request.user
+    company = user.company
 
+    hoje = timezone.now().date()
+    inicio_mes = date(hoje.year, hoje.month, 1)
+    
+    # Data de 30 dias atrás
+    data_30_dias_atras = hoje - timedelta(days=30)
+    
+    # ======================================================
+    # 💰 FLUXO DE CAIXA REALIZADO (ÚLTIMOS 30 DIAS)
+    # ======================================================
+    
+    # Receitas dos últimos 30 dias (dinheiro que entrou)
+    receitas_30_dias = (
+        Payment.objects.filter(
+            company=company,
+            receita__isnull=False,
+            data_pagamento__gte=data_30_dias_atras,
+            data_pagamento__lte=hoje
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+    
+    # Despesas dos últimos 30 dias (dinheiro que saiu)
+    despesas_30_dias = (
+        Payment.objects.filter(
+            company=company,
+            despesa__isnull=False,
+            data_pagamento__gte=data_30_dias_atras,
+            data_pagamento__lte=hoje
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+    
+    # Fluxo de caixa realizado (o que entrou - o que saiu)
+    fluxo_caixa_realizado = receitas_30_dias - despesas_30_dias
 
+    # ======================================================
+    # 🏦 SALDO TOTAL DAS CONTAS
+    # ======================================================
+
+    saldo_total = (
+        ContaBancaria.objects.filter(company=company)
+        .aggregate(total=Sum('saldo_atual'))['total']
+        or Decimal('0.00')
+    )
+    
+    # Saldo de 30 dias atrás (para comparação)
+    # Calculamos: saldo_atual - fluxo_realizado
+    saldo_30_dias_atras = saldo_total - fluxo_caixa_realizado
+
+    # ======================================================
+    # 📊 RECEITAS PROJETADAS (PRÓXIMOS 30 DIAS)
+    # ======================================================
+    
+    data_limite = hoje + timedelta(days=30)
+    
+    receitas_projetadas = (
+        Receita.objects.filter(
+            company=company,
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=data_limite,
+            situacao__in=['A', 'V']  # Não paga ainda
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+    
+    # ======================================================
+    # 📊 DESPESAS PROJETADAS (PRÓXIMOS 30 DIAS)
+    # ======================================================
+    
+    despesas_projetadas = (
+        Despesa.objects.filter(
+            company=company,
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=data_limite,
+            situacao__in=['A', 'V']  # Não paga ainda
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+
+    # ======================================================
+    # 🎂 ANIVERSARIANTES DO DIA
+    # ======================================================
+    
+    hoje_mes_dia = hoje.strftime('%m-%d')
+    
+    # Clientes aniversariantes
+    clientes_aniversariantes = Cliente.objects.filter(
+        company=company,
+        aniversario__isnull=False,
+        aniversario__month=hoje.month,      # ← Novo
+        aniversario__day=hoje.day            # ← Novo
+    )
+
+    # Funcionários aniversariantes
+    funcionarios_aniversariantes = Funcionario.objects.filter(
+        company=company,
+        aniversario__isnull=False,
+        aniversario__month=hoje.month,      # ← Novo
+        aniversario__day=hoje.day            # ← Novo
+    )
+
+    
+    aniversariantes = {
+        'clientes': [
+            {
+                'id': c.id,
+                'nome': c.nome,
+                'tipo': 'Cliente',
+                'email': c.email,
+                'telefone': c.telefone
+            }
+            for c in clientes_aniversariantes
+        ],
+        'funcionarios': [
+            {
+                'id': f.id,
+                'nome': f.nome,
+                'tipo': f.get_tipo_display(),
+                'email': f.email,
+                'telefone': f.telefone
+            }
+            for f in funcionarios_aniversariantes
+        ]
+    }
+
+    # ======================================================
+    # 🚨 ALERTAS OPERACIONAIS (VENCIDAS)
+    # ======================================================
+
+    despesas_vencidas = Despesa.objects.filter(
+        company=company,
+        situacao='V'
+    ).count()
+
+    receitas_vencidas = Receita.objects.filter(
+        company=company,
+        situacao='V'
+    ).count()
+
+    # ======================================================
+    # 📊 GRÁFICO RECEITA x DESPESA (ÚLTIMOS 6 MESES - REALIZADO)
+    # ======================================================
+
+    meses_data = []
+
+    for i in range(5, -1, -1):
+        ref = inicio_mes - timedelta(days=30 * i)
+        mes_inicio = ref.replace(day=1)
+        mes_fim = (mes_inicio.replace(day=28) + timedelta(days=4)).replace(
+            day=1
+        ) - timedelta(days=1)
+
+        receita = (
+            Payment.objects.filter(
+                company=company,
+                receita__isnull=False,
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+
+        despesa = (
+            Payment.objects.filter(
+                company=company,
+                despesa__isnull=False,
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+
+        meses_data.append({
+            'mes': mes_inicio.strftime('%b'),
+            'receita': float(receita),
+            'despesa': float(despesa),
+        })
+
+    # ======================================================
+    # 📊 GRÁFICO FLUXO DE CAIXA REALIZADO (ÚLTIMOS 6 MESES)
+    # ======================================================
+    
+    fluxo_caixa_data = []
+    
+    for i in range(5, -1, -1):
+        ref = inicio_mes - timedelta(days=30 * i)
+        mes_inicio = ref.replace(day=1)
+        mes_fim = (mes_inicio.replace(day=28) + timedelta(days=4)).replace(
+            day=1
+        ) - timedelta(days=1)
+
+        receita_mes = (
+            Payment.objects.filter(
+                company=company,
+                receita__isnull=False,
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+
+        despesa_mes = (
+            Payment.objects.filter(
+                company=company,
+                despesa__isnull=False,
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+        
+        fluxo_mes = receita_mes - despesa_mes
+
+        fluxo_caixa_data.append({
+            'mes': mes_inicio.strftime('%b'),
+            'fluxo': float(fluxo_mes),
+            'receita': float(receita_mes),
+            'despesa': float(despesa_mes),
+        })
+
+    # ======================================================
+    # 🍰 RECEITA / DESPESA POR TIPO (PAGO)
+    # ======================================================
+
+    receita_por_tipo = []
+    for tipo, label in Receita.TIPO_CHOICES:
+        total = (
+            Payment.objects.filter(
+                company=company,
+                receita__tipo=tipo
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+
+        if total > 0:
+            receita_por_tipo.append({
+                'name': label,
+                'value': float(total),
+            })
+
+    despesa_por_tipo = []
+    for tipo, label in Despesa.TIPO_CHOICES:
+        total = (
+            Payment.objects.filter(
+                company=company,
+                despesa__tipo=tipo
+            )
+            .aggregate(total=Sum('valor'))['total']
+            or Decimal('0.00')
+        )
+
+        if total > 0:
+            despesa_por_tipo.append({
+                'name': label,
+                'value': float(total),
+            })
+
+    # ======================================================
+    # ⏰ PRÓXIMOS VENCIMENTOS
+    # ======================================================
+
+    data_limite = hoje + timedelta(days=5)
+
+    receitas_proximas = (
+        Receita.objects.filter(
+            company=company,
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=data_limite,
+            situacao__in=['A', 'V']
+        )
+        .select_related('cliente')
+        .order_by('data_vencimento')[:5]
+    )
+
+    despesas_proximas = (
+        Despesa.objects.filter(
+            company=company,
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=data_limite,
+            situacao__in=['A', 'V']
+        )
+        .select_related('responsavel')
+        .order_by('data_vencimento')[:5]
+    )
+
+    # ======================================================
+    # 📦 RESPONSE
+    # ======================================================
+
+    return Response({
+        # Saldo e Fluxo
+        'saldoTotal': float(saldo_total),
+        'saldo30DiasAtras': float(saldo_30_dias_atras),
+        'fluxoCaixaRealizado': float(fluxo_caixa_realizado),
+        
+        # Projeções (próximos 30 dias)
+        'receitasProjetadas': float(receitas_projetadas),
+        'despesasProjetadas': float(despesas_projetadas),
+        
+        # Alertas
+        'despesasVencidas': despesas_vencidas,
+        'receitasVencidas': receitas_vencidas,
+        
+        # Aniversariantes
+        'aniversariantes': aniversariantes,
+
+        # Gráficos
+        'receitaVsDespesaData': meses_data,
+        'fluxoCaixaData': fluxo_caixa_data,
+        'receitaPorTipoData': receita_por_tipo,
+        'despesaPorTipoData': despesa_por_tipo,
+
+        # Próximos vencimentos
+        'receitasProximas': [
+            {
+                'id': r.id,
+                'nome': r.nome,
+                'cliente': r.cliente.nome,
+                'valor': float(r.valor),
+                'dataVencimento': r.data_vencimento.isoformat(),
+                'situacao': r.situacao,
+            }
+            for r in receitas_proximas
+        ],
+
+        'despesasProximas': [
+            {
+                'id': d.id,
+                'nome': d.nome,
+                'responsavel': d.responsavel.nome,
+                'valor': float(d.valor),
+                'dataVencimento': d.data_vencimento.isoformat(),
+                'situacao': d.situacao,
+            }
+            for d in despesas_proximas
+        ],
+    })
 
 # --- Report Views ---
 from rest_framework.views import APIView

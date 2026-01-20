@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { Button, message } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
 import FuncionarioDialog from "@/components/dialogs/FuncionarioDialog";
 import { FuncionarioProfileDialog } from "@/components/dialogs/FuncionarioProfileDialog";
+import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
+import { gerarRelatorioPDF } from "@/services/pdf";
+import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
 
 import {
   getFornecedores,
@@ -23,6 +27,11 @@ export default function FornecedorPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFornecedor, setEditingFornecedor] =
     useState<Fornecedor | null>(null);
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [fornecedorParaRelatorio, setFornecedorParaRelatorio] = useState<Fornecedor | null>(null);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   // 🔹 Paginação
   const [total, setTotal] = useState(0);
@@ -74,6 +83,36 @@ export default function FornecedorPage() {
     }
   };
 
+  // 📊 Gerar relatório de despesas do fornecedor
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      // Para relatório de funcionário, o funcionario_id é obrigatório
+      if (!fornecedorParaRelatorio?.id) {
+        toast.error("Fornecedor não selecionado");
+        return;
+      }
+
+      // Gerar relatório de funcionário específico (despesas a pagar e pagas)
+      await gerarRelatorioPDF("funcionario-especifico", {
+        funcionario_id: fornecedorParaRelatorio.id,
+        ...filtros,
+      });
+      toast.success("Relatório gerado com sucesso!");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Erro ao gerar relatório");
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
+  // 📊 Abrir modal de relatório para um fornecedor específico
+  const handleAbrirRelatorioFornecedor = (fornecedor: Fornecedor) => {
+    setFornecedorParaRelatorio(fornecedor);
+    setOpenRelatorioModal(true);
+  };
+
   const columns: TableColumnsType<Fornecedor> = [
     { title: "Nome", dataIndex: "nome" },
     { title: "CPF / CNPJ", dataIndex: "cpf" },
@@ -82,6 +121,17 @@ export default function FornecedorPage() {
       title: "Ações",
       render: (_: any, record: Fornecedor) => (
         <div className="flex gap-2">
+          {/* 🔹 RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => handleAbrirRelatorioFornecedor(record)}
+            loading={loadingRelatorio && fornecedorParaRelatorio?.id === record.id}
+            size="small"
+          >
+            Relatório
+          </Button>
+
           {/* 🔹 FINANCEIRO (REUSO TOTAL) */}
           <FuncionarioProfileDialog funcionarioId={record.id}>
             <Button type="default">Financeiro</Button>
@@ -146,6 +196,18 @@ export default function FornecedorPage() {
           }}
           onSubmit={handleSubmit}
           funcionario={editingFornecedor}
+        />
+
+        {/* 📊 MODAL DE RELATÓRIO DE DESPESAS DO FORNECEDOR */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => {
+            setOpenRelatorioModal(false);
+            setFornecedorParaRelatorio(null);
+          }}
+          onGenerate={handleGerarRelatorio}
+          title={`Relatório de Despesas - ${fornecedorParaRelatorio?.nome || "Fornecedor"}`}
+          tipoRelatorio="funcionario-especifico"
         />
       </main>
     </div>

@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
 import {
@@ -18,6 +20,9 @@ import {
 } from '@/services/payments';
 
 import { Receita, getReceitaById } from '@/services/receitas';
+import { getClientes, Cliente } from '@/services/clientes';
+import { gerarRelatorioPDF } from '@/services/pdf';
+import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -25,6 +30,11 @@ export default function ReceitaRecebidasPage() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -42,6 +52,20 @@ export default function ReceitaRecebidasPage() {
 
     return () => clearTimeout(timeout);
   }, [search]);
+
+  // Carregar clientes para o modal de relatório
+  useEffect(() => {
+    loadClientes();
+  }, []);
+
+  const loadClientes = async () => {
+    try {
+      const res = await getClientes({ page_size: 1000 });
+      setClientes(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -101,6 +125,20 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
+  // 📊 Gerar relatório com filtros
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      await gerarRelatorioPDF('receitas-pagas', filtros);
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar relatório');
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   const columns: TableColumnsType<Payment> = [
     {
       title: 'Data de Recebimento',
@@ -143,7 +181,7 @@ export default function ReceitaRecebidasPage() {
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         {/* 🔝 HEADER */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-6">
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Receitas Recebidas
           </h1>
@@ -159,6 +197,16 @@ export default function ReceitaRecebidasPage() {
           />
 
           <div className="flex-1" />
+
+          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+          >
+            Gerar Relatório PDF
+          </Button>
         </div>
 
         <GenericTable<Payment>
@@ -185,6 +233,19 @@ export default function ReceitaRecebidasPage() {
             setEditingReceita(null);
             loadData();
           }}
+        />
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Receitas Pagas"
+          tipoRelatorio="receitas-pagas"
+          clientes={clientes.map((c) => ({
+            id: c.id,
+            nome: c.nome,
+          }))}
         />
       </main>
     </div>

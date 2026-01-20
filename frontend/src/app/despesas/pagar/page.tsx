@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from 'antd';
 import { toast } from 'sonner';
+import { DownloadOutlined } from '@ant-design/icons';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
@@ -17,6 +18,11 @@ import {
   Despesa,
 } from '@/services/despesas';
 
+import { getFavorecidos, Favorecido } from '@/services/favorecidos';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
+import { gerarRelatorioPDF } from '@/services/pdf';
+import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+
 import StatusBadge from '@/components/ui/StatusBadge';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
 import { Input } from '@/components/ui/input';
@@ -28,6 +34,11 @@ export default function DespesasPagarPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [funcionarios, setFuncionarios] = useState<Favorecido[]>([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -38,12 +49,26 @@ export default function DespesasPagarPage() {
   // 🔁 Debounce do search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setPage(1);      // sempre volta pra página 1
+      setPage(1); // sempre volta pra página 1
       loadData();
     }, 300); // debounce
-  
+
     return () => clearTimeout(timeout);
   }, [search]);
+
+  // Carregar funcionários para o modal de relatório
+  useEffect(() => {
+    loadFuncionarios();
+  }, []);
+
+  const loadFuncionarios = async () => {
+    try {
+      const res = await getFavorecidos({ page_size: 1000 });
+      setFuncionarios(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -93,6 +118,20 @@ export default function DespesasPagarPage() {
     }
   };
 
+  // 📊 Gerar relatório com filtros
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      await gerarRelatorioPDF('despesas-a-pagar', filtros);
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar relatório');
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   const columns: TableColumnsType<Despesa> = [
     {
       title: 'Vencimento',
@@ -111,7 +150,7 @@ export default function DespesasPagarPage() {
     },
     {
       title: 'Valor',
-      dataIndex: 'valor',
+      dataIndex: 'valor_aberto',
       render: (v) => formatCurrencyBR(v),
     },
     {
@@ -141,7 +180,7 @@ export default function DespesasPagarPage() {
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         {/* 🔝 HEADER */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-6">
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Despesas em Aberto
           </h1>
@@ -157,6 +196,16 @@ export default function DespesasPagarPage() {
           />
 
           <div className="flex-1" />
+
+          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+          >
+            Gerar Relatório PDF
+          </Button>
 
           <Button
             className="shadow-md"
@@ -189,6 +238,19 @@ export default function DespesasPagarPage() {
           }}
           onSubmit={handleSubmit}
           despesa={editingDespesa}
+        />
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Despesas a Pagar"
+          tipoRelatorio="despesas-a-pagar"
+          favorecidos={funcionarios.map((f) => ({
+            id: f.id,
+            nome: f.nome,
+          }))}
         />
       </main>
     </div>

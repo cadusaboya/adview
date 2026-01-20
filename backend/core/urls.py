@@ -4,11 +4,22 @@ from .views import (
     CompanyViewSet, CustomUserViewSet, ClienteViewSet, 
     FuncionarioViewSet, ReceitaViewSet, DespesaViewSet,
     FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,
-    FavorecidoViewSet,  # 👈 adiciona aqui
+    FavorecidoViewSet, dashboard_view,  # 👈 adiciona aqui
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
     RelatorioComissionamentoView, RelatorioResultadoMensalView
+)
+
+from .pdf_views import (
+    relatorio_receitas_pagas,
+    relatorio_cliente_especifico,
+    relatorio_despesas_pagas,
+    relatorio_despesas_a_pagar,
+    relatorio_receitas_a_receber, # Renomeado para a_receber para clareza
+    ##relatorio_dre_consolidado,
+    relatorio_fluxo_de_caixa,
+    relatorio_funcionario_especifico
 )
 
 router = DefaultRouter()
@@ -33,4 +44,32 @@ urlpatterns = [
     path('relatorios/folha-salarial/', RelatorioFolhaSalarialView.as_view(), name='relatorio-folha-salarial'),
     path('relatorios/comissionamento/', RelatorioComissionamentoView.as_view(), name='relatorio-comissionamento'),
     path('relatorios/resultado-mensal/', RelatorioResultadoMensalView.as_view(), name='relatorio-resultado-mensal'),
+    path('dashboard/', dashboard_view, name='dashboard'),
+
+    # PDF Urls
+    # 1. Relatório de Receitas Pagas
+    path('pdf/receitas-pagas/', relatorio_receitas_pagas, name='relatorio-receitas-pagas'),
+
+    # 2. Relatório de Cliente Específico
+    path('pdf/cliente-especifico/', relatorio_cliente_especifico, name='relatorio-cliente-especifico'),
+
+    # 3. Relatório de Despesas Pagas
+    path('pdf/despesas-pagas/', relatorio_despesas_pagas, name='relatorio-despesas-pagas'),
+
+    # 4. Relatório de Despesas a Pagar
+    path('pdf/despesas-a-pagar/', relatorio_despesas_a_pagar, name='relatorio-despesas-a-pagar'),
+
+    # 5. Relatório de Receitas a Receber (a Pagar no Trello)
+    path('pdf/receitas-a-receber/', relatorio_receitas_a_receber, name='relatorio-receitas-a-receber'),
+
+    # 6. Relatório de DRE Consolidado
+    ##path('pdf/dre-consolidado/', relatorio_dre_consolidado, name='relatorio-dre-consolidado'),
+
+    # 7. Relatório de Fluxo de Caixa
+    path('pdf/fluxo-de-caixa/', relatorio_fluxo_de_caixa, name='relatorio-fluxo-de-caixa'),
+
+    # 8. Relatório Funcionário Específico
+    path('pdf/funcionario-especifico/', relatorio_funcionario_especifico, name='relatorio-fluxo-de-caixa'),
 ]
+
+

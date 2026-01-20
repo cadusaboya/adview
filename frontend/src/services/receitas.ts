@@ -10,6 +10,7 @@ export interface Receita {
   cliente_nome: string;
   data_vencimento: string;
   valor: string;
+  valor_aberto?: string;
   situacao: "A" | "P" | "V";
   situacao_display: string;
 }

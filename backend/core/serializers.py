@@ -144,6 +144,20 @@ class ReceitaSerializer(serializers.ModelSerializer):
 
         return data
 
+class ReceitaAbertaSerializer(ReceitaSerializer):
+    valor_aberto = serializers.SerializerMethodField()
+
+    class Meta(ReceitaSerializer.Meta):
+        pass  # mantém fields="__all__"
+
+    def get_valor_aberto(self, obj):
+        from decimal import Decimal
+
+        total_pago = sum(
+            (p.valor for p in obj.payments.all()),
+            Decimal("0.00")
+        )
+        return obj.valor - total_pago
 
 # 🔹 Despesa
 class DespesaSerializer(serializers.ModelSerializer):
@@ -196,6 +210,22 @@ class ContaBancariaSerializer(serializers.ModelSerializer):
             'criado_em',
             'atualizado_em'
         )
+
+class DespesaAbertaSerializer(DespesaSerializer):
+    valor_aberto = serializers.SerializerMethodField()
+
+    class Meta(DespesaSerializer.Meta):
+        pass  # mantém fields="__all__"
+
+    def get_valor_aberto(self, obj):
+        from decimal import Decimal
+
+        total_pago = sum(
+            (p.valor for p in obj.payments.all()),
+            Decimal("0.00")
+        )
+        return obj.valor - total_pago
+
 
 # 🔹 Payment
 class PaymentSerializer(serializers.ModelSerializer):

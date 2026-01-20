@@ -12,6 +12,7 @@ export interface Despesa {
   data_vencimento: string;
   data_pagamento: string | null;
   valor: string;
+  valor_aberto?: string;
   valor_pago: string | null;
   tipo: 'F' | 'V' | 'C' | 'R';
   situacao: 'A' | 'P' | 'V';

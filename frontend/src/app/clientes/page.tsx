@@ -9,11 +9,13 @@ import {
   updateCliente,
 } from "../../services/clientes";
 import { Button } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import GenericTable from "@/components/imports/GenericTable";
 import type { TableColumnsType } from "antd";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import ClienteDialog from "@/components/dialogs/ClienteDialog";
 import { ClienteProfileDialog } from "@/components/dialogs/ClienteProfileDialog";
+import { gerarRelatorioPDF } from "@/services/pdf";
 import { toast } from "sonner";
 
 export default function ClientePage() {
@@ -21,6 +23,9 @@ export default function ClientePage() {
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+
+  // 📊 Estado para loading do relatório
+  const [loadingRelatorio, setLoadingRelatorio] = useState<number | null>(null);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -71,6 +76,23 @@ export default function ClientePage() {
     }
   };
 
+  // 📊 Gerar relatório de cliente específico automaticamente
+  const handleGerarRelatorio = async (clienteId: number, clienteNome: string) => {
+    try {
+      setLoadingRelatorio(clienteId);
+      
+      await gerarRelatorioPDF("cliente-especifico", {
+        cliente_id: clienteId,
+      });
+      toast.success("Relatório gerado com sucesso!");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Erro ao gerar relatório");
+    } finally {
+      setLoadingRelatorio(null);
+    }
+  };
+
   const columns: TableColumnsType<Cliente> = [
     { title: "Nome", dataIndex: "nome" },
     { title: "CPF / CNPJ", dataIndex: "cpf" },
@@ -80,6 +102,17 @@ export default function ClientePage() {
       title: "Ações",
       render: (_: any, record: Cliente) => (
         <div className="flex gap-2">
+          {/* 🔹 RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => handleGerarRelatorio(record.id, record.nome)}
+            loading={loadingRelatorio === record.id}
+            size="small"
+          >
+            Relatório
+          </Button>
+
           {/* 🔹 FINANCEIRO */}
           <ClienteProfileDialog clientId={record.id}>
             <Button type="default">Financeiro</Button>

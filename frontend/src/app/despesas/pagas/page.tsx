@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
 import {
@@ -18,6 +20,9 @@ import {
 } from '@/services/payments';
 
 import { Despesa, getDespesaById } from '@/services/despesas';
+import { getFavorecidos, Favorecido } from '@/services/favorecidos';
+import { gerarRelatorioPDF } from '@/services/pdf';
+import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 export default function DespesasPagasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -25,6 +30,11 @@ export default function DespesasPagasPage() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [funcionarios, setFuncionarios] = useState<Favorecido[]>([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -42,6 +52,20 @@ export default function DespesasPagasPage() {
 
     return () => clearTimeout(timeout);
   }, [search]);
+
+  // Carregar funcionários para o modal de relatório
+  useEffect(() => {
+    loadFuncionarios();
+  }, []);
+
+  const loadFuncionarios = async () => {
+    try {
+      const res = await getFavorecidos({ page_size: 1000 });
+      setFuncionarios(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -103,6 +127,20 @@ export default function DespesasPagasPage() {
     }
   };
 
+  // 📊 Gerar relatório com filtros
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      await gerarRelatorioPDF('despesas-pagas', filtros);
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar relatório');
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   const columns: TableColumnsType<Payment> = [
     {
       title: 'Data de Pagamento',
@@ -145,7 +183,7 @@ export default function DespesasPagasPage() {
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         {/* 🔝 HEADER */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-6">
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Despesas Pagas
           </h1>
@@ -161,6 +199,16 @@ export default function DespesasPagasPage() {
           />
 
           <div className="flex-1" />
+
+          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+          >
+            Gerar Relatório PDF
+          </Button>
         </div>
 
         <GenericTable<Payment>
@@ -187,6 +235,19 @@ export default function DespesasPagasPage() {
             setEditingDespesa(null);
             loadData();
           }}
+        />
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Despesas Pagas"
+          tipoRelatorio="despesas-pagas"
+          favorecidos={funcionarios.map((f) => ({
+            id: f.id,
+            nome: f.nome,
+          }))}
         />
       </main>
     </div>

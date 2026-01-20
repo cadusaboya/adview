@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrencyBR } from "@/lib/formatters";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
+import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
+import { gerarRelatorioPDF } from "@/services/pdf";
+import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
 
 import { getDespesas, Despesa } from "@/services/despesas";
 import { getReceitas, Receita } from "@/services/receitas";
@@ -15,15 +21,14 @@ type LineItem = {
 };
 
 export default function DREPage() {
-    /* =========================
+  /* =========================
     FILTRO (MÊS / ANO)
     ========================= */
-    const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
-    const [ano, setAno] = useState<number>(new Date().getFullYear());
+  const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
+  const [ano, setAno] = useState<number>(new Date().getFullYear());
 
-    const startDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
-    const endDate = new Date(ano, mes, 0).toISOString().split("T")[0];
-
+  const startDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const endDate = new Date(ano, mes, 0).toISOString().split("T")[0];
 
   /* =========================
      STATE
@@ -31,6 +36,10 @@ export default function DREPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 📊 Estados para o modal de relatório
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   /* =========================
      FETCH DESPESAS + RECEITAS
@@ -114,58 +123,97 @@ export default function DREPage() {
 
   const resultado = totalReceitas - totalDespesas;
 
+  // 📊 Gerar relatório de DRE
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+      // Para DRE, usamos as datas do filtro ou as datas atuais
+      await gerarRelatorioPDF("dre-consolidado", {
+        data_inicio: filtros.data_inicio || startDate,
+        data_fim: filtros.data_fim || endDate,
+      });
+      toast.success("Relatório DRE gerado com sucesso!");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Erro ao gerar relatório");
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
   return (
     <div className="flex">
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         <div className="space-y-2">
-          <div>
-            <h1 className="text-2xl font-semibold">
-              Demonstração do Resultado (DRE)
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {String(mes).padStart(2, "0")}/{ano}
-            </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-semibold">
+                Demonstração do Resultado (DRE)
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {String(mes).padStart(2, "0")}/{ano}
+              </p>
+            </div>
+
+            {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={() => setOpenRelatorioModal(true)}
+              loading={loadingRelatorio}
+            >
+              Gerar Relatório PDF
+            </Button>
           </div>
 
           <div className="flex gap-4 items-end">
             {/* MÊS */}
             <div className="flex flex-col gap-1">
-                <label className="text-sm text-muted-foreground">Mês</label>
-                <select
+              <label className="text-sm text-muted-foreground">Mês</label>
+              <select
                 value={mes}
                 onChange={(e) => setMes(Number(e.target.value))}
                 className="border rounded-md px-3 py-2 text-sm"
-                >
+              >
                 {[
-                    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+                  "Janeiro",
+                  "Fevereiro",
+                  "Março",
+                  "Abril",
+                  "Maio",
+                  "Junho",
+                  "Julho",
+                  "Agosto",
+                  "Setembro",
+                  "Outubro",
+                  "Novembro",
+                  "Dezembro",
                 ].map((nome, index) => (
-                    <option key={index} value={index + 1}>
+                  <option key={index} value={index + 1}>
                     {nome}
-                    </option>
+                  </option>
                 ))}
-                </select>
+              </select>
             </div>
 
             {/* ANO */}
             <div className="flex flex-col gap-1">
-                <label className="text-sm text-muted-foreground">Ano</label>
-                <select
+              <label className="text-sm text-muted-foreground">Ano</label>
+              <select
                 value={ano}
                 onChange={(e) => setAno(Number(e.target.value))}
                 className="border rounded-md px-3 py-2 text-sm"
-                >
+              >
                 {[2024, 2025, 2026, 2027].map((y) => (
-                    <option key={y} value={y}>
+                  <option key={y} value={y}>
                     {y}
-                    </option>
+                  </option>
                 ))}
-                </select>
+              </select>
             </div>
           </div>
-
 
           <Card>
             <CardContent className="p-6 space-y-6">
@@ -215,6 +263,15 @@ export default function DREPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => setOpenRelatorioModal(false)}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de DRE Consolidado"
+          tipoRelatorio="dre-consolidado"
+        />
       </main>
     </div>
   );
@@ -247,9 +304,7 @@ function Row({ label, value }: LineItem) {
     <div className="grid grid-cols-2 text-sm">
       <span>{label}</span>
       <span
-        className={`text-right ${
-          value < 0 ? "text-red-500" : ""
-        }`}
+        className={`text-right ${value < 0 ? "text-red-500" : ""}`}
       >
         {formatCurrencyBR(value)}
       </span>
@@ -258,27 +313,24 @@ function Row({ label, value }: LineItem) {
 }
 
 function TotalRow({
-    label,
-    value,
-    highlight = false,
-    negative = false,
-  }: {
-    label: string;
-    value: number;
-    highlight?: boolean;
-    negative?: boolean;
-  }) {
-    return (
-      <div
-        className={`grid grid-cols-2 font-semibold ${
-          highlight ? "text-green-600" : negative ? "text-red-600" : ""
-        }`}
-      >
-        <span>{label}</span>
-        <span className="text-right">
-          {formatCurrencyBR(value)}
-        </span>
-      </div>
-    );
-  }
-  
+  label,
+  value,
+  highlight = false,
+  negative = false,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+  negative?: boolean;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-2 font-semibold ${
+        highlight ? "text-green-600" : negative ? "text-red-600" : ""
+      }`}
+    >
+      <span>{label}</span>
+      <span className="text-right">{formatCurrencyBR(value)}</span>
+    </div>
+  );
+}
