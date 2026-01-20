@@ -30,7 +30,10 @@ export interface PaymentListParams {
   receita?: number;
   despesa?: number;
 
-  // 🔹 NOVOS FILTROS DE PERÍODO
+  // 🔥 NOVO: TIPO DE PAGAMENTO
+  tipo?: 'receita' | 'despesa';
+
+  // 🔹 FILTROS DE PERÍODO
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
 }

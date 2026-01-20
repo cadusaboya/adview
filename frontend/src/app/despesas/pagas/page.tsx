@@ -87,14 +87,10 @@ export default function DespesasPagasPage() {
         page,
         page_size: pageSize,
         search,
+        tipo: "despesa",
       });
 
-      // 🔹 Apenas pagamentos de despesas
-      const despesaPayments = res.results.filter(
-        (p: Payment) => p.despesa !== null
-      );
-
-      setPayments(despesaPayments);
+      setPayments(res.results);
       setTotal(res.count);
     } catch (error) {
       console.error(error);

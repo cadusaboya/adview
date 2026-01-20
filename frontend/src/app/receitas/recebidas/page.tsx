@@ -87,14 +87,10 @@ export default function ReceitaRecebidasPage() {
         page,
         page_size: pageSize,
         search,
+        tipo: "receita",
       });
 
-      // 🔹 Apenas pagamentos de receitas
-      const receitaPayments = res.results.filter(
-        (p: Payment) => p.receita !== null
-      );
-
-      setPayments(receitaPayments);
+      setPayments(res.results);
       setTotal(res.count);
     } catch (error) {
       console.error(error);
