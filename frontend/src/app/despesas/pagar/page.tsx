@@ -23,7 +23,7 @@ import {
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
-
+import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
 
@@ -41,10 +41,29 @@ export default function DespesasPage() {
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
+  // 👥 Favorecidos (FALTAVA AQUI)
+  const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
+
   // 🔥 Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  // ======================
+  // 👥 LOAD FAVORECIDOS
+  // ======================
+  useEffect(() => {
+    loadFavorecidos();
+  }, []);
+
+  const loadFavorecidos = async () => {
+    try {
+      const res = await getFavorecidos({ page_size: 1000 });
+      setFavorecidos(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar favorecidos:', error);
+    }
+  };
 
   // ======================
   // 🔄 LOAD DATA
@@ -165,8 +184,6 @@ export default function DespesasPage() {
             },
           ]}
         />
-
-
       ),
     },
   ];
@@ -250,6 +267,10 @@ export default function DespesasPage() {
           onGenerate={handleGerarRelatorio}
           title="Relatório de Despesas a Pagar"
           tipoRelatorio="despesas-a-pagar"
+          favorecidos={favorecidos.map((f) => ({
+            id: f.id,
+            nome: f.nome,
+          }))}
         />
       </main>
     </div>

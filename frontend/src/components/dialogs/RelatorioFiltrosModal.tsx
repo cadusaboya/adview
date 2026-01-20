@@ -126,6 +126,7 @@ export default function RelatorioFiltrosModal({
           >
             <Select
               placeholder="Selecione um cliente (opcional)"
+              listHeight={256}
               allowClear
               showSearch
               optionFilterProp="children"
@@ -149,6 +150,7 @@ export default function RelatorioFiltrosModal({
           >
             <Select
               placeholder="Selecione um favorecido (opcional)"
+              listHeight={256}
               allowClear
               showSearch
               optionFilterProp="children"

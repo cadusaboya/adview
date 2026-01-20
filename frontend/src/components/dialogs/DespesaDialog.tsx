@@ -10,17 +10,9 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import {
-  Command,
-  CommandInput,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
-import { Check, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+
+import { Select as AntdSelect } from 'antd';
 
 import {
   formatCurrencyInput,
@@ -84,7 +76,6 @@ export default function DespesaDialog({
         data_vencimento: '',
         tipo: '',
       });
-
       setValorDisplay('');
     }
   }, [despesa, open]);
@@ -98,14 +89,14 @@ export default function DespesaDialog({
     loadBancos();
   }, []);
 
-  /* 🔹 Carregar funcionários (favorecidos) */
+  /* 🔹 Carregar favorecidos */
   useEffect(() => {
     const loadFavorecidos = async () => {
       try {
         const { results } = await getFavorecidos({ page_size: 1000 });
         setFavorecidos(results);
       } catch (error) {
-        console.error('Erro ao carregar funcionários', error);
+        console.error('Erro ao carregar favorecidos', error);
       }
     };
     loadFavorecidos();
@@ -130,59 +121,38 @@ export default function DespesaDialog({
           <div>
             <label className="text-sm">Favorecido</label>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  className="w-full justify-between"
-                >
-                  {formData.responsavel_id
-                    ? favorecidos.find(
-                        (f) => String(f.id) === formData.responsavel_id
-                      )?.nome
-                    : 'Selecione um favorecido'}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-
-              <PopoverContent
-                align="start"
-                side="bottom"
-                sideOffset={4}
-                className="w-[--radix-popover-trigger-width] p-0 rounded-md border shadow-md"
-              >
-                <Command>
-                  <CommandInput placeholder="Buscar favorecido..." />
-                  <CommandEmpty>Nenhum favorecido encontrado.</CommandEmpty>
-
-                  <CommandGroup>
-                    {favorecidos.map((func) => (
-                      <CommandItem
-                        key={func.id}
-                        value={func.nome}
-                        onSelect={() =>
-                          setFormData({
-                            ...formData,
-                            responsavel_id: String(func.id),
-                          })
-                        }
-                      >
-                        <Check
-                          className={cn(
-                            'mr-2 h-4 w-4',
-                            formData.responsavel_id === String(func.id)
-                              ? 'opacity-100'
-                              : 'opacity-0'
-                          )}
-                        />
-                        {func.nome}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <AntdSelect
+              showSearch
+              allowClear
+              placeholder="Selecione um favorecido"
+              value={formData.responsavel_id || undefined}
+              style={{ width: '100%' }}
+              listHeight={256}
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={favorecidos.map((f) => ({
+                value: String(f.id),
+                label: f.nome,
+              }))}
+              onChange={(val) =>
+                setFormData({
+                  ...formData,
+                  responsavel_id: val || '',
+                })
+              }
+              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
+              popupClassName="antd-select-popup-dialog"
+              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
+              getPopupContainer={(trigger) => {
+                // Procura pelo dialog mais próximo
+                const dialogParent = trigger.closest('[role="dialog"]');
+                return dialogParent || document.body;
+              }}
+            />
           </div>
 
           <div>
@@ -218,24 +188,15 @@ export default function DespesaDialog({
               inputMode="decimal"
               placeholder="0,00"
               value={valorDisplay}
-
-              onChange={(e) => {
-                setValorDisplay(e.target.value);
-              }}
-
+              onChange={(e) => setValorDisplay(e.target.value)}
               onFocus={() => {
-                setValorDisplay(
-                  valorDisplay.replace(/[^\d,]/g, '')
-                );
+                setValorDisplay(valorDisplay.replace(/[^\d,]/g, ''));
               }}
-
               onBlur={() => {
                 const parsed = parseCurrencyBR(valorDisplay);
-
                 setValorDisplay(
                   parsed ? formatCurrencyInput(parsed) : ''
                 );
-
                 setFormData((prev: any) => ({
                   ...prev,
                   valor: parsed,
@@ -288,6 +249,18 @@ export default function DespesaDialog({
           />
         )}
       </div>
+
+      {/* 🔥 CSS para corrigir z-index do Ant Design Select dentro do Dialog */}
+      <style jsx global>{`
+        .antd-select-popup-dialog {
+          z-index: 9999 !important;
+        }
+        
+        /* Garantir que o dropdown do Ant Design fique acima do dialog */
+        .ant-select-dropdown {
+          z-index: 9999 !important;
+        }
+      `}</style>
     </DialogBase>
   );
 }

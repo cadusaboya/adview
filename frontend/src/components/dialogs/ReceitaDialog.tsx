@@ -10,28 +10,20 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
-import { Check, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+
+import { Select as AntdSelect } from 'antd';
+
 import {
   formatCurrencyInput,
   parseCurrencyBR,
 } from '@/lib/formatters';
+
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
 import { getBancos } from '@/services/bancos';
 import { getFuncionarios, Funcionario } from '@/services/funcionarios';
 import { getClientes, Cliente } from '@/services/clientes';
-
 
 interface Props {
   open: boolean;
@@ -62,7 +54,6 @@ export default function ReceitaDialog({
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [valorDisplay, setValorDisplay] = useState('');
 
-
   /* 🔹 Preencher formulário ao editar */
   useEffect(() => {
     if (receita) {
@@ -78,7 +69,7 @@ export default function ReceitaDialog({
           ? String(receita.comissionado_id)
           : '',
       });
-  
+
       setValorDisplay(
         receita.valor ? formatCurrencyInput(receita.valor) : ''
       );
@@ -93,11 +84,10 @@ export default function ReceitaDialog({
         forma_pagamento: '',
         comissionado_id: '',
       });
-  
+
       setValorDisplay('');
     }
   }, [receita, open]);
-  
 
   /* 🔹 Carregar bancos */
   useEffect(() => {
@@ -108,31 +98,23 @@ export default function ReceitaDialog({
     loadBancos();
   }, []);
 
-  /* 🔹 Carregar funcionários (comissionados) */
+  /* 🔹 Carregar funcionários */
   useEffect(() => {
     const loadFuncionarios = async () => {
-      try {
-        const { results } = await getFuncionarios({ page_size: 1000 });
-        setFuncionarios(results);
-      } catch (error) {
-        console.error('Erro ao carregar funcionários', error);
-      }
+      const { results } = await getFuncionarios({ page_size: 1000 });
+      setFuncionarios(results);
     };
     loadFuncionarios();
   }, []);
 
+  /* 🔹 Carregar clientes */
   useEffect(() => {
     const loadClientes = async () => {
-      try {
-        const { results } = await getClientes({ page_size: 1000 });
-        setClientes(results);
-      } catch (error) {
-        console.error('Erro ao carregar clientes', error);
-      }
+      const { results } = await getClientes({ page_size: 1000 });
+      setClientes(results);
     };
     loadClientes();
   }, []);
-  
 
   const handleSubmit = async () => {
     const payload = { ...formData };
@@ -151,61 +133,38 @@ export default function ReceitaDialog({
         {/* 🔹 Cliente + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-          <label className="text-sm">Cliente</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className="w-full justify-between"
-              >
-                {formData.cliente_id
-                  ? clientes.find(
-                      (c) => String(c.id) === formData.cliente_id
-                    )?.nome
-                  : 'Selecione um cliente'}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
+            <label className="text-sm">Cliente</label>
 
-            <PopoverContent
-              align="start"
-              side="bottom"
-              sideOffset={4}
-              className="w-[--radix-popover-trigger-width] p-0 rounded-md border shadow-md"
-            >
-              <Command>
-                <CommandInput placeholder="Buscar cliente..." />
-                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-
-                <CommandGroup>
-                  {clientes.map((cliente) => (
-                    <CommandItem
-                      key={cliente.id}
-                      value={cliente.nome}
-                      onSelect={() =>
-                        setFormData({
-                          ...formData,
-                          cliente_id: String(cliente.id),
-                        })
-                      }
-                    >
-                      <Check
-                        className={cn(
-                          'mr-2 h-4 w-4',
-                          formData.cliente_id === String(cliente.id)
-                            ? 'opacity-100'
-                            : 'opacity-0'
-                        )}
-                      />
-                      {cliente.nome}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            <AntdSelect
+              showSearch
+              allowClear
+              placeholder="Selecione um cliente"
+              value={formData.cliente_id || undefined}
+              style={{ width: '100%' }}
+              listHeight={256}
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={clientes.map((c) => ({
+                value: String(c.id),
+                label: c.nome,
+              }))}
+              onChange={(val) =>
+                setFormData({ ...formData, cliente_id: val || '' })
+              }
+              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
+              popupClassName="antd-select-popup-dialog"
+              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
+              getPopupContainer={(trigger) => {
+                const dialogParent = trigger.closest('[role="dialog"]');
+                return dialogParent || document.body;
+              }}
+            />
           </div>
+
           <div>
             <label className="text-sm">Nome</label>
             <Input
@@ -239,31 +198,18 @@ export default function ReceitaDialog({
               inputMode="decimal"
               placeholder="0,00"
               value={valorDisplay}
-
-              onChange={(e) => {
-                // NÃO formatar aqui
-                setValorDisplay(e.target.value);
+              onChange={(e) => setValorDisplay(e.target.value)}
+              onFocus={() => {
+                setValorDisplay(valorDisplay.replace(/[^\d,]/g, ''));
               }}
-
               onBlur={() => {
                 const parsed = parseCurrencyBR(valorDisplay);
-
-                // formata SOMENTE ao sair
                 setValorDisplay(
                   parsed ? formatCurrencyInput(parsed) : ''
                 );
-
                 setFormData({ ...formData, valor: parsed });
               }}
-
-              onFocus={() => {
-                // remove pontos ao focar para facilitar edição
-                setValorDisplay(
-                  valorDisplay.replace(/\./g, '')
-                );
-              }}
             />
-
           </div>
 
           <div>
@@ -320,76 +266,44 @@ export default function ReceitaDialog({
             </Select>
           </div>
 
-          {/* ✅ COMBOBOX DE COMISSIONADO (REAL) */}
           <div>
             <label className="text-sm">Comissionado (opcional)</label>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  className="w-full justify-between"
-                >
-                  {formData.comissionado_id
-                    ? funcionarios.find(
-                        (f) => String(f.id) === formData.comissionado_id
-                      )?.nome
-                    : 'Selecione um funcionário'}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-
-              <PopoverContent
-                align="start"
-                side="bottom"
-                sideOffset={4}
-                className="w-[--radix-popover-trigger-width] p-0 rounded-md border shadow-md"
-              >
-
-                <Command>
-                  <CommandInput placeholder="Buscar funcionário..." />
-                  <CommandEmpty>Nenhum funcionário encontrado.</CommandEmpty>
-
-                  <CommandGroup>
-                    {/* Opção Nenhum */}
-                    <CommandItem
-                      value="nenhum"
-                      onSelect={() =>
-                        setFormData({ ...formData, comissionado_id: '' })
-                      }
-                    >
-                      Nenhum
-                    </CommandItem>
-
-                    {funcionarios.map((func) => (
-                      <CommandItem
-                        key={func.id}
-                        value={func.nome}
-                        onSelect={() =>
-                          setFormData({
-                            ...formData,
-                            comissionado_id: String(func.id),
-                          })
-                        }
-                      >
-                        <Check
-                          className={cn(
-                            'mr-2 h-4 w-4',
-                            formData.comissionado_id === String(func.id)
-                              ? 'opacity-100'
-                              : 'opacity-0'
-                          )}
-                        />
-                        {func.nome}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <AntdSelect
+              showSearch
+              allowClear
+              placeholder="Selecione um funcionário"
+              value={formData.comissionado_id || undefined}
+              style={{ width: '100%' }}
+              listHeight={256}
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={[
+                { value: '', label: 'Nenhum' },
+                ...funcionarios.map((f) => ({
+                  value: String(f.id),
+                  label: f.nome,
+                })),
+              ]}
+              onChange={(val) =>
+                setFormData({
+                  ...formData,
+                  comissionado_id: val || '',
+                })
+              }
+              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
+              popupClassName="antd-select-popup-dialog"
+              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
+              getPopupContainer={(trigger) => {
+                const dialogParent = trigger.closest('[role="dialog"]');
+                return dialogParent || document.body;
+              }}
+            />
           </div>
-
         </div>
 
         {/* 🔥 Pagamentos */}
@@ -401,6 +315,18 @@ export default function ReceitaDialog({
           />
         )}
       </div>
+
+      {/* 🔥 CSS para corrigir z-index do Ant Design Select dentro do Dialog */}
+      <style jsx global>{`
+        .antd-select-popup-dialog {
+          z-index: 9999 !important;
+        }
+        
+        /* Garantir que o dropdown do Ant Design fique acima do dialog */
+        .ant-select-dropdown {
+          z-index: 9999 !important;
+        }
+      `}</style>
     </DialogBase>
   );
 }

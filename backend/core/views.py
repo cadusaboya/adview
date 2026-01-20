@@ -267,7 +267,6 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
 
 from django.db.models import Q
-from django.utils.timezone import now
 from rest_framework import viewsets
 
 class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
@@ -278,14 +277,22 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-
         params = self.request.query_params
+
         receita_id = params.get('receita')
         despesa_id = params.get('despesa')
         start_date = params.get('start_date')
         end_date = params.get('end_date')
         search = params.get('search')
 
+        # 🔥 FILTRO EXPLÍCITO DE TIPO (ESSENCIAL)
+        tipo = params.get('tipo')  # 'receita' | 'despesa'
+        if tipo == 'despesa':
+            queryset = queryset.filter(despesa__isnull=False)
+        elif tipo == 'receita':
+            queryset = queryset.filter(receita__isnull=False)
+
+        # 🔹 Filtros diretos
         if receita_id:
             queryset = queryset.filter(receita_id=receita_id)
 
@@ -298,8 +305,7 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(data_pagamento__lte=end_date)
 
-
-        # 🔍 SEARCH GLOBAL (pagamentos + entidades relacionadas)
+        # 🔍 SEARCH GLOBAL
         if search:
             queryset = queryset.filter(
                 Q(valor__icontains=search) |
@@ -311,39 +317,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(despesa__responsavel__nome__icontains=search)
             )
 
-        # 📌 Ordenação padrão: pagamentos mais recentes primeiro
+        # 📌 Ordenação estável (ESSENCIAL para paginação)
         return queryset.order_by('-data_pagamento', '-id')
 
-    def perform_create(self, serializer):
-        instance = serializer.save(company=self.request.user.company)
-        instance.conta_bancaria.atualizar_saldo()
-
-        if instance.receita:
-            instance.receita.atualizar_status()
-        else:
-            instance.despesa.atualizar_status()
-
-    def perform_update(self, serializer):
-        instance = serializer.save()
-        instance.conta_bancaria.atualizar_saldo()
-
-        if instance.receita:
-            instance.receita.atualizar_status()
-        else:
-            instance.despesa.atualizar_status()
-
-    def perform_destroy(self, instance):
-        conta = instance.conta_bancaria
-        receita = instance.receita
-        despesa = instance.despesa
-
-        instance.delete()
-        conta.atualizar_saldo()
-
-        if receita:
-            receita.atualizar_status()
-        if despesa:
-            despesa.atualizar_status()
 
         
 
