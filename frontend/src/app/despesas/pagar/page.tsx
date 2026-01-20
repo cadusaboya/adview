@@ -197,11 +197,10 @@ export default function DespesasPage() {
           </div>
 
           <Button
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => setOpenRelatorioModal(true)}
             loading={loadingRelatorio}
-            className="whitespace-nowrap"
+            className="shadow-md whitespace-nowrap"
           >
             Gerar Relatório PDF
           </Button>

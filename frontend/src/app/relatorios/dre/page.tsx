@@ -158,14 +158,14 @@ export default function DREPage() {
             </div>
 
             {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              onClick={() => setOpenRelatorioModal(true)}
-              loading={loadingRelatorio}
-            >
-              Gerar Relatório PDF
-            </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => setOpenRelatorioModal(true)}
+            loading={loadingRelatorio}
+            className="shadow-md whitespace-nowrap"
+          >
+            Gerar Relatório PDF
+          </Button>
           </div>
 
           <div className="flex gap-4 items-end">

@@ -233,10 +233,10 @@ export default function DespesasPagasPage() {
           <div className="flex-1" />
 
           <Button
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => setOpenRelatorioModal(true)}
             loading={loadingRelatorio}
+            className="shadow-md whitespace-nowrap"
           >
             Gerar Relatório PDF
           </Button>

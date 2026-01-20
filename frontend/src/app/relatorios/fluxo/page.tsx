@@ -222,10 +222,10 @@ export default function FluxoCaixaPage() {
 
           {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
           <Button
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => setOpenRelatorioModal(true)}
             loading={loadingRelatorio}
+            className="shadow-md whitespace-nowrap"
           >
             Gerar Relatório PDF
           </Button>

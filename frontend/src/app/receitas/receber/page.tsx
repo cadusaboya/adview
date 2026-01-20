@@ -227,10 +227,10 @@ export default function ReceitasPage() {
           </div>
 
           <Button
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => setOpenRelatorioModal(true)}
             loading={loadingRelatorio}
+            className="shadow-md whitespace-nowrap"
           >
             Gerar Relatório PDF
           </Button>
