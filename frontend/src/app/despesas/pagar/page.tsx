@@ -1,124 +1,106 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button } from 'antd';
-import { toast } from 'sonner';
+import { Button, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
+import { toast } from 'sonner';
+
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
-import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
-
 import type { TableColumnsType } from 'antd';
+
+import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
+import { Input } from '@/components/ui/input';
+import { Pencil, Trash } from 'lucide-react';
+import DespesaDialog from '@/components/dialogs/DespesaDialog';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 
 import {
   getDespesasAbertas,
-  createDespesa,
-  updateDespesa,
   deleteDespesa,
   Despesa,
 } from '@/services/despesas';
 
-import { getFavorecidos, Favorecido } from '@/services/favorecidos';
-import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
+import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
-import DespesaDialog from '@/components/dialogs/DespesaDialog';
-import { Input } from '@/components/ui/input';
 
-export default function DespesasPagarPage() {
+export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
-  // 📊 Estados para o modal de relatório
+  // 🔎 Busca
+  const [search, setSearch] = useState('');
+
+  // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
-  const [funcionarios, setFuncionarios] = useState<Favorecido[]>([]);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
+  // 🔥 Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // 🔎 SEARCH
-  const [search, setSearch] = useState('');
-
-  // 🔁 Debounce do search
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPage(1); // sempre volta pra página 1
-      loadData();
-    }, 300); // debounce
-
-    return () => clearTimeout(timeout);
-  }, [search]);
-
-  // Carregar funcionários para o modal de relatório
-  useEffect(() => {
-    loadFuncionarios();
-  }, []);
-
-  const loadFuncionarios = async () => {
-    try {
-      const res = await getFavorecidos({ page_size: 1000 });
-      setFuncionarios(res.results);
-    } catch (error) {
-      console.error('Erro ao carregar funcionários:', error);
-    }
-  };
-
-  const loadData = async () => {
+  // ======================
+  // 🔄 LOAD DATA
+  // ======================
+  const loadDespesas = async () => {
     try {
       setLoading(true);
+
       const res = await getDespesasAbertas({
         page,
         page_size: pageSize,
-        search: search,
+        search,
       });
 
       setDespesas(res.results);
       setTotal(res.count);
     } catch (error) {
-      console.error('Erro ao buscar despesas:', error);
-      toast.error('Erro ao buscar despesas');
+      console.error(error);
+      message.error('Erro ao buscar despesas');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadDespesas();
   }, [page]);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      loadDespesas();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  // ======================
+  // ❌ DELETE
+  // ======================
   const handleDelete = async (id: number) => {
     if (!confirm('Deseja realmente excluir esta despesa?')) return;
-    await deleteDespesa(id);
-    loadData();
-  };
 
-  const handleSubmit = async (data: any) => {
     try {
-      if (editingDespesa) {
-        await updateDespesa(editingDespesa.id, data);
-        toast.success('Despesa atualizada com sucesso!');
-      } else {
-        await createDespesa(data);
-        toast.success('Despesa criada com sucesso!');
-      }
-
-      setOpenDialog(false);
-      setEditingDespesa(null);
-      loadData();
+      await deleteDespesa(id);
+      toast.success('Despesa excluída com sucesso!');
+      loadDespesas();
     } catch (error) {
-      console.error('Erro ao salvar despesa:', error);
-      toast.error('Erro ao salvar despesa');
+      console.error(error);
+      toast.error('Erro ao excluir despesa');
     }
   };
 
-  // 📊 Gerar relatório com filtros
+  // ======================
+  // 📊 GERAR RELATÓRIO
+  // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
       setLoadingRelatorio(true);
@@ -132,6 +114,9 @@ export default function DespesasPagarPage() {
     }
   };
 
+  // ======================
+  // 📊 TABELA
+  // ======================
   const columns: TableColumnsType<Despesa> = [
     {
       title: 'Vencimento',
@@ -140,78 +125,92 @@ export default function DespesasPagarPage() {
     },
     {
       title: 'Favorecido',
-      dataIndex: ['responsavel', 'nome'],
+      dataIndex: 'responsavel',
+      render: (r: any) => r?.nome || '—',
     },
-    { title: 'Nome', dataIndex: 'nome' },
+    {
+      title: 'Nome',
+      dataIndex: 'nome',
+    },
     {
       title: 'Situação',
       dataIndex: 'situacao',
       render: (value) => <StatusBadge status={value} />,
     },
     {
-      title: 'Valor',
+      title: 'Valor em Aberto',
       dataIndex: 'valor_aberto',
-      render: (v) => formatCurrencyBR(v),
+      render: (v, record) =>
+        formatCurrencyBR(v ?? record.valor),
     },
     {
       title: 'Ações',
-      render: (_, record) => (
-        <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              setEditingDespesa(record);
-              setOpenDialog(true);
-            }}
-          >
-            Editar
-          </Button>
+      key: 'actions',
+      render: (_: any, record: Despesa) => (
+        <ActionsDropdown
+          actions={[
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onClick: () => {
+                setEditingDespesa(record);
+                setOpenDialog(true);
+              },
+            },
+            {
+              label: 'Excluir',
+              icon: Trash,
+              danger: true,
+              onClick: () => handleDelete(record.id),
+            },
+          ]}
+        />
 
-          <Button danger onClick={() => handleDelete(record.id)}>
-            Excluir
-          </Button>
-        </div>
+
       ),
     },
   ];
 
+  // ======================
+  // 🧱 RENDER
+  // ======================
   return (
     <div className="flex">
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
         {/* 🔝 HEADER */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Despesas em Aberto
           </h1>
 
-          <Input
-            placeholder="Buscar por nome, favorecido, valor, data..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="max-w-md"
-          />
+          <div className="flex-1 md:px-6">
+            <Input
+              placeholder="Buscar por nome, favorecido, valor, data..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
 
-          <div className="flex-1" />
-
-          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
           <Button
             type="primary"
             icon={<DownloadOutlined />}
             onClick={() => setOpenRelatorioModal(true)}
             loading={loadingRelatorio}
+            className="whitespace-nowrap"
           >
             Gerar Relatório PDF
           </Button>
 
           <Button
-            className="shadow-md"
+            className="shadow-md whitespace-nowrap"
             onClick={() => {
-              setOpenDialog(true);
               setEditingDespesa(null);
+              setOpenDialog(true);
             }}
           >
             Criar Despesa
@@ -223,34 +222,35 @@ export default function DespesasPagarPage() {
           data={despesas}
           loading={loading}
           pagination={{
-            total,
             current: page,
             pageSize,
+            total,
             onChange: (page) => setPage(page),
           }}
         />
 
+        {/* 🔹 DIALOG DESPESA */}
         <DespesaDialog
           open={openDialog}
+          despesa={editingDespesa}
           onClose={() => {
             setOpenDialog(false);
             setEditingDespesa(null);
           }}
-          onSubmit={handleSubmit}
-          despesa={editingDespesa}
+          onSubmit={() => {
+            setOpenDialog(false);
+            setEditingDespesa(null);
+            loadDespesas();
+          }}
         />
 
-        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
+        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}
           onGenerate={handleGerarRelatorio}
           title="Relatório de Despesas a Pagar"
           tipoRelatorio="despesas-a-pagar"
-          favorecidos={funcionarios.map((f) => ({
-            id: f.id,
-            nome: f.nome,
-          }))}
         />
       </main>
     </div>

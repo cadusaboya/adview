@@ -24,6 +24,10 @@ import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
+// ✅ IMPORT CORRETO
+import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
+import { Pencil, Trash } from 'lucide-react';
+
 export default function DespesasPagasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,19 +35,22 @@ export default function DespesasPagasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
-  // 📊 Estados para o modal de relatório
+  // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [funcionarios, setFuncionarios] = useState<Favorecido[]>([]);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
+  // Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // 🔎 SEARCH
+  // 🔎 Busca
   const [search, setSearch] = useState('');
 
-  // 🔁 Debounce do search
+  // ======================
+  // 🔁 SEARCH DEBOUNCE
+  // ======================
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -53,7 +60,9 @@ export default function DespesasPagasPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
-  // Carregar funcionários para o modal de relatório
+  // ======================
+  // 👥 FAVORECIDOS
+  // ======================
   useEffect(() => {
     loadFuncionarios();
   }, []);
@@ -67,6 +76,9 @@ export default function DespesasPagasPage() {
     }
   };
 
+  // ======================
+  // 🔄 LOAD DATA
+  // ======================
   const loadData = async () => {
     try {
       setLoading(true);
@@ -77,7 +89,7 @@ export default function DespesasPagasPage() {
         search,
       });
 
-      // 🔹 Apenas pagamentos vinculados a despesas
+      // 🔹 Apenas pagamentos de despesas
       const despesaPayments = res.results.filter(
         (p: Payment) => p.despesa !== null
       );
@@ -96,6 +108,9 @@ export default function DespesasPagasPage() {
     loadData();
   }, [page]);
 
+  // ======================
+  // ❌ DELETE PAGAMENTO
+  // ======================
   const handleDeletePayment = async (id: number) => {
     if (!confirm('Deseja realmente excluir este pagamento?')) return;
 
@@ -109,13 +124,14 @@ export default function DespesasPagasPage() {
     }
   };
 
-  // ✅ Busca a despesa completa antes de abrir o dialog
+  // ======================
+  // ✏️ EDITAR DESPESA
+  // ======================
   const handleEditDespesa = async (despesaId?: number | null) => {
     if (!despesaId) return;
 
     try {
       setLoading(true);
-
       const despesa = await getDespesaById(despesaId);
       setEditingDespesa(despesa);
       setOpenDialog(true);
@@ -127,7 +143,9 @@ export default function DespesasPagasPage() {
     }
   };
 
-  // 📊 Gerar relatório com filtros
+  // ======================
+  // 📊 GERAR RELATÓRIO
+  // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
       setLoadingRelatorio(true);
@@ -141,6 +159,9 @@ export default function DespesasPagasPage() {
     }
   };
 
+  // ======================
+  // 📊 TABELA
+  // ======================
   const columns: TableColumnsType<Payment> = [
     {
       title: 'Data de Pagamento',
@@ -164,19 +185,30 @@ export default function DespesasPagasPage() {
     },
     {
       title: 'Ações',
-      render: (_, record) => (
-        <div className="flex gap-2">
-          <Button onClick={() => handleEditDespesa(record.despesa)}>
-            Editar
-          </Button>
-          <Button danger onClick={() => handleDeletePayment(record.id)}>
-            Excluir
-          </Button>
-        </div>
+      key: 'actions',
+      render: (_: any, record: Payment) => (
+        <ActionsDropdown
+          actions={[
+            {
+              label: 'Editar Despesa',
+              icon: Pencil,
+              onClick: () => handleEditDespesa(record.despesa),
+            },
+            {
+              label: 'Excluir Pagamento',
+              icon: Trash,
+              danger: true,
+              onClick: () => handleDeletePayment(record.id),
+            },
+          ]}
+        />
       ),
     },
   ];
 
+  // ======================
+  // 🧱 RENDER
+  // ======================
   return (
     <div className="flex">
       <NavbarNested />
@@ -200,7 +232,6 @@ export default function DespesasPagasPage() {
 
           <div className="flex-1" />
 
-          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
           <Button
             type="primary"
             icon={<DownloadOutlined />}
@@ -237,7 +268,6 @@ export default function DespesasPagasPage() {
           }}
         />
 
-        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}

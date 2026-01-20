@@ -24,6 +24,10 @@ import { getClientes, Cliente } from '@/services/clientes';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
+// ✅ IMPORT CORRETO
+import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
+import { Pencil, Trash } from 'lucide-react';
+
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,19 +35,22 @@ export default function ReceitaRecebidasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
-  // 📊 Estados para o modal de relatório
+  // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
+  // Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // 🔎 SEARCH
+  // 🔎 Busca
   const [search, setSearch] = useState('');
 
-  // 🔁 Debounce do search (IGUAL Despesas)
+  // ======================
+  // 🔁 SEARCH DEBOUNCE
+  // ======================
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -53,7 +60,9 @@ export default function ReceitaRecebidasPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
-  // Carregar clientes para o modal de relatório
+  // ======================
+  // 👥 CLIENTES
+  // ======================
   useEffect(() => {
     loadClientes();
   }, []);
@@ -67,6 +76,9 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
+  // ======================
+  // 🔄 LOAD DATA
+  // ======================
   const loadData = async () => {
     try {
       setLoading(true);
@@ -74,10 +86,10 @@ export default function ReceitaRecebidasPage() {
       const res = await getPayments({
         page,
         page_size: pageSize,
-        search: search,
+        search,
       });
 
-      // 🔹 Apenas pagamentos vinculados a receitas
+      // 🔹 Apenas pagamentos de receitas
       const receitaPayments = res.results.filter(
         (p: Payment) => p.receita !== null
       );
@@ -96,6 +108,9 @@ export default function ReceitaRecebidasPage() {
     loadData();
   }, [page]);
 
+  // ======================
+  // ❌ DELETE RECEBIMENTO
+  // ======================
   const handleDeletePayment = async (id: number) => {
     if (!confirm('Deseja realmente excluir este recebimento?')) return;
 
@@ -109,6 +124,9 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
+  // ======================
+  // ✏️ EDITAR RECEITA
+  // ======================
   const handleEditReceita = async (receitaId?: number | null) => {
     if (!receitaId) return;
 
@@ -125,7 +143,9 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
-  // 📊 Gerar relatório com filtros
+  // ======================
+  // 📊 GERAR RELATÓRIO
+  // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
       setLoadingRelatorio(true);
@@ -139,6 +159,9 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
+  // ======================
+  // 📊 TABELA
+  // ======================
   const columns: TableColumnsType<Payment> = [
     {
       title: 'Data de Recebimento',
@@ -162,19 +185,30 @@ export default function ReceitaRecebidasPage() {
     },
     {
       title: 'Ações',
-      render: (_, record) => (
-        <div className="flex gap-2">
-          <Button onClick={() => handleEditReceita(record.receita)}>
-            Editar
-          </Button>
-          <Button danger onClick={() => handleDeletePayment(record.id)}>
-            Excluir
-          </Button>
-        </div>
+      key: 'actions',
+      render: (_: any, record: Payment) => (
+        <ActionsDropdown
+          actions={[
+            {
+              label: 'Editar Receita',
+              icon: Pencil,
+              onClick: () => handleEditReceita(record.receita),
+            },
+            {
+              label: 'Excluir Recebimento',
+              icon: Trash,
+              danger: true,
+              onClick: () => handleDeletePayment(record.id),
+            },
+          ]}
+        />
       ),
     },
   ];
 
+  // ======================
+  // 🧱 RENDER
+  // ======================
   return (
     <div className="flex">
       <NavbarNested />
@@ -198,7 +232,6 @@ export default function ReceitaRecebidasPage() {
 
           <div className="flex-1" />
 
-          {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
           <Button
             type="primary"
             icon={<DownloadOutlined />}
@@ -235,7 +268,6 @@ export default function ReceitaRecebidasPage() {
           }}
         />
 
-        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}

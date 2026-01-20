@@ -1,17 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button, message } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
-import { toast } from "sonner";
-import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
-import GenericTable from "@/components/imports/GenericTable";
-import type { TableColumnsType } from "antd";
-import FuncionarioDialog from "@/components/dialogs/FuncionarioDialog";
-import { FuncionarioProfileDialog } from "@/components/dialogs/FuncionarioProfileDialog";
-import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
-import { gerarRelatorioPDF } from "@/services/pdf";
-import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
+import { useEffect, useState } from 'react';
+import { Button, message } from 'antd';
+import { toast } from 'sonner';
+import type { TableColumnsType } from 'antd';
+
+import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
+import GenericTable from '@/components/imports/GenericTable';
+import FuncionarioDialog from '@/components/dialogs/FuncionarioDialog';
+import { FuncionarioProfileDialog } from '@/components/dialogs/FuncionarioProfileDialog';
+import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 
 import {
   getFornecedores,
@@ -19,25 +17,42 @@ import {
   updateFornecedor,
   deleteFornecedor,
   Fornecedor,
-} from "@/services/fornecedores";
+} from '@/services/fornecedores';
+
+import { gerarRelatorioPDF } from '@/services/pdf';
+import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+
+// ✅ ActionsDropdown
+import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
+import {
+  FileText,
+  DollarSign,
+  Pencil,
+  Trash,
+} from 'lucide-react';
 
 export default function FornecedorPage() {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFornecedor, setEditingFornecedor] =
     useState<Fornecedor | null>(null);
 
-  // 📊 Estados para o modal de relatório
+  // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
-  const [fornecedorParaRelatorio, setFornecedorParaRelatorio] = useState<Fornecedor | null>(null);
+  const [fornecedorParaRelatorio, setFornecedorParaRelatorio] =
+    useState<Fornecedor | null>(null);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
-  // 🔹 Paginação
+  // Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // ======================
+  // 🔄 LOAD
+  // ======================
   const loadFornecedores = async () => {
     try {
       setLoading(true);
@@ -45,8 +60,8 @@ export default function FornecedorPage() {
       setFornecedores(res.results);
       setTotal(res.count);
     } catch (error) {
-      console.error("Erro ao buscar fornecedores:", error);
-      message.error("Erro ao buscar fornecedores");
+      console.error('Erro ao buscar fornecedores:', error);
+      message.error('Erro ao buscar fornecedores');
     } finally {
       setLoading(false);
     }
@@ -56,106 +71,129 @@ export default function FornecedorPage() {
     loadFornecedores();
   }, [page]);
 
+  // ======================
+  // ❌ DELETE
+  // ======================
   const handleDelete = async (id: number) => {
-    if (confirm("Deseja realmente excluir este fornecedor?")) {
+    if (!confirm('Deseja realmente excluir este fornecedor?')) return;
+
+    try {
       await deleteFornecedor(id);
-      toast.success("Fornecedor excluído com sucesso!");
+      toast.success('Fornecedor excluído com sucesso!');
       loadFornecedores();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir fornecedor');
     }
   };
 
+  // ======================
+  // 💾 CREATE / UPDATE
+  // ======================
   const handleSubmit = async (data: any) => {
     try {
       if (editingFornecedor) {
         await updateFornecedor(editingFornecedor.id, data);
-        toast.success("Fornecedor atualizado com sucesso!");
+        toast.success('Fornecedor atualizado com sucesso!');
       } else {
         await createFornecedor(data);
-        toast.success("Fornecedor criado com sucesso!");
+        toast.success('Fornecedor criado com sucesso!');
       }
 
       setOpenDialog(false);
       setEditingFornecedor(null);
       loadFornecedores();
     } catch (error) {
-      console.error("Erro ao salvar fornecedor:", error);
-      toast.error("Erro ao salvar fornecedor");
+      console.error('Erro ao salvar fornecedor:', error);
+      toast.error('Erro ao salvar fornecedor');
     }
   };
 
-  // 📊 Gerar relatório de despesas do fornecedor
-  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
-    try {
-      setLoadingRelatorio(true);
-      // Para relatório de funcionário, o funcionario_id é obrigatório
-      if (!fornecedorParaRelatorio?.id) {
-        toast.error("Fornecedor não selecionado");
-        return;
-      }
-
-      // Gerar relatório de funcionário específico (despesas a pagar e pagas)
-      await gerarRelatorioPDF("funcionario-especifico", {
-        funcionario_id: fornecedorParaRelatorio.id,
-        ...filtros,
-      });
-      toast.success("Relatório gerado com sucesso!");
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Erro ao gerar relatório");
-    } finally {
-      setLoadingRelatorio(false);
-    }
-  };
-
-  // 📊 Abrir modal de relatório para um fornecedor específico
+  // ======================
+  // 📊 RELATÓRIO
+  // ======================
   const handleAbrirRelatorioFornecedor = (fornecedor: Fornecedor) => {
     setFornecedorParaRelatorio(fornecedor);
     setOpenRelatorioModal(true);
   };
 
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    try {
+      setLoadingRelatorio(true);
+
+      if (!fornecedorParaRelatorio?.id) {
+        toast.error('Fornecedor não selecionado');
+        return;
+      }
+
+      await gerarRelatorioPDF('funcionario-especifico', {
+        funcionario_id: fornecedorParaRelatorio.id,
+        ...filtros,
+      });
+
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar relatório');
+    } finally {
+      setLoadingRelatorio(false);
+    }
+  };
+
+  // ======================
+  // 📊 TABELA
+  // ======================
   const columns: TableColumnsType<Fornecedor> = [
-    { title: "Nome", dataIndex: "nome" },
-    { title: "CPF / CNPJ", dataIndex: "cpf" },
-    { title: "Email", dataIndex: "email" },
+    { title: 'Nome', dataIndex: 'nome' },
+    { title: 'CPF / CNPJ', dataIndex: 'cpf' },
+    { title: 'Email', dataIndex: 'email' },
     {
-      title: "Ações",
+      title: 'Ações',
+      key: 'actions',
       render: (_: any, record: Fornecedor) => (
-        <div className="flex gap-2">
-          {/* 🔹 RELATÓRIO */}
-          <Button
-            type="primary"
-            icon={<DownloadOutlined />}
-            onClick={() => handleAbrirRelatorioFornecedor(record)}
-            loading={loadingRelatorio && fornecedorParaRelatorio?.id === record.id}
-            size="small"
-          >
-            Relatório
-          </Button>
-
-          {/* 🔹 FINANCEIRO (REUSO TOTAL) */}
-          <FuncionarioProfileDialog funcionarioId={record.id}>
-            <Button type="default">Financeiro</Button>
-          </FuncionarioProfileDialog>
-
-          {/* 🔹 EDITAR */}
-          <Button
-            onClick={() => {
-              setEditingFornecedor(record);
-              setOpenDialog(true);
-            }}
-          >
-            Editar
-          </Button>
-
-          {/* 🔹 EXCLUIR */}
-          <Button danger onClick={() => handleDelete(record.id)}>
-            Excluir
-          </Button>
-        </div>
+        <ActionsDropdown
+          actions={[
+            {
+              label: 'Financeiro',
+              icon: DollarSign,
+              onClick: () => {
+                document
+                  .getElementById(`forn-fin-${record.id}`)
+                  ?.click();
+              },
+            },
+            {
+              label: 'Gerar Relatório',
+              icon: FileText,
+              onClick: () => handleAbrirRelatorioFornecedor(record),
+              disabled:
+                loadingRelatorio &&
+                fornecedorParaRelatorio?.id === record.id,
+            },
+            { divider: true },
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onClick: () => {
+                setEditingFornecedor(record);
+                setOpenDialog(true);
+              },
+            },
+            {
+              label: 'Excluir',
+              icon: Trash,
+              danger: true,
+              onClick: () => handleDelete(record.id),
+            },
+          ]}
+        />
       ),
     },
   ];
 
+  // ======================
+  // 🧱 RENDER
+  // ======================
   return (
     <div className="flex">
       <NavbarNested />
@@ -198,7 +236,17 @@ export default function FornecedorPage() {
           funcionario={editingFornecedor}
         />
 
-        {/* 📊 MODAL DE RELATÓRIO DE DESPESAS DO FORNECEDOR */}
+        {/* 🔹 DIALOG FINANCEIRO (hidden triggers) */}
+        {fornecedores.map((f) => (
+          <FuncionarioProfileDialog key={f.id} funcionarioId={f.id}>
+            <button
+              id={`forn-fin-${f.id}`}
+              className="hidden"
+            />
+          </FuncionarioProfileDialog>
+        ))}
+
+        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => {
@@ -206,7 +254,9 @@ export default function FornecedorPage() {
             setFornecedorParaRelatorio(null);
           }}
           onGenerate={handleGerarRelatorio}
-          title={`Relatório de Despesas - ${fornecedorParaRelatorio?.nome || "Fornecedor"}`}
+          title={`Relatório de Despesas - ${
+            fornecedorParaRelatorio?.nome || 'Fornecedor'
+          }`}
           tipoRelatorio="funcionario-especifico"
         />
       </main>
