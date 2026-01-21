@@ -151,6 +151,13 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = ReceitaSerializer
     pagination_class = DynamicPageSizePagination
 
+    # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
+    hoje = timezone.now().date()
+    Receita.objects.filter(
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
     def get_serializer_class(self):
         situacoes = self.request.query_params.getlist("situacao")
 
@@ -206,20 +213,23 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         return queryset
 
 
+from django.utils import timezone
+
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
     pagination_class = DynamicPageSizePagination
 
-    def get_serializer_class(self):
-        situacoes = self.request.query_params.getlist("situacao")
-
-        if situacoes and set(situacoes).issubset({"A", "V"}):
-            return DespesaAbertaSerializer
-
-        return DespesaSerializer
-
     def get_queryset(self):
+        hoje = timezone.now().date()
+
+        # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
+        hoje = timezone.now().date()
+        Despesa.objects.filter(
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
         queryset = super().get_queryset().select_related(
             "responsavel", "company"
         ).prefetch_related(
@@ -263,6 +273,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.order_by("data_vencimento")
 
         return queryset
+
 
 
 
@@ -320,8 +331,36 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # 📌 Ordenação estável (ESSENCIAL para paginação)
         return queryset.order_by('-data_pagamento', '-id')
 
+    def perform_create(self, serializer):
+        instance = serializer.save(company=self.request.user.company)
+        instance.conta_bancaria.atualizar_saldo()
 
-        
+        if instance.receita:
+            instance.receita.atualizar_status()
+        else:
+            instance.despesa.atualizar_status()
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.conta_bancaria.atualizar_saldo()
+
+        if instance.receita:
+            instance.receita.atualizar_status()
+        else:
+            instance.despesa.atualizar_status()
+
+    def perform_destroy(self, instance):
+        conta = instance.conta_bancaria
+        receita = instance.receita
+        despesa = instance.despesa
+
+        instance.delete()
+        conta.atualizar_saldo()
+
+        if receita:
+            receita.atualizar_status()
+        if despesa:
+            despesa.atualizar_status()
 
 class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para gerenciar contas bancárias."""
