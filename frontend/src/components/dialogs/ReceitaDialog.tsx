@@ -20,8 +20,10 @@ import {
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
 import { getBancos } from '@/services/bancos';
-import { getFuncionarios, Funcionario } from '@/services/funcionarios';
-import { getClientes, Cliente } from '@/services/clientes';
+import { Funcionario } from '@/types/funcionarios';
+import { Cliente } from '@/types/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
+import { getClientes } from '@/services/clientes';
 
 /* =======================
    TYPES

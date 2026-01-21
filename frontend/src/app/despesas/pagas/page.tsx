@@ -21,6 +21,7 @@ import { gerarRelatorioPDF } from '@/services/pdf';
 import { Payment } from '@/types/payments';
 import { Despesa, DespesaUpdate } from '@/types/despesas';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { getErrorMessage } from '@/lib/errors';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
@@ -167,9 +168,8 @@ export default function DespesasPagasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('despesas-pagas', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Erro ao buscar dados'));
     } finally {
       setLoadingRelatorio(false);
     }

@@ -10,40 +10,24 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Funcionario } from '@/services/funcionarios';
-import { Fornecedor } from '@/services/fornecedores';
 
 import {
   formatCurrencyInput,
   parseCurrencyBR,
 } from '@/lib/formatters';
 
-/* =======================
-   TYPES
-======================= */
-
-type TipoFuncionario = 'F' | 'P' | 'O' | 'C';
-
-interface FuncionarioPayload {
-  nome: string;
-  cpf: string;
-  email: string;
-  telefone: string;
-  aniversario: string | null;
-  tipo: TipoFuncionario | '';
-  salario_mensal: number | null;
-}
+import {
+  Funcionario,
+  FuncionarioCreate,
+  FuncionarioUpdate,
+} from '@/types/funcionarios';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: FuncionarioPayload) => void;
-  funcionario?: Funcionario | Fornecedor | null;
+  onSubmit: (data: FuncionarioCreate | FuncionarioUpdate) => Promise<void>;
+  funcionario?: Funcionario | null;
 }
-
-/* =======================
-   COMPONENT
-======================= */
 
 export default function FuncionarioDialog({
   open,
@@ -51,29 +35,31 @@ export default function FuncionarioDialog({
   onSubmit,
   funcionario,
 }: Props) {
-  const [formData, setFormData] = useState<FuncionarioPayload>({
+  const [formData, setFormData] = useState<FuncionarioCreate>({
     nome: '',
     cpf: '',
     email: '',
     telefone: '',
     aniversario: null,
-    tipo: '',
+    tipo: 'F',
     salario_mensal: null,
   });
 
   const [salarioDisplay, setSalarioDisplay] = useState('');
 
+  // ======================
+  // 🔄 LOAD (EDIT MODE)
+  // ======================
   useEffect(() => {
     if (funcionario) {
       setFormData({
-        nome: funcionario.nome || '',
-        cpf: funcionario.cpf || '',
-        email: funcionario.email || '',
-        telefone: funcionario.telefone || '',
-        aniversario: funcionario.aniversario || null,
-        tipo: funcionario.tipo || '',
+        nome: funcionario.nome,
+        cpf: funcionario.cpf,
+        email: funcionario.email,
+        telefone: funcionario.telefone,
+        aniversario: funcionario.aniversario,
+        tipo: funcionario.tipo,
         salario_mensal:
-          funcionario.salario_mensal !== undefined &&
           funcionario.salario_mensal !== null
             ? Number(funcionario.salario_mensal)
             : null,
@@ -91,24 +77,22 @@ export default function FuncionarioDialog({
         email: '',
         telefone: '',
         aniversario: null,
-        tipo: '',
+        tipo: 'F',
         salario_mensal: null,
       });
-
       setSalarioDisplay('');
     }
   }, [funcionario, open]);
 
-  const handleSubmit = () => {
-    const payload: FuncionarioPayload = {
-      ...formData,
-      salario_mensal:
-        formData.tipo === 'F' ? formData.salario_mensal : null,
-      aniversario:
-        formData.aniversario === '' ? null : formData.aniversario,
-    };
+  // ======================
+  // 💾 SUBMIT
+  // ======================
+  const handleSubmit = async () => {
+    const payload = funcionario
+      ? ({ ...formData } as FuncionarioUpdate)
+      : ({ ...formData } as FuncionarioCreate);
 
-    onSubmit(payload);
+    await onSubmit(payload);
     onClose();
   };
 
@@ -120,7 +104,7 @@ export default function FuncionarioDialog({
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-4">
-        {/* 🔹 Nome e CPF */}
+        {/* Nome / CPF */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Nome</label>
@@ -143,7 +127,7 @@ export default function FuncionarioDialog({
           </div>
         </div>
 
-        {/* 🔸 Email e Telefone */}
+        {/* Email / Telefone */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Email</label>
@@ -166,7 +150,7 @@ export default function FuncionarioDialog({
           </div>
         </div>
 
-        {/* 🔸 Aniversário e Tipo */}
+        {/* Aniversário / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Data de Nascimento</label>
@@ -187,7 +171,10 @@ export default function FuncionarioDialog({
             <Select
               value={formData.tipo}
               onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val as TipoFuncionario })
+                setFormData({
+                  ...formData,
+                  tipo: val as FuncionarioCreate['tipo'],
+                })
               }
             >
               <SelectTrigger>
@@ -196,34 +183,25 @@ export default function FuncionarioDialog({
               <SelectContent>
                 <SelectItem value="F">Funcionário</SelectItem>
                 <SelectItem value="P">Parceiro</SelectItem>
-                <SelectItem value="O">Fornecedor</SelectItem>
+                <SelectItem value="C">Colaborador</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        {/* 🔥 Salário Mensal */}
+        {/* Salário */}
         {formData.tipo === 'F' && (
           <div>
-            <label className="text-sm">Salário Mensal (R$)</label>
+            <label className="text-sm">Salário Mensal</label>
             <Input
-              type="text"
-              inputMode="decimal"
               placeholder="0,00"
               value={salarioDisplay}
               onChange={(e) => setSalarioDisplay(e.target.value)}
-              onFocus={() => {
-                setSalarioDisplay(
-                  salarioDisplay.replace(/[^\d,]/g, '')
-                );
-              }}
               onBlur={() => {
                 const parsed = parseCurrencyBR(salarioDisplay);
-
                 setSalarioDisplay(
                   parsed ? formatCurrencyInput(parsed) : ''
                 );
-
                 setFormData((prev) => ({
                   ...prev,
                   salario_mensal: parsed,

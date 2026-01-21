@@ -16,21 +16,20 @@ import {
   createFuncionario,
   updateFuncionario,
   deleteFuncionario,
-  Funcionario,
 } from '@/services/funcionarios';
+
+import {
+  Funcionario,
+  FuncionarioCreate,
+  FuncionarioUpdate,
+} from '@/types/funcionarios';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { formatCurrencyBR } from '@/lib/formatters';
 
-// ✅ ActionsDropdown
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import {
-  FileText,
-  DollarSign,
-  Pencil,
-  Trash,
-} from 'lucide-react';
+import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
 
 export default function FuncionarioPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -42,9 +41,7 @@ export default function FuncionarioPage() {
 
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
-  const [funcionarioParaRelatorio, setFuncionarioParaRelatorio] =
-    useState<Funcionario | null>(null);
-  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+  const [funcionarioParaRelatorio, setFuncionarioParaRelatorio] = useState<Funcionario | null>(null);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -61,7 +58,7 @@ export default function FuncionarioPage() {
       setFuncionarios(res.results);
       setTotal(res.count);
     } catch (error) {
-      console.error('Erro ao buscar funcionários:', error);
+      console.error(error);
       message.error('Erro ao buscar funcionários');
     } finally {
       setLoading(false);
@@ -91,13 +88,15 @@ export default function FuncionarioPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: Funcionario) => {
+  const handleSubmit = async (
+    data: FuncionarioCreate | FuncionarioUpdate
+  ) => {
     try {
       if (editingFuncionario) {
         await updateFuncionario(editingFuncionario.id, data);
         toast.success('Funcionário atualizado com sucesso!');
       } else {
-        await createFuncionario(data);
+        await createFuncionario(data as FuncionarioCreate);
         toast.success('Funcionário criado com sucesso!');
       }
 
@@ -105,7 +104,7 @@ export default function FuncionarioPage() {
       setEditingFuncionario(null);
       loadFuncionarios();
     } catch (error) {
-      console.error('Erro ao salvar funcionário:', error);
+      console.error(error);
       toast.error('Erro ao salvar funcionário');
     }
   };
@@ -120,8 +119,6 @@ export default function FuncionarioPage() {
 
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
-      setLoadingRelatorio(true);
-
       if (!funcionarioParaRelatorio?.id) {
         toast.error('Funcionário não selecionado');
         return;
@@ -134,11 +131,8 @@ export default function FuncionarioPage() {
 
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(errorMessage);
-    } finally {
-      setLoadingRelatorio(false);
+      toast.error('Erro ao gerar relatório');
     }
   };
 
@@ -152,7 +146,8 @@ export default function FuncionarioPage() {
     {
       title: 'Salário Mensal',
       dataIndex: 'salario_mensal',
-      render: (v: number) => formatCurrencyBR(v),
+      render: (v: number | null) =>
+        v ? formatCurrencyBR(v) : '—',
     },
     {
       title: 'Ações',
@@ -172,10 +167,8 @@ export default function FuncionarioPage() {
             {
               label: 'Gerar Relatório',
               icon: FileText,
-              onClick: () => handleAbrirRelatorioFuncionario(record),
-              disabled:
-                loadingRelatorio &&
-                funcionarioParaRelatorio?.id === record.id,
+              onClick: () =>
+                handleAbrirRelatorioFuncionario(record),
             },
             { divider: true },
             {
@@ -228,11 +221,10 @@ export default function FuncionarioPage() {
             current: page,
             pageSize,
             total,
-            onChange: (page) => setPage(page),
+            onChange: setPage,
           }}
         />
 
-        {/* 🔹 DIALOG CRIAR / EDITAR */}
         <FuncionarioDialog
           open={openDialog}
           onClose={() => {
@@ -243,9 +235,11 @@ export default function FuncionarioPage() {
           funcionario={editingFuncionario}
         />
 
-        {/* 🔹 DIALOG FINANCEIRO (hidden triggers) */}
         {funcionarios.map((f) => (
-          <FuncionarioProfileDialog key={f.id} funcionarioId={f.id}>
+          <FuncionarioProfileDialog
+            key={f.id}
+            funcionarioId={f.id}
+          >
             <button
               id={`func-fin-${f.id}`}
               className="hidden"
@@ -253,7 +247,6 @@ export default function FuncionarioPage() {
           </FuncionarioProfileDialog>
         ))}
 
-        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => {

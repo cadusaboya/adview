@@ -18,7 +18,8 @@ interface RelatorioFiltrosModalProps {
     | 'receitas-a-receber'
     | 'dre-consolidado'
     | 'fluxo-de-caixa'
-    | 'cliente-especifico';
+    | 'cliente-especifico'
+    | 'funcionario-especifico';
   favorecidos?: Array<{ id: number; nome: string }>;
   clientes?: Array<{ id: number; nome: string }>;
   contas?: Array<{ id: number; nome: string }>;
@@ -28,6 +29,7 @@ export interface RelatorioFiltros {
   data_inicio?: string;
   data_fim?: string;
   responsavel_id?: number;
+  funcionario_id?: number;
   cliente_id?: number;
   conta_bancaria_id?: number;
   tipo?: string;
