@@ -792,4 +792,196 @@ def relatorio_funcionario_especifico(request):
 
     return response
 
+"""
+View para geração de relatório DRE em PDF
+Usa ReportLab para criar um PDF profissional e bem formatado
+"""
+
+from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib import colors
+from decimal import Decimal
+from datetime import datetime, timedelta
+
+
+def get_company_from_request(request):
+    """Extrai a empresa do usuário autenticado."""
+    if hasattr(request.user, 'company') and request.user.company:
+        return request.user.company
+    raise PermissionError("Usuário não possui empresa associada")
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def relatorio_dre_consolidado(request):
+    """
+    Gera relatório de DRE consolidado em PDF
+    
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+    """
+    
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+    
+    # 🔹 Pegar parâmetros de mês e ano
+    mes = request.query_params.get('mes')
+    ano = request.query_params.get('ano')
+    
+    # 🔹 Se não tiver mês/ano, usar mês atual
+    if not mes or not ano:
+        hoje = datetime.now()
+        mes = hoje.month
+        ano = hoje.year
+    else:
+        mes = int(mes)
+        ano = int(ano)
+    
+    # 🔹 Calcular data de início e fim do mês
+    data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+    # Último dia do mês
+    if mes == 12:
+        data_fim = f"{ano + 1}-01-01"
+    else:
+        data_fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
+    data_fim = (datetime.strptime(data_fim, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    # 🔹 Filtrar receitas por período do mês
+    receitas = Receita.objects.filter(
+        company=company,
+        data_vencimento__gte=data_inicio,
+        data_vencimento__lte=data_fim
+    )
+    
+    # 🔹 Filtrar despesas por período do mês
+    despesas = Despesa.objects.filter(
+        company=company,
+        data_vencimento__gte=data_inicio,
+        data_vencimento__lte=data_fim
+    )
+    
+    # 🔹 Agrupar receitas por tipo
+    receitas_fixas = receitas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    receitas_variaveis = receitas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    estornos = receitas.filter(tipo='E').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    
+    total_receitas = float(receitas_fixas) + float(receitas_variaveis) + float(estornos)
+    
+    # 🔹 Agrupar despesas por tipo
+    despesas_fixas = despesas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    despesas_variaveis = despesas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    comissoes = despesas.filter(tipo='C').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    
+    total_despesas = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes)
+    
+    # 🔹 Calcular resultado
+    resultado = total_receitas - total_despesas
+    
+    # 🔹 Criar PDF
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename=dre_{mes:02d}_{ano}.pdf"
+    
+    pdf = canvas.Canvas(response, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    margin = 40
+    
+    # 🔹 Header
+    report = PDFReportBase("Demonstração do Resultado (DRE)", company.name)
+    y = report.draw_header(pdf, width, height, f"Período: {str(mes).zfill(2)}/{ano}")
+    
+    # 🔹 Dados da DRE
+    y -= 20
+    
+    # ========== RECEITAS ==========
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.setFillColor(colors.HexColor("#1E40AF"))  # Azul escuro
+    pdf.drawString(margin, y, "RECEITAS")
+    y -= 15
+    
+    # Receitas Fixas
+    pdf.setFont("Helvetica", 10)
+    pdf.setFillColor(colors.black)
+    pdf.drawString(margin + 20, y, "Receitas Fixas")
+    pdf.drawRightString(width - margin, y, format_currency(float(receitas_fixas)))
+    y -= 12
+    
+    # Receitas Variáveis
+    pdf.drawString(margin + 20, y, "Receitas Variáveis")
+    pdf.drawRightString(width - margin, y, format_currency(float(receitas_variaveis)))
+    y -= 12
+    
+    # Estornos
+    pdf.drawString(margin + 20, y, "Estornos")
+    pdf.drawRightString(width - margin, y, format_currency(float(estornos)))
+    y -= 15
+    
+    # Total Receitas
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.setFillColor(colors.HexColor("#065F46"))  # Verde escuro
+    pdf.drawString(margin, y, "Total de Receitas")
+    pdf.drawRightString(width - margin, y, format_currency(total_receitas))
+    y -= 20
+    
+    # ========== DESPESAS ==========
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.setFillColor(colors.HexColor("#7F1D1D"))  # Vermelho escuro
+    pdf.drawString(margin, y, "DESPESAS")
+    y -= 15
+    
+    # Despesas Fixas
+    pdf.setFont("Helvetica", 10)
+    pdf.setFillColor(colors.black)
+    pdf.drawString(margin + 20, y, "Despesas Fixas")
+    pdf.drawRightString(width - margin, y, format_currency(float(despesas_fixas)))
+    y -= 12
+    
+    # Despesas Variáveis
+    pdf.drawString(margin + 20, y, "Despesas Variáveis")
+    pdf.drawRightString(width - margin, y, format_currency(float(despesas_variaveis)))
+    y -= 12
+    
+    # Comissões
+    pdf.drawString(margin + 20, y, "Comissões")
+    pdf.drawRightString(width - margin, y, format_currency(float(comissoes)))
+    y -= 15
+    
+    # Total Despesas
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.setFillColor(colors.HexColor("#7F1D1D"))  # Vermelho escuro
+    pdf.drawString(margin, y, "Total de Despesas")
+    pdf.drawRightString(width - margin, y, format_currency(total_despesas))
+    y -= 20
+    
+    # ========== RESULTADO ==========
+    # Desenhar linha separadora
+    pdf.setStrokeColor(colors.grey)
+    pdf.setLineWidth(1)
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+    
+    # Resultado
+    pdf.setFont("Helvetica-Bold", 13)
+    if resultado >= 0:
+        pdf.setFillColor(colors.HexColor("#059669"))  # Verde
+    else:
+        pdf.setFillColor(colors.HexColor("#DC2626"))  # Vermelho
+    
+    pdf.drawString(margin, y, "RESULTADO")
+    pdf.drawRightString(width - margin, y, format_currency(resultado))
+    
+    # 🔹 Footer
+    report.draw_footer(pdf, width)
+    pdf.showPage()
+    pdf.save()
+    
+    return response
+
+
 

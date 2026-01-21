@@ -24,7 +24,6 @@ import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
-// ✅ IMPORT CORRETO
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
 
@@ -37,8 +36,11 @@ export default function DespesasPagasPage() {
 
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
-  const [funcionarios, setFuncionarios] = useState<Favorecido[]>([]);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+
+  // 👥 Favorecidos (LAZY)
+  const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
+  const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -51,33 +53,22 @@ export default function DespesasPagasPage() {
   // ======================
   // 🔁 SEARCH DEBOUNCE
   // ======================
+
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setPage(1);
-      loadData();
+      if (page === 1) {
+        loadData();
+      } else {
+        setPage(1);
+      }
     }, 300);
-
+  
     return () => clearTimeout(timeout);
   }, [search]);
+  
 
   // ======================
-  // 👥 FAVORECIDOS
-  // ======================
-  useEffect(() => {
-    loadFuncionarios();
-  }, []);
-
-  const loadFuncionarios = async () => {
-    try {
-      const res = await getFavorecidos({ page_size: 1000 });
-      setFuncionarios(res.results);
-    } catch (error) {
-      console.error('Erro ao carregar funcionários:', error);
-    }
-  };
-
-  // ======================
-  // 🔄 LOAD DATA
+  // 🔄 LOAD PAGAMENTOS
   // ======================
   const loadData = async () => {
     try {
@@ -87,7 +78,7 @@ export default function DespesasPagasPage() {
         page,
         page_size: pageSize,
         search,
-        tipo: "despesa",
+        tipo: 'despesa',
       });
 
       setPayments(res.results);
@@ -103,6 +94,21 @@ export default function DespesasPagasPage() {
   useEffect(() => {
     loadData();
   }, [page]);
+
+  // ======================
+  // 👥 LOAD FAVORECIDOS (SÓ QUANDO PRECISAR)
+  // ======================
+  const loadFavorecidos = async () => {
+    if (favorecidosLoaded) return;
+
+    try {
+      const res = await getFavorecidos({ page_size: 1000 });
+      setFavorecidos(res.results);
+      setFavorecidosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar favorecidos:', error);
+    }
+  };
 
   // ======================
   // ❌ DELETE PAGAMENTO
@@ -230,7 +236,10 @@ export default function DespesasPagasPage() {
 
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => setOpenRelatorioModal(true)}
+            onClick={async () => {
+              await loadFavorecidos();
+              setOpenRelatorioModal(true);
+            }}
             loading={loadingRelatorio}
             className="shadow-md whitespace-nowrap"
           >
@@ -250,27 +259,31 @@ export default function DespesasPagasPage() {
           }}
         />
 
-        <DespesaDialog
-          open={openDialog}
-          onClose={() => {
-            setOpenDialog(false);
-            setEditingDespesa(null);
-          }}
-          despesa={editingDespesa}
-          onSubmit={() => {
-            setOpenDialog(false);
-            setEditingDespesa(null);
-            loadData();
-          }}
-        />
+        {/* 🔹 DIALOG DESPESA (SÓ MONTA QUANDO ABRE) */}
+        {openDialog && (
+          <DespesaDialog
+            open={openDialog}
+            despesa={editingDespesa}
+            onClose={() => {
+              setOpenDialog(false);
+              setEditingDespesa(null);
+            }}
+            onSubmit={() => {
+              setOpenDialog(false);
+              setEditingDespesa(null);
+              loadData();
+            }}
+          />
+        )}
 
+        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}
           onGenerate={handleGerarRelatorio}
           title="Relatório de Despesas Pagas"
           tipoRelatorio="despesas-pagas"
-          favorecidos={funcionarios.map((f) => ({
+          favorecidos={favorecidos.map((f) => ({
             id: f.id,
             nome: f.nome,
           }))}

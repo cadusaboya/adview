@@ -8,7 +8,8 @@ from .views import (
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
-    RelatorioComissionamentoView, RelatorioResultadoMensalView
+    RelatorioComissionamentoView, RelatorioResultadoMensalView,
+    dre_consolidado,
 )
 
 from .pdf_views import (
@@ -17,7 +18,7 @@ from .pdf_views import (
     relatorio_despesas_pagas,
     relatorio_despesas_a_pagar,
     relatorio_receitas_a_receber, # Renomeado para a_receber para clareza
-    ##relatorio_dre_consolidado,
+    relatorio_dre_consolidado,
     relatorio_fluxo_de_caixa,
     relatorio_funcionario_especifico
 )
@@ -44,6 +45,7 @@ urlpatterns = [
     path('relatorios/folha-salarial/', RelatorioFolhaSalarialView.as_view(), name='relatorio-folha-salarial'),
     path('relatorios/comissionamento/', RelatorioComissionamentoView.as_view(), name='relatorio-comissionamento'),
     path('relatorios/resultado-mensal/', RelatorioResultadoMensalView.as_view(), name='relatorio-resultado-mensal'),
+    path('relatorios/dre/', dre_consolidado, name='dre-consolidado'),
     path('dashboard/', dashboard_view, name='dashboard'),
 
     # PDF Urls
@@ -63,7 +65,7 @@ urlpatterns = [
     path('pdf/receitas-a-receber/', relatorio_receitas_a_receber, name='relatorio-receitas-a-receber'),
 
     # 6. Relatório de DRE Consolidado
-    ##path('pdf/dre-consolidado/', relatorio_dre_consolidado, name='relatorio-dre-consolidado'),
+    path('pdf/dre/', relatorio_dre_consolidado, name='relatorio-dre-consolidado'),
 
     # 7. Relatório de Fluxo de Caixa
     path('pdf/fluxo-de-caixa/', relatorio_fluxo_de_caixa, name='relatorio-fluxo-de-caixa'),

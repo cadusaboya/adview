@@ -11,9 +11,7 @@ import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
 import { gerarRelatorioPDF } from "@/services/pdf";
 import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
-
-import { getDespesas, Despesa } from "@/services/despesas";
-import { getReceitas, Receita } from "@/services/receitas";
+import { getDREConsolidado, DREData } from "@/services/relatorios";
 
 type LineItem = {
   label: string;
@@ -27,14 +25,12 @@ export default function DREPage() {
   const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
   const [ano, setAno] = useState<number>(new Date().getFullYear());
 
-  const startDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const endDate = new Date(ano, mes, 0).toISOString().split("T")[0];
+  // Não precisamos mais calcular as datas aqui
 
   /* =========================
      STATE
   ========================= */
-  const [despesas, setDespesas] = useState<Despesa[]>([]);
-  const [receitas, setReceitas] = useState<Receita[]>([]);
+  const [dreData, setDREData] = useState<DREData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // 📊 Estados para o modal de relatório
@@ -42,86 +38,43 @@ export default function DREPage() {
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   /* =========================
-     FETCH DESPESAS + RECEITAS
+     FETCH DRE DATA
   ========================= */
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-
-      const [despesasRes, receitasRes] = await Promise.all([
-        getDespesas({
-          start_date: startDate,
-          end_date: endDate,
-          page_size: 1000,
-        }),
-        getReceitas({
-          start_date: startDate,
-          end_date: endDate,
-          page_size: 1000,
-        }),
-      ]);
-
-      setDespesas(despesasRes.results);
-      setReceitas(receitasRes.results);
-      setLoading(false);
+    async function fetchDREData() {
+      try {
+        setLoading(true);
+        const data = await getDREConsolidado(mes, ano);
+        setDREData(data);
+      } catch (error: any) {
+        console.error("Erro ao buscar DRE:", error);
+        toast.error("Erro ao carregar dados da DRE");
+      } finally {
+        setLoading(false);
+      }
     }
 
-    fetchData();
-  }, [startDate, endDate]);
+    fetchDREData();
+  }, [mes, ano]);
 
   /* =========================
-     DESPESAS – AGRUPAMENTO
+     PREPARAR DADOS PARA EXIBIÇÃO
   ========================= */
-  const despesasFixas = despesas
-    .filter((d) => d.tipo === "F")
-    .reduce((acc, d) => acc + Number(d.valor), 0);
+  const receitasLineItems: LineItem[] = dreData
+    ? [
+        { label: "Receitas Fixas", value: dreData.receitas.fixas },
+        { label: "Receitas Variáveis", value: dreData.receitas.variaveis },
+        { label: "Estornos", value: Math.abs(dreData.receitas.estornos) },
+      ]
+    : [];
 
-  const despesasVariaveis = despesas
-    .filter((d) => d.tipo === "V")
-    .reduce((acc, d) => acc + Number(d.valor), 0);
-
-  const comissoes = despesas
-    .filter((d) => d.tipo === "C")
-    .reduce((acc, d) => acc + Number(d.valor), 0);
-
-  /* =========================
-     RECEITAS – AGRUPAMENTO
-  ========================= */
-  const receitasFixas = receitas
-    .filter((r: any) => r.tipo === "F")
-    .reduce((acc, r) => acc + Number(r.valor), 0);
-
-  const receitasVariaveis = receitas
-    .filter((r: any) => r.tipo === "V")
-    .reduce((acc, r) => acc + Number(r.valor), 0);
-
-  const estornos = receitas
-    .filter((r: any) => r.tipo === "E")
-    .reduce((acc, r) => acc + Number(r.valor), 0);
-
-  const receitasLineItems: LineItem[] = [
-    { label: "Receitas Fixas", value: receitasFixas },
-    { label: "Receitas Variáveis", value: receitasVariaveis },
-    { label: "Estornos", value: Math.abs(estornos) },
-  ];
-
-  const totalReceitas = receitasLineItems.reduce(
-    (acc, i) => acc + i.value,
-    0
-  );
-
-  const despesasLineItems: LineItem[] = [
-    { label: "Despesas Fixas", value: despesasFixas },
-    { label: "Despesas Variáveis", value: despesasVariaveis },
-    { label: "Comissões", value: comissoes },
-  ];
-
-  const totalDespesas = despesasLineItems.reduce(
-    (acc, i) => acc + i.value,
-    0
-  );
-
-  const resultado = totalReceitas - totalDespesas;
+  const despesasLineItems: LineItem[] = dreData
+    ? [
+        { label: "Despesas Fixas", value: dreData.despesas.fixas },
+        { label: "Despesas Variáveis", value: dreData.despesas.variaveis },
+        { label: "Comissões", value: dreData.despesas.comissoes },
+      ]
+    : [];
 
   // 📊 Gerar relatório de DRE
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
@@ -129,8 +82,8 @@ export default function DREPage() {
       setLoadingRelatorio(true);
       // Para DRE, usamos as datas do filtro ou as datas atuais
       await gerarRelatorioPDF("dre-consolidado", {
-        data_inicio: filtros.data_inicio || startDate,
-        data_fim: filtros.data_fim || endDate,
+        mes,
+        ano,
       });
       toast.success("Relatório DRE gerado com sucesso!");
     } catch (error: any) {
@@ -158,14 +111,14 @@ export default function DREPage() {
             </div>
 
             {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => setOpenRelatorioModal(true)}
-            loading={loadingRelatorio}
-            className="shadow-md whitespace-nowrap"
-          >
-            Gerar Relatório PDF
-          </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => setOpenRelatorioModal(true)}
+              loading={loadingRelatorio}
+              className="shadow-md whitespace-nowrap"
+            >
+              Gerar Relatório PDF
+            </Button>
           </div>
 
           <div className="flex gap-4 items-end">
@@ -224,42 +177,53 @@ export default function DREPage() {
 
               <Separator />
 
-              {/* RECEITAS */}
-              <Section title="Receitas">
-                {receitasLineItems.map((item) => (
-                  <Row key={item.label} {...item} />
-                ))}
-                <TotalRow label="Total de Receitas" value={totalReceitas} />
-              </Section>
-
-              {/* DESPESAS */}
-              <Section title="Despesas">
-                {loading ? (
+              {loading ? (
+                <div className="text-center py-8">
                   <span className="text-sm text-muted-foreground">
-                    Carregando dados...
+                    Carregando dados da DRE...
                   </span>
-                ) : (
-                  <>
+                </div>
+              ) : dreData ? (
+                <>
+                  {/* RECEITAS */}
+                  <Section title="Receitas">
+                    {receitasLineItems.map((item) => (
+                      <Row key={item.label} {...item} />
+                    ))}
+                    <TotalRow
+                      label="Total de Receitas"
+                      value={dreData.receitas.total}
+                    />
+                  </Section>
+
+                  {/* DESPESAS */}
+                  <Section title="Despesas">
                     {despesasLineItems.map((item) => (
                       <Row key={item.label} {...item} />
                     ))}
                     <TotalRow
                       label="Total de Despesas"
-                      value={totalDespesas}
+                      value={dreData.despesas.total}
                     />
-                  </>
-                )}
-              </Section>
+                  </Section>
 
-              {/* RESULTADO */}
-              <Section title="Resultado">
-                <TotalRow
-                  label="Resultado"
-                  value={resultado}
-                  highlight={resultado > 0}
-                  negative={resultado <= 0}
-                />
-              </Section>
+                  {/* RESULTADO */}
+                  <Section title="Resultado">
+                    <TotalRow
+                      label="Resultado"
+                      value={dreData.resultado}
+                      highlight={dreData.resultado > 0}
+                      negative={dreData.resultado <= 0}
+                    />
+                  </Section>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <span className="text-sm text-red-500">
+                    Erro ao carregar dados
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

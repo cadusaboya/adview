@@ -41,8 +41,9 @@ export default function DespesasPage() {
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
-  // 👥 Favorecidos (FALTAVA AQUI)
+  // 👥 Favorecidos (LAZY)
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
+  const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
 
   // 🔥 Paginação
   const [total, setTotal] = useState(0);
@@ -50,23 +51,7 @@ export default function DespesasPage() {
   const pageSize = 10;
 
   // ======================
-  // 👥 LOAD FAVORECIDOS
-  // ======================
-  useEffect(() => {
-    loadFavorecidos();
-  }, []);
-
-  const loadFavorecidos = async () => {
-    try {
-      const res = await getFavorecidos({ page_size: 1000 });
-      setFavorecidos(res.results);
-    } catch (error) {
-      console.error('Erro ao carregar favorecidos:', error);
-    }
-  };
-
-  // ======================
-  // 🔄 LOAD DATA
+  // 🔄 LOAD DESPESAS
   // ======================
   const loadDespesas = async () => {
     try {
@@ -100,6 +85,21 @@ export default function DespesasPage() {
 
     return () => clearTimeout(timeout);
   }, [search]);
+
+  // ======================
+  // 👥 LOAD FAVORECIDOS (SÓ QUANDO PRECISAR)
+  // ======================
+  const loadFavorecidos = async () => {
+    if (favorecidosLoaded) return;
+
+    try {
+      const res = await getFavorecidos({ page_size: 1000 });
+      setFavorecidos(res.results);
+      setFavorecidosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar favorecidos:', error);
+    }
+  };
 
   // ======================
   // ❌ DELETE
@@ -215,7 +215,10 @@ export default function DespesasPage() {
 
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => setOpenRelatorioModal(true)}
+            onClick={async () => {
+              await loadFavorecidos();
+              setOpenRelatorioModal(true);
+            }}
             loading={loadingRelatorio}
             className="shadow-md whitespace-nowrap"
           >

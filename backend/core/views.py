@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from django.db.models import Sum, Q, F, Case, When, IntegerField
 from django.utils import timezone
 from django.utils.timezone import now
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
@@ -1081,5 +1081,110 @@ class RelatorioResultadoMensalView(BaseReportView):
             "total_despesas_pagas": total_despesas_pagas,
             "resultado_mensal": resultado
         })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dre_consolidado(request):
+    """
+    Retorna a DRE consolidada com Receitas e Despesas agrupadas por tipo.
+    
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+    
+    Retorna:
+    {
+        "receitas": {
+            "fixas": 10000.00,
+            "variaveis": 5000.00,
+            "estornos": -500.00,
+            "total": 14500.00
+        },
+        "despesas": {
+            "fixas": 3000.00,
+            "variaveis": 2000.00,
+            "comissoes": 1000.00,
+            "total": 6000.00
+        },
+        "resultado": 8500.00
+    }
+    """
+    
+    try:
+        # 🔹 Pegar parâmetros de mês e ano
+        mes = request.query_params.get('mes')
+        ano = request.query_params.get('ano')
+        
+        # 🔹 Se não tiver mês/ano, usar mês atual
+        if not mes or not ano:
+            hoje = datetime.now()
+            mes = hoje.month
+            ano = hoje.year
+        else:
+            mes = int(mes)
+            ano = int(ano)
+        
+        # 🔹 Calcular data de início e fim do mês
+        data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+        # Último dia do mês
+        if mes == 12:
+            data_fim = f"{ano + 1}-01-01"
+        else:
+            data_fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
+        data_fim = (datetime.strptime(data_fim, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # 🔹 Filtrar receitas por período do mês
+        receitas = Receita.objects.filter(
+            company=request.user.company,
+            data_vencimento__gte=data_inicio,
+            data_vencimento__lte=data_fim
+        )
+        
+        # 🔹 Filtrar despesas por período do mês
+        despesas = Despesa.objects.filter(
+            company=request.user.company,
+            data_vencimento__gte=data_inicio,
+            data_vencimento__lte=data_fim
+        )
+        
+        # 🔹 Agrupar receitas por tipo
+        receitas_fixas = receitas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or 0
+        receitas_variaveis = receitas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or 0
+        estornos = receitas.filter(tipo='E').aggregate(Sum('valor'))['valor__sum'] or 0
+        
+        total_receitas = float(receitas_fixas) + float(receitas_variaveis) + float(estornos)
+        
+        # 🔹 Agrupar despesas por tipo
+        despesas_fixas = despesas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or 0
+        despesas_variaveis = despesas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or 0
+        comissoes = despesas.filter(tipo='C').aggregate(Sum('valor'))['valor__sum'] or 0
+        
+        total_despesas = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes)
+        
+        # 🔹 Calcular resultado
+        resultado = total_receitas - total_despesas
+        
+        # 🔹 Retornar dados formatados
+        return Response({
+            'receitas': {
+                'fixas': float(receitas_fixas),
+                'variaveis': float(receitas_variaveis),
+                'estornos': float(estornos),
+                'total': total_receitas
+            },
+            'despesas': {
+                'fixas': float(despesas_fixas),
+                'variaveis': float(despesas_variaveis),
+                'comissoes': float(comissoes),
+                'total': total_despesas
+            },
+            'resultado': resultado
+        }, status=status.HTTP_200_OK)
+    
+    except ValueError as e:
+        return Response({'error': str(e)}, status=400)
+    except Exception as e:
+        return Response({'error': 'Erro interno'}, status=500)
+
 
 

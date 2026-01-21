@@ -37,7 +37,7 @@ const RELATORIOS: Record<string, RelatorioConfig> = {
     nomeArquivo: 'relatorio_receitas_a_receber.pdf',
   },
   'dre-consolidado': {
-    endpoint: '/api/pdf/dre-consolidado/',
+    endpoint: '/api/pdf/dre/',
     nomeArquivo: 'relatorio_dre.pdf',
   },
   'fluxo-de-caixa': {
