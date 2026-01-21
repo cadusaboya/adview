@@ -25,7 +25,7 @@ import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Pencil, Trash } from 'lucide-react';
+import { Pencil, Trash, FileText } from 'lucide-react';
 
 export default function DespesasPagasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -162,6 +162,19 @@ export default function DespesasPagasPage() {
   };
 
   // ======================
+  // 📄 GERAR RECIBO
+  // ======================
+  const handleGerarRecibo = async (paymentId: number) => {
+    try {
+      await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
+      toast.success('Recibo gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar recibo');
+    }
+  };
+
+  // ======================
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Payment> = [
@@ -191,6 +204,11 @@ export default function DespesasPagasPage() {
       render: (_: any, record: Payment) => (
         <ActionsDropdown
           actions={[
+            {
+              label: 'Gerar Recibo',
+              icon: FileText,
+              onClick: () => handleGerarRecibo(record.id),
+            },
             {
               label: 'Editar Despesa',
               icon: Pencil,

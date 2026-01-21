@@ -38,11 +38,15 @@ const RELATORIOS: Record<string, RelatorioConfig> = {
   },
   'dre-consolidado': {
     endpoint: '/api/pdf/dre/',
-    nomeArquivo: 'relatorio_dre.pdf',
+    nomeArquivo: 'relatorio_dre_consolidado.pdf',
   },
   'fluxo-de-caixa': {
     endpoint: '/api/pdf/fluxo-de-caixa/',
     nomeArquivo: 'relatorio_fluxo_caixa.pdf',
+  },
+  'recibo-pagamento': {
+    endpoint: '/api/pdf/recibo-pagamento/',
+    nomeArquivo: 'recibo_pagamento.pdf',
   },
 };
 
@@ -224,6 +228,7 @@ export function obterNomeRelatorio(tipoRelatorio: string): string {
     'receitas-a-receber': 'Relatório de Receitas a Receber',
     'dre-consolidado': 'Demonstração de Resultado do Exercício (DRE)',
     'fluxo-de-caixa': 'Relatório de Fluxo de Caixa',
+    'recibo-pagamento': 'Recibo de Pagamento',
   };
 
   return nomes[tipoRelatorio] || tipoRelatorio;

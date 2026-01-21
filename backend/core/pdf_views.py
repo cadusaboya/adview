@@ -983,5 +983,330 @@ def relatorio_dre_consolidado(request):
     
     return response
 
+"""
+View para geração de Recibo de Pagamento em PDF
+Usa ReportLab para criar um recibo profissional e bem formatado
+Com estrutura separada para Receitas e Despesas
+"""
+
+from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, portrait
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from decimal import Decimal
+from datetime import datetime
+import io
+
+from .models import Payment, Company
+
+
+def get_company_from_request(request):
+    """Extrai a empresa do usuário autenticado."""
+    if hasattr(request.user, 'company') and request.user.company:
+        return request.user.company
+    raise PermissionError("Usuário não possui empresa associada")
+
+
+def format_currency(value):
+    """Formata valor como moeda brasileira."""
+    if isinstance(value, Decimal):
+        value = float(value)
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def format_currency_extenso(value):
+    """Converte valor em extenso (simplificado)."""
+    if isinstance(value, Decimal):
+        value = float(value)
+    
+    # Função auxiliar para converter números em extenso
+    def numero_extenso(n):
+        unidades = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove']
+        dezenas = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
+        tens = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
+        
+        if n == 0:
+            return 'zero'
+        
+        if n < 10:
+            return unidades[n]
+        elif n < 20:
+            return dezenas[n - 10]
+        elif n < 100:
+            return tens[n // 10] + (' e ' + unidades[n % 10] if n % 10 != 0 else '')
+        elif n < 1000:
+            return unidades[n // 100] + ' centos' + (' e ' + numero_extenso(n % 100) if n % 100 != 0 else '')
+        elif n < 1000000:
+            return numero_extenso(n // 1000) + ' mil' + (' e ' + numero_extenso(n % 1000) if n % 1000 != 0 else '')
+        else:
+            return numero_extenso(n // 1000000) + ' milhões' + (' e ' + numero_extenso(n % 1000000) if n % 1000000 != 0 else '')
+    
+    # Separar inteiros e centavos
+    partes = str(value).split('.')
+    inteiros = int(partes[0])
+    centavos = int(partes[1]) if len(partes) > 1 else 0
+    
+    texto = numero_extenso(inteiros) + ' reais'
+    if centavos > 0:
+        texto += f' e {numero_extenso(centavos)} centavos'
+    
+    return texto.capitalize()
+
+
+def format_date_br(date_obj) -> str:
+    """Formata data no padrão DD/MM/YYYY."""
+    if date_obj is None:
+        return "-"
+    return date_obj.strftime("%d/%m/%Y") if date_obj else "-"
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def recibo_pagamento(request):
+    """
+    Gera recibo de pagamento em PDF
+    
+    Query Parameters:
+    - payment_id: ID do pagamento (obrigatório)
+    """
+    
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+    
+    payment_id = request.query_params.get('payment_id')
+    if not payment_id:
+        return Response({"error": "payment_id é obrigatório"}, status=400)
+    
+    try:
+        payment = Payment.objects.select_related(
+            'company',
+            'conta_bancaria',
+            'receita',
+            'receita__cliente',
+            'despesa',
+            'despesa__responsavel'
+        ).get(id=payment_id, company=company)
+    except Payment.DoesNotExist:
+        return Response({"error": "Pagamento não encontrado"}, status=404)
+    
+    # 🔹 Criar PDF
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename=recibo_{payment_id}.pdf"
+    
+    pdf = canvas.Canvas(response, pagesize=portrait(A4))
+    width, height = portrait(A4)
+    
+    # 🔹 Cores
+    color_header = colors.HexColor("#1E40AF")  # Azul escuro
+    color_border = colors.HexColor("#E5E7EB")  # Cinza claro
+    color_text = colors.HexColor("#1F2937")    # Cinza escuro
+    
+    # 🔹 Margens
+    margin = 40
+    y = height - margin
+    
+    # ========== HEADER COM LOGO E EMPRESA ==========
+    # Logo (se existir)
+    if company.logo:
+        try:
+            pdf.drawImage(company.logo.path, margin, y - 50, width=80, height=50)
+            y -= 60
+        except:
+            pass
+    
+    # Informações da empresa
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.setFillColor(color_header)
+    pdf.drawString(margin, y, company.name)
+    y -= 20
+    
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(color_text)
+    
+    # CNPJ/CPF
+    if company.cnpj:
+        pdf.drawString(margin, y, f"CNPJ: {company.cnpj}")
+        y -= 12
+    elif company.cpf:
+        pdf.drawString(margin, y, f"CPF: {company.cpf}")
+        y -= 12
+    
+    # Endereço
+    if company.endereco:
+        endereco_completo = company.endereco
+        if company.cidade:
+            endereco_completo += f", {company.cidade}"
+        if company.estado:
+            endereco_completo += f" - {company.estado}"
+        pdf.drawString(margin, y, endereco_completo)
+        y -= 12
+    
+    # Telefone e Email
+    if company.telefone or company.email:
+        contato = []
+        if company.telefone:
+            contato.append(f"Tel: {company.telefone}")
+        if company.email:
+            contato.append(f"Email: {company.email}")
+        pdf.drawString(margin, y, " | ".join(contato))
+        y -= 12
+    
+    y -= 10
+    
+    # ========== TÍTULO DO RECIBO ==========
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.setFillColor(color_header)
+    pdf.drawCentredString(width / 2, y, "RECIBO")
+    y -= 20
+    
+    # Número do recibo
+    pdf.setFont("Helvetica", 10)
+    pdf.setFillColor(color_text)
+    pdf.drawString(margin, y, f"Recibo nº: {payment.id}")
+    pdf.drawRightString(width - margin, y, f"Data: {format_date_br(payment.data_pagamento)}")
+    y -= 15
+    
+    # ========== LINHA SEPARADORA ==========
+    pdf.setStrokeColor(color_border)
+    pdf.setLineWidth(1)
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+    
+    # ========== DADOS DO PAGADOR / RECEBEDOR ==========
+    if payment.receita:
+        # RECEITA - Dados do Pagador (Cliente)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(color_header)
+        pdf.drawString(margin, y, "DADOS DO PAGADOR")
+        y -= 15
+        
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(color_text)
+        
+        cliente = payment.receita.cliente
+        pdf.drawString(margin, y, f"Cliente: {cliente.nome}")
+        y -= 12
+        pdf.drawString(margin, y, f"CPF / CNPJ: {cliente.cpf}")
+        y -= 12
+        
+    else:
+        # DESPESA - Dados do Recebedor (Funcionário/Fornecedor)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(color_header)
+        pdf.drawString(margin, y, "DADOS DO RECEBEDOR")
+        y -= 15
+        
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(color_text)
+        
+        responsavel = payment.despesa.responsavel
+        tipo_responsavel = "Funcionário" if responsavel.tipo == 'F' else "Fornecedor"
+        pdf.drawString(margin, y, f"{tipo_responsavel}: {responsavel.nome}")
+        y -= 12
+        pdf.drawString(margin, y, f"CPF / CNPJ: {responsavel.cpf}")
+        y -= 12
+    
+    y -= 10
+    
+    # ========== DADOS DO PAGAMENTO ==========
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.setFillColor(color_header)
+    pdf.drawString(margin, y, "DADOS DO PAGAMENTO")
+    y -= 15
+    
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(color_text)
+    
+    # Motivo (Descrição)
+    descricao = payment.receita.nome if payment.receita else payment.despesa.nome
+    pdf.drawString(margin, y, f"Motivo: {descricao}")
+    y -= 12
+    
+    # Detalhes (Observação)
+    if payment.observacao:
+        # Quebra texto longo em múltiplas linhas
+        observacao = payment.observacao
+        if len(observacao) > 70:
+            # Simples quebra de linha
+            pdf.drawString(margin, y, f"Detalhes: {observacao[:70]}")
+            y -= 12
+            pdf.drawString(margin + 20, y, observacao[70:])
+            y -= 12
+        else:
+            pdf.drawString(margin, y, f"Detalhes: {observacao}")
+            y -= 12
+    
+    y -= 10
+    
+    # ========== VALOR ==========
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.setFillColor(color_header)
+    pdf.drawString(margin, y, "VALOR")
+    y -= 15
+    
+    # Valor em preto (não verde)
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.setFillColor(color_text)  # Preto em vez de verde
+    valor_formatado = format_currency(payment.valor)
+    pdf.drawCentredString(width / 2, y, valor_formatado)
+    y -= 15
+    
+    # Valor por extenso
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(color_text)
+    valor_extenso = format_currency_extenso(payment.valor)
+    
+    # Quebra texto longo
+    if len(valor_extenso) > 70:
+        pdf.drawCentredString(width / 2, y, f"({valor_extenso[:70]}")
+        y -= 12
+        pdf.drawCentredString(width / 2, y, f"{valor_extenso[:70]})")
+        y -= 12
+    else:
+        pdf.drawCentredString(width / 2, y, f"({valor_extenso})")
+        y -= 12
+    
+    y -= 10
+    
+    # ========== LINHA SEPARADORA ==========
+    pdf.setStrokeColor(color_border)
+    pdf.setLineWidth(1)
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+    
+    # ========== ASSINATURA E DATA ==========
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(color_text)
+    
+    # Espaço para assinatura
+    y -= 150
+    pdf.drawCentredString(width / 2, y, "_" * 50)
+    y -= 12
+    pdf.drawCentredString(width / 2, y, "Assinatura do Responsável")
+    y -= 20
+    
+    # Data de emissão
+    pdf.setFont("Helvetica", 8)
+    pdf.setFillColor(colors.grey)
+    data_emissao = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    pdf.drawCentredString(width / 2, y, f"Emitido em: {data_emissao}")
+    
+    # ========== FOOTER ==========
+    pdf.setFont("Helvetica", 7)
+    pdf.setFillColor(colors.grey)
+    pdf.drawCentredString(width / 2, margin - 10, "Este é um recibo de pagamento. Conserve para sua documentação.")
+    
+    pdf.showPage()
+    pdf.save()
+    
+    return response
 
 

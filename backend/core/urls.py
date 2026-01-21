@@ -9,7 +9,7 @@ from .views import (
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
     RelatorioComissionamentoView, RelatorioResultadoMensalView,
-    dre_consolidado,
+    dre_consolidado
 )
 
 from .pdf_views import (
@@ -20,7 +20,8 @@ from .pdf_views import (
     relatorio_receitas_a_receber, # Renomeado para a_receber para clareza
     relatorio_dre_consolidado,
     relatorio_fluxo_de_caixa,
-    relatorio_funcionario_especifico
+    relatorio_funcionario_especifico, 
+    recibo_pagamento,
 )
 
 router = DefaultRouter()
@@ -72,6 +73,9 @@ urlpatterns = [
 
     # 8. Relatório Funcionário Específico
     path('pdf/funcionario-especifico/', relatorio_funcionario_especifico, name='relatorio-fluxo-de-caixa'),
+
+    path('pdf/recibo-pagamento/', recibo_pagamento, name='recibo_pagamento'),
+
 ]
 
 

@@ -26,7 +26,7 @@ import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 // ✅ IMPORT CORRETO
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Pencil, Trash } from 'lucide-react';
+import { Pencil, Trash, FileText } from 'lucide-react';
 
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -156,6 +156,19 @@ export default function ReceitaRecebidasPage() {
   };
 
   // ======================
+  // 📄 GERAR RECIBO
+  // ======================
+  const handleGerarRecibo = async (paymentId: number) => {
+    try {
+      await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
+      toast.success('Recibo gerado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Erro ao gerar recibo');
+    }
+  };
+
+  // ======================
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Payment> = [
@@ -185,6 +198,11 @@ export default function ReceitaRecebidasPage() {
       render: (_: any, record: Payment) => (
         <ActionsDropdown
           actions={[
+            {
+              label: 'Gerar Recibo',
+              icon: FileText,
+              onClick: () => handleGerarRecibo(record.id),
+            },
             {
               label: 'Editar Receita',
               icon: Pencil,
