@@ -33,6 +33,11 @@ export interface RelatorioFiltros {
   tipo?: string;
 }
 
+// 🔹 Payload de recibo
+export interface RelatorioReciboPayload {
+  payment_id: number;
+}
+
 /** 🔹 Tipagem correta dos valores do formulário */
 interface RelatorioFormValues {
   data_inicio?: Dayjs;

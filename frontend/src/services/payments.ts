@@ -1,54 +1,25 @@
 import { api } from "./api";
+import {
+  Payment,
+  PaymentCreate,
+  PaymentUpdate,
+  PaymentListParams,
+} from "@/types/payments";
 
-export interface Payment {
-  id: number;
-  receita?: number;
-  despesa?: number;
-  conta_bancaria: number;
-  valor: number;
-  data_pagamento: string;
-  observacao?: string;
-  company: number;
-  criado_em: string;
-
-  // Campos extras vindos do backend
-  cliente_nome?: string;
-  receita_nome?: string;
-  favorecido_nome?: string;
-  despesa_nome?: string;
-}
-
-/* =========================
-   LIST PARAMS (GENÉRICO)
-========================= */
-
-export interface PaymentListParams {
-  page?: number;
-  page_size?: number;
-  search?: string;
-
-  receita?: number;
-  despesa?: number;
-
-  // 🔥 NOVO: TIPO DE PAGAMENTO
-  tipo?: 'receita' | 'despesa';
-
-  // 🔹 FILTROS DE PERÍODO
-  start_date?: string; // YYYY-MM-DD
-  end_date?: string;   // YYYY-MM-DD
-}
+type PaginatedResponse<T> = {
+  count: number;
+  results: T[];
+};
 
 /* =========================
    GET PAGAMENTOS
 ========================= */
 
 export async function getPayments(params?: PaymentListParams) {
-  const res = await api.get<{
-    count: number;
-    results: Payment[];
-  }>("/api/pagamentos/", {
-    params,
-  });
+  const res = await api.get<PaginatedResponse<Payment>>(
+    "/api/pagamentos/",
+    { params }
+  );
 
   return res.data;
 }
@@ -57,33 +28,27 @@ export async function getPayments(params?: PaymentListParams) {
    CRUD
 ========================= */
 
-export async function createPayment(payment: {
-  receita?: number;
-  despesa?: number;
-  conta_bancaria: number;
-  valor: number;
-  data_pagamento: string;
-  observacao?: string;
-}) {
-  const res = await api.post<Payment>("/api/pagamentos/", payment);
+export async function createPayment(
+  payment: PaymentCreate
+): Promise<Payment> {
+  const res = await api.post<Payment>(
+    "/api/pagamentos/",
+    payment
+  );
   return res.data;
 }
 
 export async function updatePayment(
   id: number,
-  payment: Partial<{
-    receita?: number;
-    despesa?: number;
-    conta_bancaria: number;
-    valor: number;
-    data_pagamento: string;
-    observacao?: string;
-  }>
-) {
-  const res = await api.put<Payment>(`/api/pagamentos/${id}/`, payment);
+  payment: PaymentUpdate
+): Promise<Payment> {
+  const res = await api.put<Payment>(
+    `/api/pagamentos/${id}/`,
+    payment
+  );
   return res.data;
 }
 
-export async function deletePayment(id: number) {
+export async function deletePayment(id: number): Promise<void> {
   await api.delete(`/api/pagamentos/${id}/`);
 }

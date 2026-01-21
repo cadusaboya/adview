@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -13,19 +13,17 @@ import DespesaDialog from '@/components/dialogs/DespesaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
-import {
-  getPayments,
-  deletePayment,
-  Payment,
-} from '@/services/payments';
-
-import { Despesa, getDespesaById } from '@/services/despesas';
+import { getPayments, deletePayment } from '@/services/payments';
+import { updateDespesa, getDespesaById } from '@/services/despesas';
 import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { gerarRelatorioPDF } from '@/services/pdf';
+
+import { Payment } from '@/types/payments';
+import { Despesa, DespesaUpdate } from '@/types/despesas';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Pencil, Trash, FileText } from 'lucide-react';
+import { Pencil, Trash } from 'lucide-react';
 
 export default function DespesasPagasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -38,7 +36,7 @@ export default function DespesasPagasPage() {
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
-  // 👥 Favorecidos (LAZY)
+  // 👥 Favorecidos (lazy)
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
   const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
 
@@ -47,13 +45,13 @@ export default function DespesasPagasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // 🔎 Busca
+  // Busca
   const [search, setSearch] = useState('');
 
-   // ======================
-  // 🔄 LOAD PAGAMENTOS
   // ======================
-  const loadData = useCallback(async () => {
+  // 🔄 LOAD PAYMENTS
+  // ======================
+  const loadData = async () => {
     try {
       setLoading(true);
 
@@ -72,16 +70,15 @@ export default function DespesasPagasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  };
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [page]);
 
   // ======================
   // 🔁 SEARCH DEBOUNCE
   // ======================
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (page === 1) {
@@ -90,12 +87,12 @@ export default function DespesasPagasPage() {
         setPage(1);
       }
     }, 300);
-  
+
     return () => clearTimeout(timeout);
-  }, [search, page, loadData]);
+  }, [search]);
 
   // ======================
-  // 👥 LOAD FAVORECIDOS (SÓ QUANDO PRECISAR)
+  // 👥 LOAD FAVORECIDOS
   // ======================
   const loadFavorecidos = async () => {
     if (favorecidosLoaded) return;
@@ -110,7 +107,7 @@ export default function DespesasPagasPage() {
   };
 
   // ======================
-  // ❌ DELETE PAGAMENTO
+  // ❌ DELETE PAYMENT
   // ======================
   const handleDeletePayment = async (id: number) => {
     if (!confirm('Deseja realmente excluir este pagamento?')) return;
@@ -145,6 +142,24 @@ export default function DespesasPagasPage() {
   };
 
   // ======================
+  // 💾 UPDATE DESPESA
+  // ======================
+  const handleUpdateDespesa = async (payload: DespesaUpdate) => {
+    if (!editingDespesa) return;
+
+    try {
+      await updateDespesa(editingDespesa.id, payload);
+      toast.success('Despesa atualizada com sucesso!');
+      setOpenDialog(false);
+      setEditingDespesa(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao atualizar despesa');
+    }
+  };
+
+  // ======================
   // 📊 GERAR RELATÓRIO
   // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
@@ -152,26 +167,11 @@ export default function DespesasPagasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('despesas-pagas', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+    } catch (error: any) {
       console.error(error);
-      toast.error(errorMessage);
+      toast.error(error.message || 'Erro ao gerar relatório');
     } finally {
       setLoadingRelatorio(false);
-    }
-  };
-
-  // ======================
-  // 📄 GERAR RECIBO
-  // ======================
-  const handleGerarRecibo = async (paymentId: number) => {
-    try {
-      await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
-      toast.success('Recibo gerado com sucesso!');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar recibo';
-      console.error(error);
-      toast.error(errorMessage);
     }
   };
 
@@ -182,22 +182,22 @@ export default function DespesasPagasPage() {
     {
       title: 'Data de Pagamento',
       dataIndex: 'data_pagamento',
-      render: (value: string) => formatDateBR(value),
+      render: (value) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
       dataIndex: 'favorecido_nome',
-      render: (nome: string | undefined) => nome ?? '—',
+      render: (nome) => nome ?? '—',
     },
     {
       title: 'Nome',
       dataIndex: 'despesa_nome',
-      render: (nome: string | undefined) => nome ?? '—',
+      render: (nome) => nome ?? '—',
     },
     {
       title: 'Valor Pago',
       dataIndex: 'valor',
-      render: (v: number) => formatCurrencyBR(v),
+      render: (v) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
@@ -205,11 +205,6 @@ export default function DespesasPagasPage() {
       render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[
-            {
-              label: 'Gerar Recibo',
-              icon: FileText,
-              onClick: () => handleGerarRecibo(record.id),
-            },
             {
               label: 'Editar Despesa',
               icon: Pencil,
@@ -235,7 +230,7 @@ export default function DespesasPagasPage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        {/* 🔝 HEADER */}
+        {/* HEADER */}
         <div className="flex items-center gap-4 mb-6">
           <h1 className="text-xl font-semibold whitespace-nowrap">
             Despesas Pagas
@@ -278,7 +273,7 @@ export default function DespesasPagasPage() {
           }}
         />
 
-        {/* 🔹 DIALOG DESPESA (SÓ MONTA QUANDO ABRE) */}
+        {/* DIALOG DESPESA */}
         {openDialog && (
           <DespesaDialog
             open={openDialog}
@@ -287,15 +282,11 @@ export default function DespesasPagasPage() {
               setOpenDialog(false);
               setEditingDespesa(null);
             }}
-            onSubmit={() => {
-              setOpenDialog(false);
-              setEditingDespesa(null);
-              loadData();
-            }}
+            onSubmit={handleUpdateDespesa}
           />
         )}
 
-        {/* 📊 MODAL RELATÓRIO */}
+        {/* MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}

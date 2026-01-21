@@ -220,16 +220,23 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = DespesaSerializer
     pagination_class = DynamicPageSizePagination
 
+    # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
+    hoje = timezone.now().date()
+    Despesa.objects.filter(
+        situacao='A',
+        data_vencimento__lt=hoje
+    ).update(situacao='V')
+
+    def get_serializer_class(self):
+            situacoes = self.request.query_params.getlist("situacao")
+
+            # 🔹 Receitas em aberto → serializer com saldo
+            if situacoes and set(situacoes).issubset({"A", "V"}):
+                return DespesaAbertaSerializer
+
+            return DespesaSerializer
+            
     def get_queryset(self):
-        hoje = timezone.now().date()
-
-        # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
-        hoje = timezone.now().date()
-        Despesa.objects.filter(
-            situacao='A',
-            data_vencimento__lt=hoje
-        ).update(situacao='V')
-
         queryset = super().get_queryset().select_related(
             "responsavel", "company"
         ).prefetch_related(
