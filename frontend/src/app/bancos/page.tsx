@@ -1,29 +1,27 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+
 import {
   getBancos,
   createBanco,
   updateBanco,
   deleteBanco,
-  Banco,
 } from "@/services/bancos";
 
+import { Banco, BancoCreate, BancoUpdate } from "@/types/bancos";
+
 import { Button } from "antd";
-import { toast } from "sonner";
 import type { TableColumnsType } from "antd";
+import { toast } from "sonner";
 
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import GenericTable from "@/components/imports/GenericTable";
 import BancoDialog from "@/components/dialogs/BancoDialog";
 
 import { formatCurrencyBR } from "@/lib/formatters";
-
 import { ActionsDropdown } from "@/components/imports/ActionsDropdown";
 import { Pencil, Trash } from "lucide-react";
-
-/** 🔹 Payload esperado pelo dialog */
-type BancoPayload = Partial<Banco>;
 
 export default function BancosPage() {
   const [bancos, setBancos] = useState<Banco[]>([]);
@@ -70,13 +68,15 @@ export default function BancosPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: BancoPayload) => {
+  const handleSubmit = async (data: BancoCreate | BancoUpdate) => {
     try {
       if (editingBanco) {
-        await updateBanco(editingBanco.id, data);
+        // UPDATE → pode ser parcial
+        await updateBanco(editingBanco.id, data as BancoUpdate);
         toast.success("Conta bancária atualizada com sucesso!");
       } else {
-        await createBanco(data);
+        // CREATE → payload obrigatório
+        await createBanco(data as BancoCreate);
         toast.success("Conta bancária criada com sucesso!");
       }
 
@@ -93,12 +93,18 @@ export default function BancosPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Banco> = [
-    { title: "Nome", dataIndex: "nome" },
-    { title: "Descrição", dataIndex: "descricao" },
+    {
+      title: "Nome",
+      dataIndex: "nome",
+    },
+    {
+      title: "Descrição",
+      dataIndex: "descricao",
+    },
     {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
-      render: (v: number) => formatCurrencyBR(v),
+      render: (value: number) => formatCurrencyBR(value),
     },
     {
       title: "Ações",

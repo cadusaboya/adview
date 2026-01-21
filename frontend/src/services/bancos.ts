@@ -1,15 +1,5 @@
 import { api } from "./api";
-
-export interface Banco {
-  id: number;
-  nome: string;
-  descricao: string;
-  saldo_inicial: string;
-  saldo_atual: string;
-  company: number;
-  criado_em: string;
-  atualizado_em: string;
-}
+import { Banco, BancoCreate, BancoUpdate } from "@/types/bancos";
 
 // 🔹 Listar bancos
 export async function getBancos(params?: { page?: number; page_size?: number }) {
@@ -20,8 +10,8 @@ export async function getBancos(params?: { page?: number; page_size?: number }) 
 }
 
 // 🔹 Criar banco
-export async function createBanco(banco: Omit<Banco, "id" | "saldo_atual" | "company" | "criado_em" | "atualizado_em">) {
-  const res = await api.post<Banco>("/api/contas-bancarias/", banco);
+export async function createBanco(data: BancoCreate) {
+  const res = await api.post<Banco>("/api/contas-bancarias/", data);
   return res.data;
 }
 

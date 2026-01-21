@@ -3,41 +3,45 @@
 import DialogBase from '@/components/dialogs/DialogBase';
 import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Banco } from '@/services/bancos';
+
+import { Banco, BancoCreate, BancoUpdate } from '@/types/bancos';
 
 import {
   formatCurrencyInput,
   parseCurrencyBR,
 } from '@/lib/formatters';
 
+interface BancoDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: BancoCreate | BancoUpdate) => void;
+  banco?: Banco | null;
+}
+
 export default function BancoDialog({
   open,
   onClose,
   onSubmit,
   banco,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (data: Banco) => void;
-  banco?: Banco | null;
-}) {
-  const [formData, setFormData] = useState({
+}: BancoDialogProps) {
+  // 🔹 Form SEMPRE usa BancoCreate
+  const [formData, setFormData] = useState<BancoCreate>({
     nome: '',
     descricao: '',
-    saldo_inicial: 0, // 🔹 valor REAL
+    saldo_inicial: 0,
   });
 
   const [saldoDisplay, setSaldoDisplay] = useState('');
 
-  /* 🔹 Preenche os campos quando edita */
+  // ======================
+  // 🔄 Preencher ao editar
+  // ======================
   useEffect(() => {
     if (banco) {
       setFormData({
-        nome: banco.nome || '',
-        descricao: banco.descricao || '',
-        saldo_inicial: banco.saldo_inicial
-          ? Number(banco.saldo_inicial)
-          : 0,
+        nome: banco.nome,
+        descricao: banco.descricao,
+        saldo_inicial: banco.saldo_inicial,
       });
 
       setSaldoDisplay(
@@ -56,14 +60,30 @@ export default function BancoDialog({
     }
   }, [banco, open]);
 
+  // ======================
+  // 💾 Submit
+  // ======================
   const handleSubmit = () => {
-    const payload = {
-      nome: formData.nome,
-      descricao: formData.descricao,
-      saldo_inicial: formData.saldo_inicial, // 🔥 número limpo
-    };
+    if (banco) {
+      // UPDATE → parcial permitido
+      const payload: BancoUpdate = {
+        nome: formData.nome,
+        descricao: formData.descricao,
+        saldo_inicial: formData.saldo_inicial,
+      };
 
-    onSubmit(payload);
+      onSubmit(payload);
+    } else {
+      // CREATE → payload completo
+      const payload: BancoCreate = {
+        nome: formData.nome,
+        descricao: formData.descricao,
+        saldo_inicial: formData.saldo_inicial,
+      };
+
+      onSubmit(payload);
+    }
+
     onClose();
   };
 
@@ -95,17 +115,14 @@ export default function BancoDialog({
               inputMode="decimal"
               placeholder="0,00"
               value={saldoDisplay}
-
               onChange={(e) => {
                 setSaldoDisplay(e.target.value);
               }}
-
               onFocus={() => {
                 setSaldoDisplay(
                   saldoDisplay.replace(/[^\d,]/g, '')
                 );
               }}
-
               onBlur={() => {
                 const parsed = parseCurrencyBR(saldoDisplay);
 
