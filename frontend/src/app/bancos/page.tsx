@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   getBancos,
   createBanco,
@@ -19,9 +19,11 @@ import BancoDialog from "@/components/dialogs/BancoDialog";
 
 import { formatCurrencyBR } from "@/lib/formatters";
 
-// ✅ Dropdown reutilizável
 import { ActionsDropdown } from "@/components/imports/ActionsDropdown";
 import { Pencil, Trash } from "lucide-react";
+
+/** 🔹 Payload esperado pelo dialog */
+type BancoPayload = Partial<Banco>;
 
 export default function BancosPage() {
   const [bancos, setBancos] = useState<Banco[]>([]);
@@ -32,22 +34,22 @@ export default function BancosPage() {
   // ======================
   // 🔄 LOAD
   // ======================
-  const loadBancos = async () => {
+  const loadBancos = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getBancos({ page_size: 100000 });
       setBancos(res.results);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erro ao buscar contas bancárias:", error);
       toast.error("Erro ao buscar contas bancárias");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadBancos();
-  }, []);
+  }, [loadBancos]);
 
   // ======================
   // ❌ DELETE
@@ -59,7 +61,7 @@ export default function BancosPage() {
       await deleteBanco(id);
       toast.success("Conta bancária excluída com sucesso!");
       loadBancos();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error("Erro ao excluir conta bancária");
     }
@@ -68,7 +70,7 @@ export default function BancosPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: BancoPayload) => {
     try {
       if (editingBanco) {
         await updateBanco(editingBanco.id, data);
@@ -81,7 +83,7 @@ export default function BancosPage() {
       setOpenDialog(false);
       setEditingBanco(null);
       loadBancos();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erro ao salvar conta bancária:", error);
       toast.error("Erro ao salvar conta bancária");
     }
@@ -96,12 +98,12 @@ export default function BancosPage() {
     {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
-      render: (v) => formatCurrencyBR(v),
+      render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: "Ações",
       key: "actions",
-      render: (_: any, record: Banco) => (
+      render: (_: unknown, record: Banco) => (
         <ActionsDropdown
           actions={[
             {
@@ -152,7 +154,6 @@ export default function BancosPage() {
           loading={loading}
         />
 
-        {/* 🔹 DIALOG CRIAR / EDITAR */}
         <BancoDialog
           open={openDialog}
           onClose={() => {

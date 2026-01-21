@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
@@ -26,6 +26,10 @@ import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
+
+interface Responsavel {
+  nome: string;
+}
 
 export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
@@ -53,7 +57,7 @@ export default function DespesasPage() {
   // ======================
   // 🔄 LOAD DESPESAS
   // ======================
-  const loadDespesas = async () => {
+  const loadDespesas = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -71,16 +75,15 @@ export default function DespesasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search]);
 
   useEffect(() => {
     loadDespesas();
-  }, [page]);
+  }, [loadDespesas]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
-      loadDespesas();
     }, 300);
 
     return () => clearTimeout(timeout);
@@ -125,9 +128,10 @@ export default function DespesasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('despesas-a-pagar', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -140,12 +144,12 @@ export default function DespesasPage() {
     {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
-      render: (value) => formatDateBR(value),
+      render: (value: string) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
       dataIndex: 'responsavel',
-      render: (r: any) => r?.nome || '—',
+      render: (r: Responsavel | undefined) => r?.nome || '—',
     },
     {
       title: 'Nome',
@@ -154,18 +158,18 @@ export default function DespesasPage() {
     {
       title: 'Situação',
       dataIndex: 'situacao',
-      render: (value) => <StatusBadge status={value} />,
+      render: (value: string) => <StatusBadge status={value} />,
     },
     {
       title: 'Valor em Aberto',
       dataIndex: 'valor_aberto',
-      render: (v, record) =>
+      render: (v: number | undefined, record: Despesa) =>
         formatCurrencyBR(v ?? record.valor),
     },
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Despesa) => (
+      render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
           actions={[
             {
@@ -244,7 +248,7 @@ export default function DespesasPage() {
             current: page,
             pageSize,
             total,
-            onChange: (page) => setPage(page),
+            onChange: (newPage) => setPage(newPage),
           }}
         />
 

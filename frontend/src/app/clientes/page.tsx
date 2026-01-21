@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   getClientes,
   Cliente,
@@ -26,13 +26,15 @@ import {
   DollarSign,
 } from 'lucide-react';
 
+/** 🔹 Payload esperado para criação/edição */
+type ClientePayload = Partial<Cliente>;
+
 export default function ClientePage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
 
-  // 📊 loading individual do relatório
   const [loadingRelatorio, setLoadingRelatorio] = useState<number | null>(null);
 
   const [total, setTotal] = useState(0);
@@ -42,23 +44,23 @@ export default function ClientePage() {
   // ======================
   // 🔄 LOAD
   // ======================
-  const loadClientes = async () => {
+  const loadClientes = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getClientes({ page, page_size: pageSize });
       setClientes(res.results);
       setTotal(res.count);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error('Erro ao buscar clientes');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
   useEffect(() => {
     loadClientes();
-  }, [page]);
+  }, [loadClientes]);
 
   // ======================
   // ❌ DELETE
@@ -70,7 +72,7 @@ export default function ClientePage() {
       await deleteCliente(id);
       toast.success('Cliente excluído com sucesso');
       loadClientes();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error('Erro ao excluir cliente');
     }
@@ -79,7 +81,7 @@ export default function ClientePage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: ClientePayload) => {
     try {
       if (editingCliente) {
         await updateCliente(editingCliente.id, data);
@@ -92,7 +94,7 @@ export default function ClientePage() {
       setOpenDialog(false);
       setEditingCliente(null);
       loadClientes();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error('Erro ao salvar cliente');
     }
@@ -110,9 +112,14 @@ export default function ClientePage() {
       });
 
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Erro ao gerar relatório');
+      }
     } finally {
       setLoadingRelatorio(null);
     }
@@ -129,15 +136,16 @@ export default function ClientePage() {
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Cliente) => (
+      render: (_: unknown, record: Cliente) => (
         <ActionsDropdown
           actions={[
             {
               label: 'Financeiro',
               icon: DollarSign,
               onClick: () => {
-                // Dialog encapsulado
-                document.getElementById(`cliente-fin-${record.id}`)?.click();
+                document
+                  .getElementById(`cliente-fin-${record.id}`)
+                  ?.click();
               },
             },
             {
@@ -199,7 +207,6 @@ export default function ClientePage() {
           }}
         />
 
-        {/* 🔹 DIALOG CRIAR / EDITAR */}
         <ClienteDialog
           open={openDialog}
           onClose={() => {
@@ -210,7 +217,6 @@ export default function ClientePage() {
           cliente={editingCliente}
         />
 
-        {/* 🔹 DIALOG FINANCEIRO (um por linha, invisível) */}
         {clientes.map((cliente) => (
           <ClienteProfileDialog key={cliente.id} clientId={cliente.id}>
             <button

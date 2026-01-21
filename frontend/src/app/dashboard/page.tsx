@@ -4,8 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -16,6 +14,7 @@ import {
   Legend,
   ResponsiveContainer,
   ComposedChart,
+  Line,
 } from 'recharts';
 import {
   TrendingUp,
@@ -25,7 +24,6 @@ import {
   Cake,
   CreditCard,
   Clock,
-  CheckCircle,
   XCircle,
 } from 'lucide-react';
 import { getDashboardData } from "@/services/relatorios";
@@ -113,12 +111,6 @@ interface DashboardData {
 
 const COLORS_RECEITA = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
 const COLORS_DESPESA = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
-
-const SITUACAO_LABELS: Record<string, string> = {
-  P: 'Paga',
-  A: 'Em Aberto',
-  V: 'Vencida',
-};
 
 // ============================================================================
 // COMPONENTS
@@ -323,9 +315,6 @@ export default function DashboardPage() {
     ? ((variacaoSaldo / Math.abs(data.saldo30DiasAtras)) * 100).toFixed(1)
     : '0';
 
-  // Calcular projeção de fluxo
-  const fluxoProjetado = data.receitasProjetadas - data.despesasProjetadas;
-
   // Total de aniversariantes
   const totalAniversariantes = 
     data.aniversariantes.clientes.length + data.aniversariantes.funcionarios.length;
@@ -351,6 +340,8 @@ export default function DashboardPage() {
               icon={<DollarSign className="w-6 h-6" />}
               color="blue"
               trend={variacaoSaldo > 0 ? 'up' : variacaoSaldo < 0 ? 'down' : 'neutral'}
+              trendValue={`${variacaoPercentual}%`}
+              trendLabel="vs 30 dias"
             />
             <StatCard
               title="Receitas Projetadas"
@@ -674,8 +665,7 @@ export default function DashboardPage() {
                     </span>,
                     new Date(despesa.dataVencimento).toLocaleDateString('pt-BR'),
                 ])}
-                />
-
+              />
             </Card>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { api, API_URL } from './api';
+import { api } from './api';
 
 export interface LoginResponse {
   access: string;

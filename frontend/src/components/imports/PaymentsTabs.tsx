@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,15 +46,15 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
 
   const [valorDisplay, setValorDisplay] = useState('');
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
       const query =
         tipo === 'receita'
           ? { receita: entityId, page_size: 99999 }
           : { despesa: entityId, page_size: 99999 };
-
+  
       const data = await getPayments(query);
-
+  
       const formatted = (data.results || []).map((p) => ({
         id: p.id,
         data_pagamento: p.data_pagamento,
@@ -62,18 +62,19 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
         valor: String(p.valor),
         observacao: p.observacao || '',
       }));
-
+  
       setPayments(formatted);
     } catch {
       toast.error('Erro ao carregar pagamentos');
     }
-  };
+  }, [tipo, entityId]);
+  
 
   useEffect(() => {
     if (entityId) {
       loadPayments();
     }
-  }, [entityId]);
+  }, [entityId, loadPayments]);  
 
   const handleAdd = async () => {
     if (!form.data_pagamento || !form.conta_bancaria || !form.valor) {

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Group, Box, Collapse, ThemeIcon, UnstyledButton, rem } from '@mantine/core';
+import { Box, Collapse, ThemeIcon, UnstyledButton, rem } from '@mantine/core';
+import { LucideIcon } from 'lucide-react';
 import { IconChevronRight } from '@tabler/icons-react';
 import Link from 'next/link';
 import classes from './NavbarLinksGroup.module.css';
 
 interface LinksGroupProps {
-  icon: React.FC<any>;
+  icon: LucideIcon;
   label: string;
   initiallyOpened?: boolean;
   links?: { label: string; link: string }[];

@@ -30,10 +30,16 @@ export default function PaymentsTable({
       setLoadingRecibo(paymentId);
       await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
       toast.success('Recibo gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar recibo');
-    } finally {
+    
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Erro ao gerar recibo');
+      }
+    }
+     finally {
       setLoadingRecibo(null);
     }
   };

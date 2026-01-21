@@ -5,6 +5,7 @@
 
 import { api } from './api';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { getErrorMessage } from '@/lib/errors';
 
 interface RelatorioConfig {
   endpoint: string;
@@ -96,28 +97,9 @@ export async function gerarRelatorioPDF(
     if (process.env.NODE_ENV === 'development') {
       console.log('✅ Relatório aberto em nova aba');
     }
-  } catch (error: any) {
-    console.error('❌ Erro ao gerar relatório:', error);
-
-    // Extrair mensagem de erro do response
-    let errorMessage = 'Erro ao gerar relatório';
-    if (error.response?.status === 401) {
-      errorMessage = 'Não autorizado. Faça login novamente.';
-    } else if (error.response?.data) {
-      const errorData = error.response.data;
-      if (typeof errorData === 'string') {
-        errorMessage = errorData;
-      } else if (errorData.error) {
-        errorMessage = errorData.error;
-      } else if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
-    throw new Error(errorMessage);
-  }
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, 'Erro ao gerar relatório'));
+  }  
 }
 
 /**
@@ -166,28 +148,9 @@ export async function baixarRelatorioPDF(
     if (process.env.NODE_ENV === 'development') {
       console.log('✅ Relatório baixado:', config.nomeArquivo);
     }
-  } catch (error: any) {
-    console.error('❌ Erro ao baixar relatório:', error);
-
-    // Extrair mensagem de erro do response
-    let errorMessage = 'Erro ao baixar relatório';
-    if (error.response?.status === 401) {
-      errorMessage = 'Não autorizado. Faça login novamente.';
-    } else if (error.response?.data) {
-      const errorData = error.response.data;
-      if (typeof errorData === 'string') {
-        errorMessage = errorData;
-      } else if (errorData.error) {
-        errorMessage = errorData.error;
-      } else if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
-    throw new Error(errorMessage);
-  }
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, 'Erro ao gerar relatório'));
+  }  
 }
 
 /**

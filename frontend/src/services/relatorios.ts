@@ -61,10 +61,13 @@ export async function getDREConsolidado(
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao buscar DRE:', error);
-    throw new Error(
-      error.response?.data?.error || 'Erro ao buscar dados da DRE'
-    );
+  
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    }
+  
+    throw new Error('Erro ao buscar dados da DRE');
   }
 }

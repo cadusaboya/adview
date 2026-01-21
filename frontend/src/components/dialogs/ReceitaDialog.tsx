@@ -10,8 +10,6 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-
 import { Select as AntdSelect } from 'antd';
 
 import {
@@ -25,12 +23,35 @@ import { getBancos } from '@/services/bancos';
 import { getFuncionarios, Funcionario } from '@/services/funcionarios';
 import { getClientes, Cliente } from '@/services/clientes';
 
+/* =======================
+   TYPES
+======================= */
+
+interface ReceitaPayload {
+  nome: string;
+  descricao?: string;
+  cliente_id: string;
+  valor: number | '';
+  data_vencimento: string;
+  tipo: string;
+  forma_pagamento: string;
+  comissionado_id: string;
+}
+
+interface ReceitaDTO extends ReceitaPayload {
+  id: number;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<any>;
-  receita?: any | null;
+  onSubmit: (data: ReceitaPayload) => Promise<void>;
+  receita?: ReceitaDTO | null;
 }
+
+/* =======================
+   COMPONENT
+======================= */
 
 export default function ReceitaDialog({
   open,
@@ -38,7 +59,7 @@ export default function ReceitaDialog({
   onSubmit,
   receita,
 }: Props) {
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<ReceitaPayload>({
     nome: '',
     descricao: '',
     cliente_id: '',
@@ -84,7 +105,6 @@ export default function ReceitaDialog({
         forma_pagamento: '',
         comissionado_id: '',
       });
-
       setValorDisplay('');
     }
   }, [receita, open]);
@@ -93,7 +113,7 @@ export default function ReceitaDialog({
   useEffect(() => {
     const loadBancos = async () => {
       const { results } = await getBancos({ page_size: 1000 });
-      setBancos(results.map((banco) => ({ id: banco.id, nome: banco.nome })));
+      setBancos(results.map((b) => ({ id: b.id, nome: b.nome })));
     };
     loadBancos();
   }, []);
@@ -117,7 +137,7 @@ export default function ReceitaDialog({
   }, []);
 
   const handleSubmit = async () => {
-    const payload = { ...formData };
+    const payload: ReceitaPayload = { ...formData };
     await onSubmit(payload);
     onClose();
   };
@@ -134,20 +154,13 @@ export default function ReceitaDialog({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Cliente</label>
-
             <AntdSelect
               showSearch
               allowClear
               placeholder="Selecione um cliente"
               value={formData.cliente_id || undefined}
               style={{ width: '100%' }}
-              listHeight={256}
               optionFilterProp="label"
-              filterOption={(input, option) =>
-                (option?.label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
               options={clientes.map((c) => ({
                 value: String(c.id),
                 label: c.nome,
@@ -155,20 +168,16 @@ export default function ReceitaDialog({
               onChange={(val) =>
                 setFormData({ ...formData, cliente_id: val || '' })
               }
-              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
               popupClassName="antd-select-popup-dialog"
-              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
-              getPopupContainer={(trigger) => {
-                const dialogParent = trigger.closest('[role="dialog"]');
-                return dialogParent || document.body;
-              }}
+              getPopupContainer={(trigger) =>
+                trigger.closest('[role="dialog"]') || document.body
+              }
             />
           </div>
 
           <div>
             <label className="text-sm">Nome</label>
             <Input
-              placeholder="Nome"
               value={formData.nome}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
@@ -181,7 +190,6 @@ export default function ReceitaDialog({
         <div>
           <label className="text-sm">Descrição</label>
           <Input
-            placeholder="Observações ou descrição"
             value={formData.descricao}
             onChange={(e) =>
               setFormData({ ...formData, descricao: e.target.value })
@@ -194,19 +202,11 @@ export default function ReceitaDialog({
           <div>
             <label className="text-sm">Valor (R$)</label>
             <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
               value={valorDisplay}
               onChange={(e) => setValorDisplay(e.target.value)}
-              onFocus={() => {
-                setValorDisplay(valorDisplay.replace(/[^\d,]/g, ''));
-              }}
               onBlur={() => {
                 const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(
-                  parsed ? formatCurrencyInput(parsed) : ''
-                );
+                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
                 setFormData({ ...formData, valor: parsed });
               }}
             />
@@ -268,45 +268,30 @@ export default function ReceitaDialog({
 
           <div>
             <label className="text-sm">Comissionado (opcional)</label>
-
             <AntdSelect
               showSearch
               allowClear
               placeholder="Selecione um funcionário"
               value={formData.comissionado_id || undefined}
               style={{ width: '100%' }}
-              listHeight={256}
-              optionFilterProp="label"
-              filterOption={(input, option) =>
-                (option?.label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-              options={[
-                { value: '', label: 'Nenhum' },
-                ...funcionarios.map((f) => ({
-                  value: String(f.id),
-                  label: f.nome,
-                })),
-              ]}
+              options={funcionarios.map((f) => ({
+                value: String(f.id),
+                label: f.nome,
+              }))}
               onChange={(val) =>
                 setFormData({
                   ...formData,
                   comissionado_id: val || '',
                 })
               }
-              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
               popupClassName="antd-select-popup-dialog"
-              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
-              getPopupContainer={(trigger) => {
-                const dialogParent = trigger.closest('[role="dialog"]');
-                return dialogParent || document.body;
-              }}
+              getPopupContainer={(trigger) =>
+                trigger.closest('[role="dialog"]') || document.body
+              }
             />
           </div>
         </div>
 
-        {/* 🔥 Pagamentos */}
         {receita && (
           <PaymentsTabs
             tipo="receita"
@@ -316,13 +301,10 @@ export default function ReceitaDialog({
         )}
       </div>
 
-      {/* 🔥 CSS para corrigir z-index do Ant Design Select dentro do Dialog */}
       <style jsx global>{`
         .antd-select-popup-dialog {
           z-index: 9999 !important;
         }
-        
-        /* Garantir que o dropdown do Ant Design fique acima do dialog */
         .ant-select-dropdown {
           z-index: 9999 !important;
         }

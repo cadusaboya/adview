@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal, Form, DatePicker, Select, Button, Space, message } from 'antd';
+import { Modal, Form, DatePicker, Select, Button } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
 
 interface RelatorioFiltrosModalProps {
@@ -11,7 +11,14 @@ interface RelatorioFiltrosModalProps {
   onClose: () => void;
   onGenerate: (filtros: RelatorioFiltros) => Promise<void>;
   title: string;
-  tipoRelatorio: 'receitas-pagas' | 'despesas-pagas' | 'despesas-a-pagar' | 'receitas-a-receber' | 'dre-consolidado' | 'fluxo-de-caixa' | 'cliente-especifico';
+  tipoRelatorio:
+    | 'receitas-pagas'
+    | 'despesas-pagas'
+    | 'despesas-a-pagar'
+    | 'receitas-a-receber'
+    | 'dre-consolidado'
+    | 'fluxo-de-caixa'
+    | 'cliente-especifico';
   favorecidos?: Array<{ id: number; nome: string }>;
   clientes?: Array<{ id: number; nome: string }>;
   contas?: Array<{ id: number; nome: string }>;
@@ -20,6 +27,16 @@ interface RelatorioFiltrosModalProps {
 export interface RelatorioFiltros {
   data_inicio?: string;
   data_fim?: string;
+  responsavel_id?: number;
+  cliente_id?: number;
+  conta_bancaria_id?: number;
+  tipo?: string;
+}
+
+/** 🔹 Tipagem correta dos valores do formulário */
+interface RelatorioFormValues {
+  data_inicio?: Dayjs;
+  data_fim?: Dayjs;
   responsavel_id?: number;
   cliente_id?: number;
   conta_bancaria_id?: number;
@@ -36,7 +53,7 @@ export default function RelatorioFiltrosModal({
   clientes = [],
   contas = [],
 }: RelatorioFiltrosModalProps) {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<RelatorioFormValues>();
   const [loading, setLoading] = useState(false);
 
   // Determinar quais filtros mostrar baseado no tipo de relatório
@@ -46,30 +63,32 @@ export default function RelatorioFiltrosModal({
   const mostrarTipo = ['receitas-pagas', 'despesas-pagas', 'despesas-a-pagar', 'receitas-a-receber'].includes(tipoRelatorio);
   const mostrarDatas = tipoRelatorio !== 'cliente-especifico';
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: RelatorioFormValues) => {
     try {
       setLoading(true);
 
       const filtros: RelatorioFiltros = {};
 
-      // Adicionar datas se fornecidas
       if (values.data_inicio) {
         filtros.data_inicio = values.data_inicio.format('YYYY-MM-DD');
       }
+
       if (values.data_fim) {
         filtros.data_fim = values.data_fim.format('YYYY-MM-DD');
       }
 
-      // Adicionar outros filtros
       if (values.responsavel_id) {
         filtros.responsavel_id = values.responsavel_id;
       }
+
       if (values.cliente_id) {
         filtros.cliente_id = values.cliente_id;
       }
+
       if (values.conta_bancaria_id) {
         filtros.conta_bancaria_id = values.conta_bancaria_id;
       }
+
       if (values.tipo) {
         filtros.tipo = values.tipo;
       }
@@ -77,7 +96,7 @@ export default function RelatorioFiltrosModal({
       await onGenerate(filtros);
       form.resetFields();
       onClose();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error('Erro ao gerar relatório');
     } finally {
@@ -117,7 +136,6 @@ export default function RelatorioFiltrosModal({
         onFinish={handleSubmit}
         autoComplete="off"
       >
-        {/* Filtro de Cliente */}
         {mostrarCliente && (
           <Form.Item
             name="cliente_id"
@@ -126,7 +144,6 @@ export default function RelatorioFiltrosModal({
           >
             <Select
               placeholder="Selecione um cliente (opcional)"
-              listHeight={256}
               allowClear
               showSearch
               optionFilterProp="children"
@@ -141,7 +158,6 @@ export default function RelatorioFiltrosModal({
           </Form.Item>
         )}
 
-        {/* Filtro de Favorecido */}
         {mostrarFavorecido && (
           <Form.Item
             name="responsavel_id"
@@ -150,7 +166,6 @@ export default function RelatorioFiltrosModal({
           >
             <Select
               placeholder="Selecione um favorecido (opcional)"
-              listHeight={256}
               allowClear
               showSearch
               optionFilterProp="children"
@@ -165,7 +180,6 @@ export default function RelatorioFiltrosModal({
           </Form.Item>
         )}
 
-        {/* Filtro de Conta Bancária */}
         {mostrarConta && (
           <Form.Item
             name="conta_bancaria_id"
@@ -188,7 +202,6 @@ export default function RelatorioFiltrosModal({
           </Form.Item>
         )}
 
-        {/* Filtro de Tipo */}
         {mostrarTipo && (
           <Form.Item
             name="tipo"
@@ -207,15 +220,11 @@ export default function RelatorioFiltrosModal({
                       { value: 'R', label: 'Reembolso' },
                     ]
                   : []),
-                ...(tipoRelatorio.includes('estorno')
-                  ? [{ value: 'E', label: 'Estorno' }]
-                  : []),
               ]}
             />
           </Form.Item>
         )}
 
-        {/* Filtro de Datas */}
         {mostrarDatas && (
           <>
             <Form.Item
@@ -224,7 +233,6 @@ export default function RelatorioFiltrosModal({
               tooltip="Deixe em branco para sem limite"
             >
               <DatePicker
-                placeholder="Selecione a data inicial"
                 format="DD/MM/YYYY"
                 style={{ width: '100%' }}
               />
@@ -236,7 +244,6 @@ export default function RelatorioFiltrosModal({
               tooltip="Deixe em branco para até hoje"
             >
               <DatePicker
-                placeholder="Selecione a data final"
                 format="DD/MM/YYYY"
                 style={{ width: '100%' }}
               />
@@ -244,7 +251,6 @@ export default function RelatorioFiltrosModal({
           </>
         )}
 
-        {/* Mensagem de ajuda */}
         <div className="bg-blue-50 p-3 rounded border border-blue-200 text-sm text-blue-700">
           💡 <strong>Dica:</strong> Deixe os filtros em branco para gerar o relatório sem restrições.
         </div>
