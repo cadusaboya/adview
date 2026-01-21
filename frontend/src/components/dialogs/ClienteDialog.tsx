@@ -22,7 +22,7 @@ export default function ClienteDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: Cliente) => void;
   cliente?: Cliente | null;
 }) {
   const [formData, setFormData] = useState({

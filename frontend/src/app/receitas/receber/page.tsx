@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
@@ -49,7 +49,7 @@ export default function ReceitasPage() {
   // ======================
   // 🔄 LOAD
   // ======================
-  const loadReceitas = async () => {
+  const loadReceitas = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getReceitasAbertas({
@@ -65,16 +65,15 @@ export default function ReceitasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search]);
 
   useEffect(() => {
     loadReceitas();
-  }, [page]);
+  }, [loadReceitas]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
-      loadReceitas();
     }, 300);
 
     return () => clearTimeout(timeout);
@@ -112,7 +111,7 @@ export default function ReceitasPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: Receita) => {
     try {
       if (editingReceita) {
         await updateReceita(editingReceita.id, data);
@@ -125,13 +124,9 @@ export default function ReceitasPage() {
       setOpenDialog(false);
       setEditingReceita(null);
       loadReceitas();
-    } catch (error: any) {
-      const apiMessage =
-        error?.response?.data?.detail ||
-        JSON.stringify(error?.response?.data) ||
-        'Erro desconhecido';
-
-      toast.error(`Erro: ${apiMessage}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro: ${errorMessage}`);
       throw error;
     }
   };
@@ -144,8 +139,9 @@ export default function ReceitasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('receitas-a-receber', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao gerar relatório');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -158,28 +154,28 @@ export default function ReceitasPage() {
     {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
-      render: (v) => formatDateBR(v),
+      render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
       dataIndex: 'cliente',
-      render: (cliente: any) => cliente?.nome || '—',
+      render: (cliente: { nome?: string } | undefined) => cliente?.nome || '—',
     },
     { title: 'Nome', dataIndex: 'nome' },
     {
       title: 'Situação',
       dataIndex: 'situacao',
-      render: (v) => <StatusBadge status={v} />,
+      render: (v: string) => <StatusBadge status={v} />,
     },
     {
       title: 'Valor',
       dataIndex: 'valor_aberto',
-      render: (v) => formatCurrencyBR(v),
+      render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Receita) => (
+      render: (_: unknown, record: Receita) => (
         <ActionsDropdown
           actions={[
             {

@@ -10,7 +10,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+
 
 import { Select as AntdSelect } from 'antd';
 
@@ -27,7 +27,7 @@ import { Despesa } from '@/services/despesas';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<any>;
+  onSubmit: (data: Despesa) => Promise<void>;
   despesa?: Despesa | null;
 }
 
@@ -37,7 +37,7 @@ export default function DespesaDialog({
   onSubmit,
   despesa,
 }: Props) {
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<Despesa>({
     nome: '',
     descricao: '',
     responsavel_id: '',
@@ -197,7 +197,7 @@ export default function DespesaDialog({
                 setValorDisplay(
                   parsed ? formatCurrencyInput(parsed) : ''
                 );
-                setFormData((prev: any) => ({
+                setFormData((prev: Despesa) => ({
                   ...prev,
                   valor: parsed,
                 }));

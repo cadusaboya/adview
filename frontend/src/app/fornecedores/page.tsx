@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -53,7 +53,7 @@ export default function FornecedorPage() {
   // ======================
   // 🔄 LOAD
   // ======================
-  const loadFornecedores = async () => {
+  const loadFornecedores = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getFornecedores({ page, page_size: pageSize });
@@ -65,11 +65,11 @@ export default function FornecedorPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
   useEffect(() => {
     loadFornecedores();
-  }, [page]);
+  }, [loadFornecedores]);
 
   // ======================
   // ❌ DELETE
@@ -90,7 +90,7 @@ export default function FornecedorPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: Fornecedor) => {
     try {
       if (editingFornecedor) {
         await updateFornecedor(editingFornecedor.id, data);
@@ -132,9 +132,10 @@ export default function FornecedorPage() {
       });
 
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -150,7 +151,7 @@ export default function FornecedorPage() {
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Fornecedor) => (
+      render: (_: unknown, record: Fornecedor) => (
         <ActionsDropdown
           actions={[
             {

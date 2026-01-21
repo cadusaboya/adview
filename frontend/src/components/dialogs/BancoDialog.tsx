@@ -18,7 +18,7 @@ export default function BancoDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: Banco) => void;
   banco?: Banco | null;
 }) {
   const [formData, setFormData] = useState({

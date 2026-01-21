@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -50,27 +50,10 @@ export default function DespesasPagasPage() {
   // 🔎 Busca
   const [search, setSearch] = useState('');
 
-  // ======================
-  // 🔁 SEARCH DEBOUNCE
-  // ======================
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (page === 1) {
-        loadData();
-      } else {
-        setPage(1);
-      }
-    }, 300);
-  
-    return () => clearTimeout(timeout);
-  }, [search]);
-  
-
-  // ======================
+   // ======================
   // 🔄 LOAD PAGAMENTOS
   // ======================
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -89,11 +72,27 @@ export default function DespesasPagasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search]);
 
   useEffect(() => {
     loadData();
-  }, [page]);
+  }, [loadData]);
+
+  // ======================
+  // 🔁 SEARCH DEBOUNCE
+  // ======================
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (page === 1) {
+        loadData();
+      } else {
+        setPage(1);
+      }
+    }, 300);
+  
+    return () => clearTimeout(timeout);
+  }, [search, page, loadData]);
 
   // ======================
   // 👥 LOAD FAVORECIDOS (SÓ QUANDO PRECISAR)
@@ -153,9 +152,10 @@ export default function DespesasPagasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('despesas-pagas', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -168,9 +168,10 @@ export default function DespesasPagasPage() {
     try {
       await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
       toast.success('Recibo gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar recibo';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar recibo');
+      toast.error(errorMessage);
     }
   };
 
@@ -181,27 +182,27 @@ export default function DespesasPagasPage() {
     {
       title: 'Data de Pagamento',
       dataIndex: 'data_pagamento',
-      render: (value) => formatDateBR(value),
+      render: (value: string) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
       dataIndex: 'favorecido_nome',
-      render: (nome) => nome ?? '—',
+      render: (nome: string | undefined) => nome ?? '—',
     },
     {
       title: 'Nome',
       dataIndex: 'despesa_nome',
-      render: (nome) => nome ?? '—',
+      render: (nome: string | undefined) => nome ?? '—',
     },
     {
       title: 'Valor Pago',
       dataIndex: 'valor',
-      render: (v) => formatCurrencyBR(v),
+      render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Payment) => (
+      render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[
             {

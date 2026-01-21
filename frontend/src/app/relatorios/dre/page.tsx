@@ -10,7 +10,7 @@ import { formatCurrencyBR } from "@/lib/formatters";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
 import { gerarRelatorioPDF } from "@/services/pdf";
-import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
+
 import { getDREConsolidado, DREData } from "@/services/relatorios";
 
 type LineItem = {
@@ -46,9 +46,10 @@ export default function DREPage() {
         setLoading(true);
         const data = await getDREConsolidado(mes, ano);
         setDREData(data);
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar dados da DRE';
         console.error("Erro ao buscar DRE:", error);
-        toast.error("Erro ao carregar dados da DRE");
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -77,7 +78,7 @@ export default function DREPage() {
     : [];
 
   // 📊 Gerar relatório de DRE
-  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+  const handleGerarRelatorio = async () => {
     try {
       setLoadingRelatorio(true);
       // Para DRE, usamos as datas do filtro ou as datas atuais
@@ -86,9 +87,10 @@ export default function DREPage() {
         ano,
       });
       toast.success("Relatório DRE gerado com sucesso!");
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || "Erro ao gerar relatório");
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }

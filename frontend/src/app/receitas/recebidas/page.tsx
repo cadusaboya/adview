@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -54,7 +54,6 @@ export default function ReceitaRecebidasPage() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
-      loadData();
     }, 300);
 
     return () => clearTimeout(timeout);
@@ -63,23 +62,24 @@ export default function ReceitaRecebidasPage() {
   // ======================
   // 👥 CLIENTES
   // ======================
-  useEffect(() => {
-    loadClientes();
-  }, []);
 
-  const loadClientes = async () => {
+    const loadClientes = useCallback(async () => {
     try {
       const res = await getClientes({ page_size: 1000 });
       setClientes(res.results);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
     }
-  };
+  }, []);
+  
+  useEffect(() => {
+    loadClientes();
+  }, [loadClientes]);
 
   // ======================
   // 🔄 LOAD DATA
   // ======================
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -98,11 +98,11 @@ export default function ReceitaRecebidasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search]);
 
   useEffect(() => {
     loadData();
-  }, [page]);
+  }, [loadData]);
 
   // ======================
   // ❌ DELETE RECEBIMENTO
@@ -147,9 +147,10 @@ export default function ReceitaRecebidasPage() {
       setLoadingRelatorio(true);
       await gerarRelatorioPDF('receitas-pagas', filtros);
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -162,9 +163,10 @@ export default function ReceitaRecebidasPage() {
     try {
       await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
       toast.success('Recibo gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar recibo';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar recibo');
+      toast.error(errorMessage);
     }
   };
 
@@ -175,27 +177,27 @@ export default function ReceitaRecebidasPage() {
     {
       title: 'Data de Recebimento',
       dataIndex: 'data_pagamento',
-      render: (value) => formatDateBR(value),
+      render: (value: string) => formatDateBR(value),
     },
     {
       title: 'Cliente',
       dataIndex: 'cliente_nome',
-      render: (nome) => nome ?? '—',
+      render: (nome: string | undefined) => nome ?? '—',
     },
     {
       title: 'Descrição',
       dataIndex: 'receita_nome',
-      render: (nome) => nome ?? '—',
+      render: (nome: string | undefined) => nome ?? '—',
     },
     {
       title: 'Valor Recebido',
       dataIndex: 'valor',
-      render: (v) => formatCurrencyBR(v),
+      render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Payment) => (
+      render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[
             {

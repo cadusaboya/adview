@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { login } from "@/services/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,11 +43,8 @@ export default function LoginPage() {
       await login(username, password);
       toast.success("Login realizado com sucesso!");
       router.push("/clientes");
-    } catch (error: any) {
-      console.error("Erro no login:", error);
-      toast.error(
-        error?.response?.data?.detail || "Usuário ou senha inválidos"
-      );
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Erro ao buscar dados'));
     }
   };
 

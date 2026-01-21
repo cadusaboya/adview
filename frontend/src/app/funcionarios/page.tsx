@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -54,7 +54,7 @@ export default function FuncionarioPage() {
   // ======================
   // 🔄 LOAD
   // ======================
-  const loadFuncionarios = async () => {
+  const loadFuncionarios = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getFuncionarios({ page, page_size: pageSize });
@@ -66,11 +66,11 @@ export default function FuncionarioPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
   useEffect(() => {
     loadFuncionarios();
-  }, [page]);
+  }, [loadFuncionarios]);
 
   // ======================
   // ❌ DELETE
@@ -91,7 +91,7 @@ export default function FuncionarioPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: Funcionario) => {
     try {
       if (editingFuncionario) {
         await updateFuncionario(editingFuncionario.id, data);
@@ -133,9 +133,10 @@ export default function FuncionarioPage() {
       });
 
       toast.success('Relatório gerado com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
@@ -151,12 +152,12 @@ export default function FuncionarioPage() {
     {
       title: 'Salário Mensal',
       dataIndex: 'salario_mensal',
-      render: (v) => formatCurrencyBR(v),
+      render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
-      render: (_: any, record: Funcionario) => (
+      render: (_: unknown, record: Funcionario) => (
         <ActionsDropdown
           actions={[
             {

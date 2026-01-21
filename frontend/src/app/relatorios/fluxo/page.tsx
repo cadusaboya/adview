@@ -36,7 +36,7 @@ function parseISODate(dateStr: string): Date {
 
 function getDateRange(start: string, end: string): string[] {
   const dates: string[] = [];
-  let current = parseISODate(start);
+  const current = parseISODate(start);
   const last = parseISODate(end);
 
   while (current <= last) {
@@ -204,9 +204,10 @@ export default function FluxoCaixaPage() {
         data_fim: filtros.data_fim || endDate,
       });
       toast.success("Relatório de Fluxo de Caixa gerado com sucesso!");
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
-      toast.error(error.message || "Erro ao gerar relatório");
+      toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
     }
