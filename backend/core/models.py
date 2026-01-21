@@ -279,6 +279,13 @@ class ContaBancaria(models.Model):
     def __str__(self):
         return self.nome
 
+    def save(self, *args, **kwargs):
+        # Se estiver criando a conta (não existe PK ainda)
+        if not self.pk:
+            self.saldo_atual = self.saldo_inicial
+
+        super().save(*args, **kwargs)
+
     def atualizar_saldo(self):
         entradas = self.payments.filter(receita__isnull=False).aggregate(
             total=models.Sum('valor')
