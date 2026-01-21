@@ -12,14 +12,22 @@ import type { TableColumnsType } from 'antd';
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Input } from '@/components/ui/input';
 import { Pencil, Trash } from 'lucide-react';
+
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 
 import {
   getDespesasAbertas,
   deleteDespesa,
-  Despesa,
+  createDespesa,
+  updateDespesa,
 } from '@/services/despesas';
+
+import {
+  Despesa,
+  DespesaCreate,
+  DespesaUpdate,
+} from '@/types/despesas';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
@@ -38,18 +46,14 @@ export default function DespesasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
-  // 🔎 Busca
   const [search, setSearch] = useState('');
 
-  // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
-  // 👥 Favorecidos (LAZY)
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
   const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
 
-  // 🔥 Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -81,16 +85,8 @@ export default function DespesasPage() {
     loadDespesas();
   }, [loadDespesas]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPage(1);
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [search]);
-
   // ======================
-  // 👥 LOAD FAVORECIDOS (SÓ QUANDO PRECISAR)
+  // 👥 FAVORECIDOS (LAZY)
   // ======================
   const loadFavorecidos = async () => {
     if (favorecidosLoaded) return;
@@ -121,7 +117,31 @@ export default function DespesasPage() {
   };
 
   // ======================
-  // 📊 GERAR RELATÓRIO
+  // 💾 CREATE / UPDATE
+  // ======================
+  const handleSubmit = async (
+    data: DespesaCreate | DespesaUpdate
+  ) => {
+    try {
+      if (editingDespesa) {
+        await updateDespesa(editingDespesa.id, data as DespesaUpdate);
+        toast.success('Despesa atualizada com sucesso!');
+      } else {
+        await createDespesa(data as DespesaCreate);
+        toast.success('Despesa criada com sucesso!');
+      }
+
+      setOpenDialog(false);
+      setEditingDespesa(null);
+      loadDespesas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao salvar despesa');
+    }
+  };
+
+  // ======================
+  // 📊 RELATÓRIO
   // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
@@ -129,8 +149,10 @@ export default function DespesasPage() {
       await gerarRelatorioPDF('despesas-a-pagar', filtros);
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
-      console.error(error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao gerar relatório';
       toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
@@ -158,7 +180,9 @@ export default function DespesasPage() {
     {
       title: 'Situação',
       dataIndex: 'situacao',
-      render: (value: string) => <StatusBadge status={value} />,
+      render: (value: 'A' | 'P' | 'V') => (
+        <StatusBadge status={value} />
+      ),
     },
     {
       title: 'Valor em Aberto',
@@ -200,15 +224,12 @@ export default function DespesasPage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        {/* 🔝 HEADER */}
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-xl font-semibold whitespace-nowrap">
-            Despesas em Aberto
-          </h1>
+          <h1 className="text-xl font-semibold">Despesas em Aberto</h1>
 
           <div className="flex-1 md:px-6">
             <Input
-              placeholder="Buscar por nome, favorecido, valor, data..."
+              placeholder="Buscar despesas..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -224,13 +245,13 @@ export default function DespesasPage() {
               setOpenRelatorioModal(true);
             }}
             loading={loadingRelatorio}
-            className="shadow-md whitespace-nowrap"
+            className="shadow-md"
           >
             Gerar Relatório PDF
           </Button>
 
           <Button
-            className="shadow-md whitespace-nowrap"
+            className="shadow-md"
             onClick={() => {
               setEditingDespesa(null);
               setOpenDialog(true);
@@ -248,11 +269,10 @@ export default function DespesasPage() {
             current: page,
             pageSize,
             total,
-            onChange: (newPage) => setPage(newPage),
+            onChange: (p) => setPage(p),
           }}
         />
 
-        {/* 🔹 DIALOG DESPESA */}
         <DespesaDialog
           open={openDialog}
           despesa={editingDespesa}
@@ -260,14 +280,9 @@ export default function DespesasPage() {
             setOpenDialog(false);
             setEditingDespesa(null);
           }}
-          onSubmit={() => {
-            setOpenDialog(false);
-            setEditingDespesa(null);
-            loadDespesas();
-          }}
+          onSubmit={handleSubmit}
         />
 
-        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}

@@ -11,7 +11,6 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 
-
 import { Select as AntdSelect } from 'antd';
 
 import {
@@ -22,12 +21,17 @@ import {
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
 import { getFavorecidos, Favorecido } from '@/services/favorecidos';
-import { Despesa } from '@/services/despesas';
+
+import {
+  Despesa,
+  DespesaCreate,
+  DespesaUpdate,
+} from '@/types/despesas';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: Despesa) => Promise<void>;
+  onSubmit: (data: DespesaCreate | DespesaUpdate) => Promise<void>;
   despesa?: Despesa | null;
 }
 
@@ -37,31 +41,32 @@ export default function DespesaDialog({
   onSubmit,
   despesa,
 }: Props) {
-  const [formData, setFormData] = useState<Despesa>({
+  // 🔹 Form SEMPRE baseado em DespesaCreate
+  const [formData, setFormData] = useState<DespesaCreate>({
     nome: '',
     descricao: '',
-    responsavel_id: '',
-    valor: '',
+    responsavel_id: 0,
+    valor: 0,
     data_vencimento: '',
-    tipo: '',
+    tipo: 'F',
   });
 
   const [valorDisplay, setValorDisplay] = useState('');
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
 
-  /* 🔹 Preencher formulário ao editar */
+  // ======================
+  // 🔄 Preencher ao editar
+  // ======================
   useEffect(() => {
     if (despesa) {
       setFormData({
-        nome: despesa.nome || '',
-        descricao: despesa.descricao || '',
-        responsavel_id: despesa.responsavel?.id
-          ? String(despesa.responsavel.id)
-          : '',
-        valor: despesa.valor || '',
-        data_vencimento: despesa.data_vencimento || '',
-        tipo: despesa.tipo || '',
+        nome: despesa.nome,
+        descricao: despesa.descricao,
+        responsavel_id: despesa.responsavel_id,
+        valor: despesa.valor,
+        data_vencimento: despesa.data_vencimento,
+        tipo: despesa.tipo,
       });
 
       setValorDisplay(
@@ -71,16 +76,18 @@ export default function DespesaDialog({
       setFormData({
         nome: '',
         descricao: '',
-        responsavel_id: '',
-        valor: '',
+        responsavel_id: 0,
+        valor: 0,
         data_vencimento: '',
-        tipo: '',
+        tipo: 'F',
       });
       setValorDisplay('');
     }
   }, [despesa, open]);
 
-  /* 🔹 Carregar bancos */
+  // ======================
+  // 🔹 Bancos
+  // ======================
   useEffect(() => {
     const loadBancos = async () => {
       const { results } = await getBancos({ page_size: 1000 });
@@ -89,22 +96,29 @@ export default function DespesaDialog({
     loadBancos();
   }, []);
 
-  /* 🔹 Carregar favorecidos */
+  // ======================
+  // 🔹 Favorecidos
+  // ======================
   useEffect(() => {
     const loadFavorecidos = async () => {
-      try {
-        const { results } = await getFavorecidos({ page_size: 1000 });
-        setFavorecidos(results);
-      } catch (error) {
-        console.error('Erro ao carregar favorecidos', error);
-      }
+      const { results } = await getFavorecidos({ page_size: 1000 });
+      setFavorecidos(results);
     };
     loadFavorecidos();
   }, []);
 
+  // ======================
+  // 💾 Submit
+  // ======================
   const handleSubmit = async () => {
-    const payload = { ...formData };
-    await onSubmit(payload);
+    if (despesa) {
+      const payload: DespesaUpdate = { ...formData };
+      await onSubmit(payload);
+    } else {
+      const payload: DespesaCreate = { ...formData };
+      await onSubmit(payload);
+    }
+
     onClose();
   };
 
@@ -116,49 +130,32 @@ export default function DespesaDialog({
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-4">
-        {/* 🔹 Favorecido + Nome */}
+        {/* Favorecido + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm">Favorecido</label>
-
             <AntdSelect
               showSearch
               allowClear
               placeholder="Selecione um favorecido"
               value={formData.responsavel_id || undefined}
-              style={{ width: '100%' }}
-              listHeight={256}
-              optionFilterProp="label"
-              filterOption={(input, option) =>
-                (option?.label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
               options={favorecidos.map((f) => ({
-                value: String(f.id),
+                value: f.id,
                 label: f.nome,
               }))}
               onChange={(val) =>
                 setFormData({
                   ...formData,
-                  responsavel_id: val || '',
+                  responsavel_id: val ?? 0,
                 })
               }
-              // 🔥 FIX: Adicionar popupClassName para corrigir z-index
-              popupClassName="antd-select-popup-dialog"
-              // 🔥 FIX: Usar getPopupContainer para renderizar dentro do dialog
-              getPopupContainer={(trigger) => {
-                // Procura pelo dialog mais próximo
-                const dialogParent = trigger.closest('[role="dialog"]');
-                return dialogParent || document.body;
-              }}
+              style={{ width: '100%' }}
             />
           </div>
 
           <div>
             <label className="text-sm">Nome</label>
             <Input
-              placeholder="Nome da despesa"
               value={formData.nome}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
@@ -167,11 +164,10 @@ export default function DespesaDialog({
           </div>
         </div>
 
-        {/* 🔸 Descrição */}
+        {/* Descrição */}
         <div>
           <label className="text-sm">Descrição</label>
           <Input
-            placeholder="Descrição ou observações"
             value={formData.descricao}
             onChange={(e) =>
               setFormData({ ...formData, descricao: e.target.value })
@@ -179,25 +175,19 @@ export default function DespesaDialog({
           />
         </div>
 
-        {/* 🔸 Valor + Vencimento + Tipo */}
+        {/* Valor / Vencimento / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm">Valor (R$)</label>
             <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
               value={valorDisplay}
               onChange={(e) => setValorDisplay(e.target.value)}
-              onFocus={() => {
-                setValorDisplay(valorDisplay.replace(/[^\d,]/g, ''));
-              }}
               onBlur={() => {
                 const parsed = parseCurrencyBR(valorDisplay);
                 setValorDisplay(
                   parsed ? formatCurrencyInput(parsed) : ''
                 );
-                setFormData((prev: Despesa) => ({
+                setFormData((prev) => ({
                   ...prev,
                   valor: parsed,
                 }));
@@ -224,11 +214,11 @@ export default function DespesaDialog({
             <Select
               value={formData.tipo}
               onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val })
+                setFormData({ ...formData, tipo: val as DespesaCreate['tipo'] })
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="F">Fixa</SelectItem>
@@ -240,7 +230,7 @@ export default function DespesaDialog({
           </div>
         </div>
 
-        {/* 🔥 Pagamentos */}
+        {/* Pagamentos */}
         {despesa && (
           <PaymentsTabs
             tipo="despesa"
@@ -249,18 +239,6 @@ export default function DespesaDialog({
           />
         )}
       </div>
-
-      {/* 🔥 CSS para corrigir z-index do Ant Design Select dentro do Dialog */}
-      <style jsx global>{`
-        .antd-select-popup-dialog {
-          z-index: 9999 !important;
-        }
-        
-        /* Garantir que o dropdown do Ant Design fique acima do dialog */
-        .ant-select-dropdown {
-          z-index: 9999 !important;
-        }
-      `}</style>
     </DialogBase>
   );
 }

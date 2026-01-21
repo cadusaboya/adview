@@ -1,49 +1,28 @@
 import { api } from './api';
+import {
+  Despesa,
+  DespesaCreate,
+  DespesaUpdate,
+  DespesaListParams,
+} from '@/types/despesas';
 
-export interface Despesa {
-  id: number;
-  nome: string;
-  descricao: string;
-  responsavel_id: number;
-  responsavel: {
-    id: number;
-    nome: string;
-  };
-  data_vencimento: string;
-  data_pagamento: string | null;
-  valor: string;
-  valor_aberto?: string;
-  valor_pago: string | null;
-  tipo: 'F' | 'V' | 'C' | 'R';
-  situacao: 'A' | 'P' | 'V';
-  tipo_display: string;
-  situacao_display: string;
-}
+type PaginatedResponse<T> = {
+  results: T[];
+  count: number;
+};
 
-/* 🔍 Params padrão de listagem */
-export interface DespesaListParams {
-  page?: number;
-  page_size?: number;
-  search?: string;
-  situacao?: string | string[];
-  tipo?: 'F' | 'V' | 'C' | 'R';
-  start_date?: string; // YYYY-MM-DD
-  end_date?: string;   // YYYY-MM-DD
-  responsavel_id?: number;
-}
-
+// 🔹 LISTAGEM
 export async function getDespesas(params?: DespesaListParams) {
-  const res = await api.get<{ results: Despesa[]; count: number }>(
-    "/api/despesas/",
+  const res = await api.get<PaginatedResponse<Despesa>>(
+    '/api/despesas/',
     { params }
   );
-
   return res.data;
 }
 
-/* 📌 Despesas em aberto */
+// 🔹 DESPESAS EM ABERTO
 export async function getDespesasAbertas(params?: DespesaListParams) {
-  const res = await api.get<{ results: Despesa[]; count: number }>(
+  const res = await api.get<PaginatedResponse<Despesa>>(
     '/api/despesas/',
     {
       params: {
@@ -55,9 +34,9 @@ export async function getDespesasAbertas(params?: DespesaListParams) {
   return res.data;
 }
 
-/* 📌 Despesas pagas */
+// 🔹 DESPESAS PAGAS
 export async function getDespesasPagas(params?: DespesaListParams) {
-  const res = await api.get<{ results: Despesa[]; count: number }>(
+  const res = await api.get<PaginatedResponse<Despesa>>(
     '/api/despesas/',
     {
       params: {
@@ -69,39 +48,38 @@ export async function getDespesasPagas(params?: DespesaListParams) {
   return res.data;
 }
 
-/* ✏️ Atualizar despesa */
+// 🔹 CREATE
+export async function createDespesa(
+  despesa: DespesaCreate
+): Promise<Despesa> {
+  const res = await api.post<Despesa>(
+    '/api/despesas/',
+    despesa
+  );
+  return res.data;
+}
+
+// 🔹 UPDATE
 export async function updateDespesa(
   id: number,
-  despesa: Partial<
-    Omit<
-      Despesa,
-      'id' | 'responsavel' | 'tipo_display' | 'situacao_display'
-    >
-  >
-) {
-  const res = await api.patch<Despesa>(`/api/despesas/${id}/`, despesa);
+  despesa: DespesaUpdate
+): Promise<Despesa> {
+  const res = await api.patch<Despesa>(
+    `/api/despesas/${id}/`,
+    despesa
+  );
   return res.data;
 }
 
-/* ➕ Criar despesa */
-export async function createDespesa(
-  despesa: Omit<
-    Despesa,
-    'id' | 'responsavel' | 'tipo_display' | 'situacao_display'
-  >
-) {
-  const res = await api.post<Despesa>('/api/despesas/', despesa);
-  return res.data;
+// 🔹 DELETE
+export async function deleteDespesa(id: number): Promise<void> {
+  await api.delete(`/api/despesas/${id}/`);
 }
 
-/* ❌ Deletar despesa */
-export async function deleteDespesa(id: number) {
-  const res = await api.delete(`/api/despesas/${id}/`);
-  return res.data;
-}
-
-/* 🔎 Buscar despesa por ID */
-export async function getDespesaById(id: number) {
-  const res = await api.get<Despesa>(`/api/despesas/${id}/`);
+// 🔹 GET BY ID
+export async function getDespesaById(id: number): Promise<Despesa> {
+  const res = await api.get<Despesa>(
+    `/api/despesas/${id}/`
+  );
   return res.data;
 }
