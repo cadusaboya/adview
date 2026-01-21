@@ -1,32 +1,53 @@
 import { api } from './api';
+import {
+  Cliente,
+  ClienteCreate,
+  ClienteUpdate,
+} from '@/types/clientes';
 
-export interface Cliente {
-  id: number;
-  nome: string;
-  cpf: string;
-  email: string;
-  telefone?: string;
-  aniversario?: string;
-  tipo: string;
-}
+type PaginatedResponse<T> = {
+  results: T[];
+  count: number;
+};
 
-export async function getClientes(params?: { page?: number; page_size?: number }) {
-  const res = await api.get<{ results: Cliente[]; count: number }>('/api/clientes/', {
-    params,
-  });
+// 🔹 LISTAGEM
+export async function getClientes(params?: {
+  page?: number;
+  page_size?: number;
+}) {
+  const res = await api.get<PaginatedResponse<Cliente>>(
+    '/api/clientes/',
+    { params }
+  );
   return res.data;
 }
 
-export async function createCliente(cliente: Omit<Cliente, 'id'>) {
-  const res = await api.post<Cliente>('/api/clientes/', cliente);
+// 🔹 CREATE → payload fechado
+export async function createCliente(
+  cliente: ClienteCreate
+): Promise<Cliente> {
+  const res = await api.post<Cliente>(
+    '/api/clientes/',
+    cliente
+  );
   return res.data;
 }
 
-export async function updateCliente(id: number, cliente: Partial<Cliente>) {
-  const res = await api.put<Cliente>(`/api/clientes/${id}/`, cliente);
+// 🔹 UPDATE → payload parcial
+export async function updateCliente(
+  id: number,
+  cliente: ClienteUpdate
+): Promise<Cliente> {
+  const res = await api.patch<Cliente>(
+    `/api/clientes/${id}/`,
+    cliente
+  );
   return res.data;
 }
 
-export async function deleteCliente(id: number) {
+// 🔹 DELETE
+export async function deleteCliente(
+  id: number
+): Promise<void> {
   await api.delete(`/api/clientes/${id}/`);
 }

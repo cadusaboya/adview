@@ -1,3 +1,5 @@
+'use client';
+
 import DialogBase from "@/components/dialogs/DialogBase";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -8,60 +10,75 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+
 import FormaCobrancaList, {
   FormaCobrancaItem,
 } from "@/components/dialogs/FormaCobrancaList";
-import { Cliente } from "@/services/clientes";
+
+import { Cliente, ClienteCreate, ClienteUpdate } from '@/types/clientes';
+
 import { formatCurrencyInput } from "@/lib/formatters";
+
+interface ClienteDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: ClienteCreate | ClienteUpdate) => void;
+  cliente?: Cliente | null;
+}
 
 export default function ClienteDialog({
   open,
   onClose,
   onSubmit,
   cliente,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (data: Cliente) => void;
-  cliente?: Cliente | null;
-}) {
-  const [formData, setFormData] = useState({
+}: ClienteDialogProps) {
+  // 🔹 Form SEMPRE baseado em ClienteCreate
+  const [formData, setFormData] = useState<ClienteCreate>({
     nome: "",
     cpf: "",
     email: "",
     telefone: "",
-    aniversario: "",
+    aniversario: null,
     tipo: "",
+    formas_cobranca: [],
   });
 
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
 
-  /* 🔹 Preencher formulário ao editar */
+  // ======================
+  // 🔄 Preencher ao editar
+  // ======================
   useEffect(() => {
     if (cliente) {
       setFormData({
-        nome: cliente.nome || "",
-        cpf: cliente.cpf || "",
-        email: cliente.email || "",
+        nome: cliente.nome,
+        cpf: cliente.cpf,
+        email: cliente.email,
         telefone: cliente.telefone || "",
-        aniversario: cliente.aniversario || "",
-        tipo: cliente.tipo || "",
+        aniversario: cliente.aniversario || null,
+        tipo: cliente.tipo,
+        formas_cobranca: [],
       });
 
       setFormas(
         (cliente.formas_cobranca || []).map((f) => {
+          const formato =
+            f.formato === "M" || f.formato === "E"
+              ? f.formato
+              : "M"; // fallback seguro
+      
           const valor =
-            f.formato === "M"
+            formato === "M"
               ? Number(f.valor_mensal)
               : Number(f.percentual_exito);
-
+      
           return {
             id: String(f.id),
-            formato: f.formato,
+            formato, // ✅ agora é "M" | "E"
             descricao: f.descricao || "",
             valor,
             valor_display:
-              f.formato === "M"
+              formato === "M"
                 ? valor
                   ? formatCurrencyInput(valor)
                   : ""
@@ -71,33 +88,46 @@ export default function ClienteDialog({
           };
         })
       );
+      
     } else {
       setFormData({
         nome: "",
         cpf: "",
         email: "",
         telefone: "",
-        aniversario: "",
+        aniversario: null,
         tipo: "",
+        formas_cobranca: [],
       });
       setFormas([]);
     }
   }, [cliente, open]);
 
-  /* 🔹 Submit */
+  // ======================
+  // 💾 Submit
+  // ======================
   const handleSubmit = () => {
-    const payload = {
-      ...formData,
-      aniversario: formData.aniversario || null,
-      formas_cobranca: formas.map((f) => ({
-        formato: f.formato,
-        descricao: f.descricao,
-        valor_mensal: f.formato === "M" ? f.valor : null,
-        percentual_exito: f.formato === "E" ? f.valor : null,
-      })),
-    };
+    const formasPayload = formas.map((f) => ({
+      formato: f.formato,
+      descricao: f.descricao,
+      valor_mensal: f.formato === "M" ? f.valor : null,
+      percentual_exito: f.formato === "E" ? f.valor : null,
+    }));
 
-    onSubmit(payload);
+    if (cliente) {
+      const payload: ClienteUpdate = {
+        ...formData,
+        formas_cobranca: formasPayload,
+      };
+      onSubmit(payload);
+    } else {
+      const payload: ClienteCreate = {
+        ...formData,
+        formas_cobranca: formasPayload,
+      };
+      onSubmit(payload);
+    }
+
     onClose();
   };
 
@@ -176,11 +206,11 @@ export default function ClienteDialog({
             <label className="text-sm font-medium">Data de Nascimento</label>
             <Input
               type="date"
-              value={formData.aniversario}
+              value={formData.aniversario || ""}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  aniversario: e.target.value,
+                  aniversario: e.target.value || null,
                 })
               }
             />

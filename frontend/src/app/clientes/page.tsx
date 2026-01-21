@@ -1,17 +1,23 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+
 import {
   getClientes,
-  Cliente,
   deleteCliente,
   createCliente,
   updateCliente,
 } from '@/services/clientes';
 
+import {
+  Cliente,
+  ClienteCreate,
+  ClienteUpdate,
+} from '@/types/clientes';
+
 import { Button } from 'antd';
-import GenericTable from '@/components/imports/GenericTable';
 import type { TableColumnsType } from 'antd';
+import GenericTable from '@/components/imports/GenericTable';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import ClienteDialog from '@/components/dialogs/ClienteDialog';
 import { ClienteProfileDialog } from '@/components/dialogs/ClienteProfileDialog';
@@ -25,9 +31,6 @@ import {
   FileText,
   DollarSign,
 } from 'lucide-react';
-
-/** 🔹 Payload esperado para criação/edição */
-type ClientePayload = Partial<Cliente>;
 
 export default function ClientePage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -81,13 +84,20 @@ export default function ClientePage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: ClientePayload) => {
+  const handleSubmit = async (
+    data: ClienteCreate | ClienteUpdate
+  ) => {
     try {
       if (editingCliente) {
-        await updateCliente(editingCliente.id, data);
+        // UPDATE → parcial
+        await updateCliente(
+          editingCliente.id,
+          data as ClienteUpdate
+        );
         toast.success('Cliente atualizado com sucesso!');
       } else {
-        await createCliente(data);
+        // CREATE → payload completo
+        await createCliente(data as ClienteCreate);
         toast.success('Cliente criado com sucesso!');
       }
 
@@ -151,8 +161,10 @@ export default function ClientePage() {
             {
               label: 'Gerar PDF',
               icon: FileText,
-              onClick: () => handleGerarRelatorio(record.id),
-              disabled: loadingRelatorio === record.id,
+              onClick: () =>
+                handleGerarRelatorio(record.id),
+              disabled:
+                loadingRelatorio === record.id,
             },
             { divider: true },
             {
@@ -167,7 +179,8 @@ export default function ClientePage() {
               label: 'Excluir',
               icon: Trash,
               danger: true,
-              onClick: () => handleDelete(record.id),
+              onClick: () =>
+                handleDelete(record.id),
             },
           ]}
         />
@@ -218,7 +231,10 @@ export default function ClientePage() {
         />
 
         {clientes.map((cliente) => (
-          <ClienteProfileDialog key={cliente.id} clientId={cliente.id}>
+          <ClienteProfileDialog
+            key={cliente.id}
+            clientId={cliente.id}
+          >
             <button
               id={`cliente-fin-${cliente.id}`}
               className="hidden"

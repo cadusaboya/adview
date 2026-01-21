@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { Banco, BancoCreate, BancoUpdate } from "@/types/bancos";
+import { Banco, BancoCreate } from "@/types/bancos";
 
 // 🔹 Listar bancos
 export async function getBancos(params?: { page?: number; page_size?: number }) {
