@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Meu App',
-  description: 'Descrição do app',
+  title: 'JurisFinance',
+  description: 'ERP Financeiro para Advogados',
 };
 
 export default function RootLayout({
