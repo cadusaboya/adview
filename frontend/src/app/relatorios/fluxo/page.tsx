@@ -12,8 +12,11 @@ import { gerarRelatorioPDF } from "@/services/pdf";
 import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
 import { formatCurrencyBR } from "@/lib/formatters";
 
-import { getPayments, Payment } from "@/services/payments";
-import { getBancos, Banco } from "@/services/bancos";
+import { getPayments } from "@/services/payments";
+import { getBancos } from "@/services/bancos";
+import { Banco } from "@/types/bancos";
+import { Payment } from "@/types/payments";
+
 
 /* =========================
    HELPERS

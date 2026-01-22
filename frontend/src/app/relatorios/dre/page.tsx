@@ -32,9 +32,6 @@ export default function DREPage() {
   ========================= */
   const [dreData, setDREData] = useState<DREData | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // 📊 Estados para o modal de relatório
-  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   /* =========================
@@ -115,12 +112,13 @@ export default function DREPage() {
             {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => setOpenRelatorioModal(true)}
+              onClick={handleGerarRelatorio}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap"
             >
               Gerar Relatório PDF
             </Button>
+
           </div>
 
           <div className="flex gap-4 items-end">
@@ -229,15 +227,6 @@ export default function DREPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* 📊 MODAL DE FILTROS DO RELATÓRIO */}
-        <RelatorioFiltrosModal
-          open={openRelatorioModal}
-          onClose={() => setOpenRelatorioModal(false)}
-          onGenerate={handleGerarRelatorio}
-          title="Relatório de DRE Consolidado"
-          tipoRelatorio="dre-consolidado"
-        />
       </main>
     </div>
   );

@@ -16,6 +16,12 @@ export interface RelatorioReciboPayload {
   payment_id: number;
 }
 
+// 🔹 Payload específico para DRE
+export interface RelatorioDREPayload {
+  mes: number;
+  ano: number;
+}
+
 /* =========================
    TIPOS DE RELATÓRIO
 ========================= */
@@ -27,12 +33,15 @@ type TipoRelatorioLista =
   | 'despesas-pagas'
   | 'despesas-a-pagar'
   | 'receitas-a-receber'
-  | 'dre-consolidado'
   | 'fluxo-de-caixa';
 
+type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
 
-export type TipoRelatorio = TipoRelatorioLista | TipoRelatorioRecibo;
+export type TipoRelatorio =
+  | TipoRelatorioLista
+  | TipoRelatorioDRE
+  | TipoRelatorioRecibo;
 
 /* =========================
    CONFIG
@@ -83,22 +92,31 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
 };
 
 /* =========================
-   GERAR RELATÓRIO (OVERLOAD)
+   GERAR RELATÓRIO (OVERLOADS)
 ========================= */
 
+// 🔹 Relatórios padrão
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorioLista,
   filtros: RelatorioFiltros
 ): Promise<void>;
 
+// 🔹 DRE
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioDRE,
+  filtros: RelatorioDREPayload
+): Promise<void>;
+
+// 🔹 Recibo
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorioRecibo,
   filtros: RelatorioReciboPayload
 ): Promise<void>;
 
+// 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -176,7 +194,9 @@ export function obterConfigRelatorio(
   return RELATORIOS[tipoRelatorio];
 }
 
-export function ehRelatorioValido(tipoRelatorio: string): tipoRelatorio is TipoRelatorio {
+export function ehRelatorioValido(
+  tipoRelatorio: string
+): tipoRelatorio is TipoRelatorio {
   return tipoRelatorio in RELATORIOS;
 }
 
