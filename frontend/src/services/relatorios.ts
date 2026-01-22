@@ -37,6 +37,7 @@ export interface DREData {
     fixas: number;
     variaveis: number;
     comissoes: number;
+    reembolsos: number;
     total: number;
   };
   resultado: number;

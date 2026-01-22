@@ -70,6 +70,7 @@ export default function DREPage() {
         { label: "Despesas Fixas", value: dreData.despesas.fixas },
         { label: "Despesas Variáveis", value: dreData.despesas.variaveis },
         { label: "Comissões", value: dreData.despesas.comissoes },
+        { label: "Reembolsos", value: dreData.despesas.reembolsos },
       ]
     : [];
 

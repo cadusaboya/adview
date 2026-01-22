@@ -1232,8 +1232,9 @@ def dre_consolidado(request):
         despesas_fixas = despesas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or 0
         despesas_variaveis = despesas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or 0
         comissoes = despesas.filter(tipo='C').aggregate(Sum('valor'))['valor__sum'] or 0
+        reembolsos = despesas.filter(tipo='R').aggregate(Sum('valor'))['valor__sum'] or 0
         
-        total_despesas = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes)
+        total_despesas = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes) + float(reembolsos)
         
         # 🔹 Calcular resultado
         resultado = total_receitas - total_despesas
@@ -1250,6 +1251,7 @@ def dre_consolidado(request):
                 'fixas': float(despesas_fixas),
                 'variaveis': float(despesas_variaveis),
                 'comissoes': float(comissoes),
+                'reembolsos': float(reembolsos),
                 'total': total_despesas
             },
             'resultado': resultado
