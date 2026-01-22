@@ -29,9 +29,7 @@ export default function RootLayout({
     <html lang="pt-br">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <MantineProvider
-          theme={{ colorScheme: 'light' }}
-          withGlobalStyles
-          withNormalizeCSS
+          defaultColorScheme="light"
         >
             {children}
             <Toaster richColors />
