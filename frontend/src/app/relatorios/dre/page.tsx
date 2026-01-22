@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrencyBR } from "@/lib/formatters";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
-import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
 import { gerarRelatorioPDF } from "@/services/pdf";
 
 import { getDREConsolidado, DREData } from "@/services/relatorios";

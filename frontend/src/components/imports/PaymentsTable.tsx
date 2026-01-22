@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
-import { FileText, Trash2 } from 'lucide-react';
+import { FileText, Trash2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { gerarRelatorioPDF } from '@/services/pdf';
@@ -68,15 +68,19 @@ export default function PaymentsTable({
               <TableCell>{formatCurrencyBR(p.valor)}</TableCell>
               <TableCell>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleGerarRecibo(p.id)}
-                    loading={loadingRecibo === p.id}
-                    title="Gerar Recibo"
-                  >
-                    <FileText className="w-4 h-4" />
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGerarRecibo(p.id)}
+                  disabled={loadingRecibo === p.id}
+                >
+                  {loadingRecibo === p.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
+                </Button>
+
                   <Button
                     variant="destructive"
                     size="sm"

@@ -13,19 +13,15 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-import {
-  formatCurrencyInput,
-  parseCurrencyBR,
-} from '@/lib/formatters';
-
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 import { createPayment, deletePayment, getPayments } from '@/services/payments';
 import PaymentsTable from './PaymentsTable';
 
-export interface PaymentItem {
+export interface PaymentUI {
   id: number;
   data_pagamento: string;
-  conta_bancaria: string;
-  valor: string;
+  conta_bancaria: number;
+  valor: number;
   observacao?: string;
 }
 
@@ -36,45 +32,42 @@ interface Props {
 }
 
 export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props) {
-  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [payments, setPayments] = useState<PaymentUI[]>([]);
+  const [valorDisplay, setValorDisplay] = useState('');
+
   const [form, setForm] = useState({
     data_pagamento: '',
     conta_bancaria: '',
-    valor: 0, // 🔹 valor REAL
+    valor: 0,
     observacao: '',
   });
-
-  const [valorDisplay, setValorDisplay] = useState('');
 
   const loadPayments = useCallback(async () => {
     try {
       const query =
         tipo === 'receita'
-          ? { receita: entityId, page_size: 99999 }
-          : { despesa: entityId, page_size: 99999 };
-  
-      const data = await getPayments(query);
-  
-      const formatted = (data.results || []).map((p) => ({
-        id: p.id,
-        data_pagamento: p.data_pagamento,
-        conta_bancaria: String(p.conta_bancaria),
-        valor: String(p.valor),
-        observacao: p.observacao || '',
-      }));
-  
-      setPayments(formatted);
+          ? { receita: entityId, page_size: 9999 }
+          : { despesa: entityId, page_size: 9999 };
+
+      const res = await getPayments(query);
+
+      setPayments(
+        res.results.map((p) => ({
+          id: p.id,
+          data_pagamento: p.data_pagamento,
+          conta_bancaria: p.conta_bancaria,
+          valor: p.valor,
+          observacao: p.observacao || '',
+        }))
+      );
     } catch {
       toast.error('Erro ao carregar pagamentos');
     }
   }, [tipo, entityId]);
-  
 
   useEffect(() => {
-    if (entityId) {
-      loadPayments();
-    }
-  }, [entityId, loadPayments]);  
+    if (entityId) loadPayments();
+  }, [entityId, loadPayments]);
 
   const handleAdd = async () => {
     if (!form.data_pagamento || !form.conta_bancaria || !form.valor) {
@@ -86,22 +79,12 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
       const novo = await createPayment({
         [tipo]: entityId,
         conta_bancaria: Number(form.conta_bancaria),
-        valor: form.valor, // 🔥 número limpo
+        valor: form.valor,
         data_pagamento: form.data_pagamento,
         observacao: form.observacao,
       });
 
-      setPayments((prev) => [
-        ...prev,
-        {
-          id: novo.id,
-          data_pagamento: novo.data_pagamento,
-          conta_bancaria: String(novo.conta_bancaria),
-          valor: String(novo.valor),
-          observacao: novo.observacao || '',
-        },
-      ]);
-
+      setPayments((prev) => [...prev, novo]);
       toast.success('Pagamento adicionado');
 
       setForm({
@@ -110,7 +93,6 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
         valor: 0,
         observacao: '',
       });
-
       setValorDisplay('');
     } catch {
       toast.error('Erro ao adicionar pagamento');
@@ -178,44 +160,22 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
             </div>
           </div>
 
-          {/* 🔹 VALOR COM UX CORRETA */}
           <div>
             <label className="text-sm">Valor</label>
             <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
               value={valorDisplay}
-
-              onChange={(e) => {
-                setValorDisplay(e.target.value);
-              }}
-
-              onFocus={() => {
-                setValorDisplay(
-                  valorDisplay.replace(/[^\d,]/g, '')
-                );
-              }}
-
+              onChange={(e) => setValorDisplay(e.target.value)}
               onBlur={() => {
                 const parsed = parseCurrencyBR(valorDisplay);
-
-                setValorDisplay(
-                  parsed ? formatCurrencyInput(parsed) : ''
-                );
-
-                setForm((prev) => ({
-                  ...prev,
-                  valor: parsed,
-                }));
+                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+                setForm((prev) => ({ ...prev, valor: parsed }));
               }}
             />
           </div>
 
           <div>
-            <label className="text-sm">Observação (opcional)</label>
+            <label className="text-sm">Observação</label>
             <Input
-              placeholder="Ex.: Pix, Boleto, Referente a..."
               value={form.observacao}
               onChange={(e) =>
                 setForm({ ...form, observacao: e.target.value })

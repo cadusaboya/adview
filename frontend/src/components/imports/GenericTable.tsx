@@ -5,7 +5,7 @@ import React from 'react';
 type GenericTableProps<T> = {
   columns: TableColumnsType<T>;
   data: T[];
-  rowKey?: keyof T;
+  rowKey?: string;
   loading?: boolean;
   pagination?: false | TablePaginationConfig;
   onChange?: (pagination: TablePaginationConfig) => void;
@@ -23,7 +23,7 @@ export default function GenericTable<T extends object>({
     <Table<T>
       columns={columns}
       dataSource={data}
-      rowKey={rowKey as string}
+      rowKey={rowKey}
       loading={loading}
       pagination={pagination}
       scroll={{ x: 'max-content' }}
