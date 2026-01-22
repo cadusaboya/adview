@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, FormaCobranca, ContaBancaria, Payment
+from decimal import Decimal
 
 
 # 🔹 Company
@@ -130,7 +131,7 @@ class ReceitaSerializer(serializers.ModelSerializer):
         model = Receita
         fields = '__all__'
         read_only_fields = ('company', 'cliente', 'comissionado',
-                             'forma_pagamento_display', 'tipo_display', 'situacao_display')
+                            'forma_pagamento_display', 'tipo_display', 'situacao_display')
 
     def validate(self, data):
         situacao = data.get('situacao')

@@ -212,6 +212,34 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        receita = serializer.save(company=self.request.user.company)
+
+        comissionado = receita.comissionado
+        if not comissionado:
+            return
+
+        if Despesa.objects.filter(
+            receita_origem=receita,
+            tipo='C'
+        ).exists():
+            return
+
+        percentual = Decimal('0.30') ## % da Comissão
+        valor_comissao = receita.valor * percentual
+
+        Despesa.objects.create(
+            company=receita.company,
+            responsavel=comissionado,
+            nome=f'Comissão - {receita.nome}',
+            descricao=f'Comissão referente à receita {receita.id}',
+            data_vencimento=receita.data_vencimento,
+            valor=valor_comissao,
+            tipo='C',
+            situacao='A',
+            receita_origem=receita,
+        )
+
 
 from django.utils import timezone
 

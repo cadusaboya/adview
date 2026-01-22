@@ -140,31 +140,6 @@ class Receita(models.Model):
     def __str__(self):
         return f'{self.nome} - {self.cliente.nome}'
 
-    def save(self, *args, **kwargs):
-        creating_commission_expense = False
-        if self.pk: # Check if instance exists
-            original = Receita.objects.get(pk=self.pk)
-            # Check if it was just paid and has a commissionado
-            if original.situacao != 'P' and self.situacao == 'P' and self.comissionado and self.valor_pago:
-                creating_commission_expense = True
-
-        super().save(*args, **kwargs) # Save first to get ID if new
-
-        if creating_commission_expense:
-            valor_comissao = self.valor_pago * (Decimal('0.30')) # 30% commission
-            Despesa.objects.create(
-                company=self.company,
-                responsavel=self.comissionado,
-                nome=f'Comissão - {self.nome}',
-                descricao=f'Comissão referente à receita {self.id} ({self.nome}) paga.',
-                data_vencimento=self.data_pagamento, # Commission due when receita is paid
-                # data_pagamento=None, # Commission expense starts as unpaid
-                valor=valor_comissao,
-                # valor_pago=None,
-                tipo='C', # Comissionamento
-                situacao='A' # Em Aberto
-            )
-
     def atualizar_status(self):
         total_pago = self.payments.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
