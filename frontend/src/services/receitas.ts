@@ -1,22 +1,9 @@
-import { api } from "./api";
+import { api } from './api';
+import { Receita } from '@/types/receitas';
+import { ReceitaCreate, ReceitaUpdate } from '@/types/receitas';
 
 /* =========================
-   TYPES
-========================= */
-
-export interface Receita {
-  id: number;
-  nome: string;
-  cliente_nome: string;
-  data_vencimento: string;
-  valor: string;
-  valor_aberto?: string;
-  situacao: "A" | "P" | "V";
-  situacao_display: string;
-}
-
-/* =========================
-   LIST PARAMS (GENÉRICO)
+   LIST PARAMS
 ========================= */
 
 export interface ReceitaListParams {
@@ -24,7 +11,6 @@ export interface ReceitaListParams {
   page_size?: number;
   search?: string;
 
-  // filtros avançados (DRE / relatórios / listagem)
   situacao?: string | string[];
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
@@ -36,7 +22,7 @@ export interface ReceitaListParams {
 
 export async function getReceitas(params?: ReceitaListParams) {
   const res = await api.get<{ results: Receita[]; count: number }>(
-    "/api/receitas/",
+    '/api/receitas/',
     { params }
   );
   return res.data;
@@ -48,11 +34,11 @@ export async function getReceitas(params?: ReceitaListParams) {
 
 export async function getReceitasAbertas(params?: ReceitaListParams) {
   const res = await api.get<{ results: Receita[]; count: number }>(
-    "/api/receitas/",
+    '/api/receitas/',
     {
       params: {
         ...params,
-        situacao: ["A", "V"],
+        situacao: ['A', 'V'],
       },
     }
   );
@@ -65,11 +51,11 @@ export async function getReceitasAbertas(params?: ReceitaListParams) {
 
 export async function getReceitasRecebidas(params?: ReceitaListParams) {
   const res = await api.get<{ results: Receita[]; count: number }>(
-    "/api/receitas/",
+    '/api/receitas/',
     {
       params: {
         ...params,
-        situacao: "P",
+        situacao: 'P',
       },
     }
   );
@@ -80,20 +66,29 @@ export async function getReceitasRecebidas(params?: ReceitaListParams) {
    CRUD
 ========================= */
 
-export async function createReceita(data: Partial<Receita>) {
-  const res = await api.post("/api/receitas/", data);
+export async function createReceita(data: ReceitaCreate) {
+  const res = await api.post<Receita>('/api/receitas/', data);
   return res.data;
 }
 
-export async function updateReceita(id: number, data: Partial<Receita>) {
-  const res = await api.patch(`/api/receitas/${id}/`, data);
+export async function updateReceita(
+  id: number,
+  data: ReceitaUpdate
+) {
+  const res = await api.patch<Receita>(
+    `/api/receitas/${id}/`,
+    data
+  );
   return res.data;
 }
 
 export async function deleteReceita(id: number) {
-  const res = await api.delete(`/api/receitas/${id}/`);
-  return res.data;
+  await api.delete(`/api/receitas/${id}/`);
 }
+
+/* =========================
+   GET BY ID
+========================= */
 
 export async function getReceitaById(id: number) {
   const res = await api.get<Receita>(`/api/receitas/${id}/`);

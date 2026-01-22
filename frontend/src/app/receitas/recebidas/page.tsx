@@ -9,31 +9,27 @@ import { DownloadOutlined } from '@ant-design/icons';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
-import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
 import {
   getPayments,
   deletePayment,
-  Payment,
 } from '@/services/payments';
 
-import { Receita, getReceitaById } from '@/services/receitas';
-import { getClientes, Cliente } from '@/services/clientes';
+import { Payment } from '@/types/payments';
+import { Cliente } from '@/types/clientes';
+
+import { getClientes } from '@/services/clientes';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
-// ✅ IMPORT CORRETO
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Pencil, Trash, FileText } from 'lucide-react';
+import { Trash, FileText } from 'lucide-react';
 
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
@@ -60,10 +56,9 @@ export default function ReceitaRecebidasPage() {
   }, [search]);
 
   // ======================
-  // 👥 CLIENTES
+  // 👥 CLIENTES (RELATÓRIO)
   // ======================
-
-    const loadClientes = useCallback(async () => {
+  const loadClientes = useCallback(async () => {
     try {
       const res = await getClientes({ page_size: 1000 });
       setClientes(res.results);
@@ -71,13 +66,13 @@ export default function ReceitaRecebidasPage() {
       console.error('Erro ao carregar clientes:', error);
     }
   }, []);
-  
+
   useEffect(() => {
     loadClientes();
   }, [loadClientes]);
 
   // ======================
-  // 🔄 LOAD DATA
+  // 🔄 LOAD PAGAMENTOS
   // ======================
   const loadData = useCallback(async () => {
     try {
@@ -87,7 +82,7 @@ export default function ReceitaRecebidasPage() {
         page,
         page_size: pageSize,
         search,
-        tipo: "receita",
+        tipo: 'receita',
       });
 
       setPayments(res.results);
@@ -121,26 +116,24 @@ export default function ReceitaRecebidasPage() {
   };
 
   // ======================
-  // ✏️ EDITAR RECEITA
+  // 📄 GERAR RECIBO
   // ======================
-  const handleEditReceita = async (receitaId?: number | null) => {
-    if (!receitaId) return;
-
+  const handleGerarRecibo = async (paymentId: number) => {
     try {
-      setLoading(true);
-      const receita = await getReceitaById(receitaId);
-      setEditingReceita(receita);
-      setOpenDialog(true);
+      await gerarRelatorioPDF('recibo-pagamento', {
+        payment_id: paymentId,
+      });
+      toast.success('Recibo gerado com sucesso!');
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro ao gerar recibo';
       console.error(error);
-      toast.error('Erro ao carregar receita');
-    } finally {
-      setLoading(false);
+      toast.error(errorMessage);
     }
   };
 
   // ======================
-  // 📊 GERAR RELATÓRIO
+  // 📊 RELATÓRIO
   // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
     try {
@@ -148,25 +141,12 @@ export default function ReceitaRecebidasPage() {
       await gerarRelatorioPDF('receitas-pagas', filtros);
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
       toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
-    }
-  };
-
-  // ======================
-  // 📄 GERAR RECIBO
-  // ======================
-  const handleGerarRecibo = async (paymentId: number) => {
-    try {
-      await gerarRelatorioPDF('recibo-pagamento', { payment_id: paymentId });
-      toast.success('Recibo gerado com sucesso!');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar recibo';
-      console.error(error);
-      toast.error(errorMessage);
     }
   };
 
@@ -177,17 +157,17 @@ export default function ReceitaRecebidasPage() {
     {
       title: 'Data de Recebimento',
       dataIndex: 'data_pagamento',
-      render: (value: string) => formatDateBR(value),
+      render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
       dataIndex: 'cliente_nome',
-      render: (nome: string | undefined) => nome ?? '—',
+      render: (v?: string) => v ?? '—',
     },
     {
       title: 'Descrição',
       dataIndex: 'receita_nome',
-      render: (nome: string | undefined) => nome ?? '—',
+      render: (v?: string) => v ?? '—',
     },
     {
       title: 'Valor Recebido',
@@ -204,11 +184,6 @@ export default function ReceitaRecebidasPage() {
               label: 'Gerar Recibo',
               icon: FileText,
               onClick: () => handleGerarRecibo(record.id),
-            },
-            {
-              label: 'Editar Receita',
-              icon: Pencil,
-              onClick: () => handleEditReceita(record.receita),
             },
             {
               label: 'Excluir Recebimento',
@@ -266,24 +241,11 @@ export default function ReceitaRecebidasPage() {
             total,
             current: page,
             pageSize,
-            onChange: (page) => setPage(page),
+            onChange: (p) => setPage(p),
           }}
         />
 
-        <ReceitaDialog
-          open={openDialog}
-          onClose={() => {
-            setOpenDialog(false);
-            setEditingReceita(null);
-          }}
-          receita={editingReceita}
-          onSubmit={() => {
-            setOpenDialog(false);
-            setEditingReceita(null);
-            loadData();
-          }}
-        />
-
+        {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
           open={openRelatorioModal}
           onClose={() => setOpenRelatorioModal(false)}

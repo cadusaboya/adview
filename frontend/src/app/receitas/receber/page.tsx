@@ -8,7 +8,7 @@ import type { TableColumnsType } from 'antd';
 
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
-import MovimentacaoDialog from '@/components/dialogs/ReceitaDialog';
+import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,17 @@ import {
   createReceita,
   updateReceita,
   deleteReceita,
-  Receita,
 } from '@/services/receitas';
-import { getClientes, Cliente } from '@/services/clientes';
+
+import {
+  Receita,
+  ReceitaCreate,
+  ReceitaUpdate,
+} from '@/types/receitas';
+
+import { getClientes } from '@/services/clientes';
+import { Cliente } from '@/types/clientes';
+
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
@@ -111,13 +119,15 @@ export default function ReceitasPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: Receita) => {
+  const handleSubmit = async (
+    data: ReceitaCreate | ReceitaUpdate
+  ) => {
     try {
       if (editingReceita) {
-        await updateReceita(editingReceita.id, data);
+        await updateReceita(editingReceita.id, data as ReceitaUpdate);
         toast.success('Receita atualizada com sucesso!');
       } else {
-        await createReceita(data);
+        await createReceita(data as ReceitaCreate);
         toast.success('Receita criada com sucesso!');
       }
 
@@ -125,7 +135,8 @@ export default function ReceitasPage() {
       setEditingReceita(null);
       loadReceitas();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
       toast.error(`Erro: ${errorMessage}`);
       throw error;
     }
@@ -140,7 +151,8 @@ export default function ReceitasPage() {
       await gerarRelatorioPDF('receitas-a-receber', filtros);
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro ao gerar relatório';
       toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
@@ -159,18 +171,20 @@ export default function ReceitasPage() {
     {
       title: 'Cliente',
       dataIndex: 'cliente',
-      render: (cliente: { nome?: string } | undefined) => cliente?.nome || '—',
+      render: (cliente: { nome?: string } | undefined) =>
+        cliente?.nome || '—',
     },
     { title: 'Nome', dataIndex: 'nome' },
     {
       title: 'Situação',
       dataIndex: 'situacao',
-      render: (v: string) => <StatusBadge status={v} />,
+      render: (v: 'A' | 'P' | 'V') => <StatusBadge status={v} />,
     },
     {
       title: 'Valor',
       dataIndex: 'valor_aberto',
-      render: (v: number) => formatCurrencyBR(v),
+      render: (v: number | undefined, record) =>
+        formatCurrencyBR(v ?? record.valor),
     },
     {
       title: 'Ações',
@@ -254,22 +268,16 @@ export default function ReceitasPage() {
           }}
         />
 
-        <MovimentacaoDialog
+        <ReceitaDialog
           open={openDialog}
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
           }}
-          title={editingReceita ? 'Editar Receita' : 'Nova Receita'}
-          pessoaLabel="Cliente"
-          tipoOptions={[
-            { label: 'Fixa', value: 'F' },
-            { label: 'Variável', value: 'V' },
-            { label: 'Estorno', value: 'E' },
-          ]}
           receita={editingReceita}
           onSubmit={handleSubmit}
         />
+
 
         <RelatorioFiltrosModal
           open={openRelatorioModal}
