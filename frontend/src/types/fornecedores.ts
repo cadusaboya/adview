@@ -1,7 +1,7 @@
 // =======================
 // Entidade vinda da API
 // =======================
-export interface Funcionario {
+export interface Fornecedor {
     id: number;
     nome: string;
     cpf: string;
@@ -16,7 +16,7 @@ export interface Funcionario {
   // =======================
   // Payloads
   // =======================
-  export type FuncionarioCreate = {
+  export type FornecedorCreate = {
     nome: string;
     cpf: string;
     email: string;
@@ -26,5 +26,5 @@ export interface Funcionario {
     salario_mensal: number | null;
   };
   
-  export type FuncionarioUpdate = Partial<FuncionarioCreate>;
+  export type FornecedorUpdate = Partial<FornecedorCreate>;
   

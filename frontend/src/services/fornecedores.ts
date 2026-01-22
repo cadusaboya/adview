@@ -1,16 +1,9 @@
 import { api } from './api';
-
-export interface Fornecedor {
-  id: number;
-  nome: string;
-  cpf: string;
-  email: string;
-  telefone: string;
-  aniversario: string | null;
-  tipo: 'O'; // Sempre Fornecedor
-  tipo_display: string;
-  salario_mensal: string | null;
-}
+import {
+  Fornecedor,
+  FornecedorCreate,
+  FornecedorUpdate,
+} from '@/types/fornecedores';
 
 export async function getFornecedores(params?: { page?: number; page_size?: number }) {
   const res = await api.get<{ results: Fornecedor[]; count: number }>('/api/fornecedores/', {
@@ -19,12 +12,12 @@ export async function getFornecedores(params?: { page?: number; page_size?: numb
   return res.data;
 }
 
-export async function createFornecedor(fornecedor: Omit<Fornecedor, 'id' | 'tipo_display'>) {
+export async function createFornecedor(fornecedor: FornecedorCreate) {
   const res = await api.post<Fornecedor>('/api/fornecedores/', fornecedor);
   return res.data;
 }
 
-export async function updateFornecedor(id: number, fornecedor: Partial<Fornecedor>) {
+export async function updateFornecedor(id: number, fornecedor: FornecedorUpdate) {
   const res = await api.patch<Fornecedor>(`/api/fornecedores/${id}/`, fornecedor);
   return res.data;
 }

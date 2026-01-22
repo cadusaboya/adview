@@ -16,20 +16,19 @@ import {
   createFornecedor,
   updateFornecedor,
   deleteFornecedor,
-  Fornecedor,
 } from '@/services/fornecedores';
+
+import {
+  Fornecedor,
+  FornecedorCreate,
+  FornecedorUpdate,
+} from '@/types/fornecedores';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
-// ✅ ActionsDropdown
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import {
-  FileText,
-  DollarSign,
-  Pencil,
-  Trash,
-} from 'lucide-react';
+import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
 
 export default function FornecedorPage() {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
@@ -90,13 +89,15 @@ export default function FornecedorPage() {
   // ======================
   // 💾 CREATE / UPDATE
   // ======================
-  const handleSubmit = async (data: Fornecedor) => {
+  const handleSubmit = async (
+    data: FornecedorCreate | FornecedorUpdate
+  ) => {
     try {
       if (editingFornecedor) {
-        await updateFornecedor(editingFornecedor.id, data);
+        await updateFornecedor(editingFornecedor.id, data as FornecedorUpdate);
         toast.success('Fornecedor atualizado com sucesso!');
       } else {
-        await createFornecedor(data);
+        await createFornecedor(data as FornecedorCreate);
         toast.success('Fornecedor criado com sucesso!');
       }
 
@@ -133,7 +134,8 @@ export default function FornecedorPage() {
 
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro ao gerar relatório';
       console.error(error);
       toast.error(errorMessage);
     } finally {

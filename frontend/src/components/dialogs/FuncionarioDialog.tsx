@@ -41,7 +41,7 @@ export default function FuncionarioDialog({
     email: '',
     telefone: '',
     aniversario: null,
-    tipo: 'F',
+    tipo: 'O',
     salario_mensal: null,
   });
 
