@@ -151,13 +151,6 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = ReceitaSerializer
     pagination_class = DynamicPageSizePagination
 
-    # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
-    hoje = timezone.now().date()
-    Receita.objects.filter(
-            situacao='A',
-            data_vencimento__lt=hoje
-        ).update(situacao='V')
-
     def get_serializer_class(self):
         situacoes = self.request.query_params.getlist("situacao")
 
@@ -247,13 +240,6 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
     pagination_class = DynamicPageSizePagination
-
-    # 🔥 LAZY UPDATE — ISSO ESTAVA FALTANDO
-    hoje = timezone.now().date()
-    Despesa.objects.filter(
-        situacao='A',
-        data_vencimento__lt=hoje
-    ).update(situacao='V')
 
     def get_serializer_class(self):
             situacoes = self.request.query_params.getlist("situacao")
