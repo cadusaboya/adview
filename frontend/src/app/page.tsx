@@ -53,7 +53,7 @@ export default function LoginPage() {
       {/* 🔹 Esquerda */}
       <div className="hidden md:flex flex-col justify-center items-start flex-1 px-20 bg-white">
         <h1 className="text-2xl font-bold text-blue-700 mb-2">
-          ⚖️ ADView
+          ⚖️ Jurisfinance
         </h1>
         <p className="text-sm text-muted-foreground mb-10">
           Gestão financeira simples e eficiente para escritórios de advocacia.

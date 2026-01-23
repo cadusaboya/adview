@@ -150,6 +150,7 @@ export default function DespesaDialog({
                 })
               }
               style={{ width: '100%' }}
+              getPopupContainer={(trigger) => trigger.parentElement!}
             />
           </div>
 

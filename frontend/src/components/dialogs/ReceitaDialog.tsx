@@ -138,6 +138,7 @@ export default function ReceitaDialog({
               setFormData({ ...formData, cliente_id: val })
             }
             style={{ width: '100%' }}
+            getPopupContainer={(trigger) => trigger.parentElement!}
           />
 
           <Input
@@ -225,6 +226,7 @@ export default function ReceitaDialog({
               })
             }
             style={{ width: '100%' }}
+            getPopupContainer={(trigger) => trigger.parentElement!}
           />
         </div>
 

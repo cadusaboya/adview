@@ -196,7 +196,8 @@ export default function ClientePage() {
       <NavbarNested />
 
       <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between mb-4">
+          <h1 className="text-xl font-semibold">Clientes</h1>
           <Button
             className="shadow-md"
             onClick={() => {
