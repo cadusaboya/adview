@@ -37,14 +37,7 @@ if not SECRET_KEY:
 DEBUG = ENV == "development"
 
 # Adjust allowed hosts as needed for deployment
-ALLOWED_HOSTS = []
-
-if ENV == "development":
-    ALLOWED_HOSTS = ["*"]
-else:
-    ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
-
-
+ALLOWED_HOSTS = ["*"]
 
 # Application definition
 
@@ -189,7 +182,7 @@ if ENV == "production":
     SECURE_HSTS_PRELOAD = True
 
     # CSRF (vamos ajustar domínios depois)
-    CSRF_TRUSTED_ORIGINS = ["https://django-production-3b3e.up.railway.app",]
+    CSRF_TRUSTED_ORIGINS = ["*"]
 
 
 # Include core app urls in the main project urls
