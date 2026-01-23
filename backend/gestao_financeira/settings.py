@@ -189,7 +189,7 @@ if ENV == "production":
     SECURE_HSTS_PRELOAD = True
 
     # CSRF (vamos ajustar domínios depois)
-    CSRF_TRUSTED_ORIGINS = []
+    CSRF_TRUSTED_ORIGINS = ["https://django-production-3b3e.up.railway.app",]
 
 
 # Include core app urls in the main project urls
