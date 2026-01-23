@@ -1,7 +1,7 @@
 import axios from 'axios';
 import qs from 'qs';
 
-export const API_URL = 'http://localhost:8000'; // ou sua URL de produção
+export const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
