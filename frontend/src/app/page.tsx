@@ -42,7 +42,7 @@ export default function LoginPage() {
     try {
       await login(username, password);
       toast.success("Login realizado com sucesso!");
-      router.push("/clientes");
+      router.push("/dashboard");
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Erro ao buscar dados'));
     }
