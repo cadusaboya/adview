@@ -8,6 +8,7 @@ import {
   IconUsers,
   IconUserCog,
   IconFileAnalytics,
+  IconBuilding,
 } from '@tabler/icons-react';
 import { Code, Group, ScrollArea } from '@mantine/core';
 import classes from './NavbarNested.module.css';
@@ -40,6 +41,7 @@ const menuItems = [
   { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
   { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
   { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
+  { label: 'Empresa', icon: IconBuilding, link: '/empresa' },
   {
     label: 'Relatórios',
     icon: IconFileAnalytics,

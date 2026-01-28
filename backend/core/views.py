@@ -60,7 +60,35 @@ class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     # Typically, only superusers should manage companies
-    permission_classes = [permissions.IsAdminUser] 
+    permission_classes = [permissions.IsAdminUser]
+
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    def me(self, request):
+        """
+        GET /api/companies/me/ - Returns the authenticated user's company
+        PATCH /api/companies/me/ - Updates the authenticated user's company
+        """
+        user = request.user
+
+        if not hasattr(user, 'company') or not user.company:
+            return Response(
+                {"detail": "User does not belong to a company."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if request.method == 'GET':
+            serializer = self.get_serializer(user.company)
+            return Response(serializer.data)
+
+        elif request.method == 'PATCH':
+            serializer = self.get_serializer(
+                user.company,
+                data=request.data,
+                partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data) 
 
 class CustomUserViewSet(viewsets.ModelViewSet):
     """API endpoint for Users. Allows creation and management within a company context."""
