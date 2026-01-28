@@ -160,7 +160,19 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         return ReceitaSerializer
 
+    def _atualizar_vencidas(self):
+        """Atualiza automaticamente receitas vencidas (on-the-fly)."""
+        hoje = timezone.now().date()
+        Receita.objects.filter(
+            company=self.request.user.company,
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
     def get_queryset(self):
+        # 🔄 Atualiza vencidas antes de retornar o queryset
+        self._atualizar_vencidas()
+
         queryset = super().get_queryset().select_related(
             "cliente", "company"
         ).prefetch_related(
@@ -244,13 +256,25 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
             situacoes = self.request.query_params.getlist("situacao")
 
-            # 🔹 Receitas em aberto → serializer com saldo
+            # 🔹 Despesas em aberto → serializer com saldo
             if situacoes and set(situacoes).issubset({"A", "V"}):
                 return DespesaAbertaSerializer
 
             return DespesaSerializer
-            
+
+    def _atualizar_vencidas(self):
+        """Atualiza automaticamente despesas vencidas (on-the-fly)."""
+        hoje = timezone.now().date()
+        Despesa.objects.filter(
+            company=self.request.user.company,
+            situacao='A',
+            data_vencimento__lt=hoje
+        ).update(situacao='V')
+
     def get_queryset(self):
+        # 🔄 Atualiza vencidas antes de retornar o queryset
+        self._atualizar_vencidas()
+
         queryset = super().get_queryset().select_related(
             "responsavel", "company"
         ).prefetch_related(
@@ -416,6 +440,13 @@ from .models import (
     Payment, ContaBancaria
 )
 
+def _atualizar_vencidas_company(company):
+    """Atualiza automaticamente receitas e despesas vencidas de uma empresa."""
+    hoje = timezone.now().date()
+    Receita.objects.filter(company=company, situacao='A', data_vencimento__lt=hoje).update(situacao='V')
+    Despesa.objects.filter(company=company, situacao='A', data_vencimento__lt=hoje).update(situacao='V')
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_view(request):
@@ -425,6 +456,9 @@ def dashboard_view(request):
     """
     user = request.user
     company = user.company
+
+    # 🔄 Atualiza vencidas antes de calcular o dashboard
+    _atualizar_vencidas_company(company)
 
     hoje = timezone.now().date()
     inicio_mes = date(hoje.year, hoje.month, 1)
