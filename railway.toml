@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+# Usa o script start.sh que roda migrações antes de iniciar o servidor
+startCommand = "cd backend && bash start.sh"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[deploy.healthcheck]
+path = "/"
+timeout = 300
