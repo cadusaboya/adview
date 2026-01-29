@@ -5,7 +5,7 @@ export interface LoginResponse {
   refresh: string;
 }
 
-export async function login(username: string, password: string): Promise<LoginResponse> {
+export async function login(username: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> {
   const response = await api.post<LoginResponse>('/api/token/', {
     username,
     password,
@@ -13,8 +13,16 @@ export async function login(username: string, password: string): Promise<LoginRe
 
   const { access, refresh } = response.data;
 
-  localStorage.setItem('token', access);
-  localStorage.setItem('refresh_token', refresh);
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem('token', access);
+  storage.setItem('refresh_token', refresh);
+
+  // Store the preference
+  if (rememberMe) {
+    localStorage.setItem('rememberMe', 'true');
+  } else {
+    localStorage.removeItem('rememberMe');
+  }
 
   return { access, refresh };
 }
@@ -22,17 +30,20 @@ export async function login(username: string, password: string): Promise<LoginRe
 export function logout() {
   localStorage.removeItem('token');
   localStorage.removeItem('refresh_token');
-  window.location.href = '/'; // ou redireciona pra onde quiser
+  localStorage.removeItem('rememberMe');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('refresh_token');
+  window.location.href = '/';
 }
 
 export function isLoggedIn() {
-  return !!localStorage.getItem('token');
+  return !!getAccessToken();
 }
 
 export function getAccessToken() {
-  return localStorage.getItem('token');
+  return localStorage.getItem('token') || sessionStorage.getItem('token');
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem('refresh_token');
+  return localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { login } from "@/services/auth";
+import { login, isLoggedIn } from "@/services/auth";
 import { getErrorMessage } from "@/lib/errors";
 
 export default function LoginPage() {
@@ -15,9 +15,17 @@ export default function LoginPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+
+  // Check if already logged in
+  useEffect(() => {
+    if (isLoggedIn()) {
+      router.push("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +48,7 @@ export default function LoginPage() {
     if (hasError) return;
 
     try {
-      await login(username, password);
+      await login(username, password, rememberMe);
       toast.success("Login realizado com sucesso!");
       router.push("/dashboard");
     } catch (error: unknown) {
@@ -134,8 +142,12 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <Checkbox id="lembrar" />
-              <Label htmlFor="lembrar">Lembrar-me</Label>
+              <Checkbox
+                id="lembrar"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+              />
+              <Label htmlFor="lembrar" className="cursor-pointer">Lembrar-me</Label>
             </div>
 
             <Button
