@@ -116,12 +116,10 @@ class ContaBancariaAdmin(admin.ModelAdmin):
     list_display = (
         'nome',
         'company',
-        'saldo_inicial',
         'saldo_atual',
         'criado_em'
     )
     list_filter = ('company',)
-    readonly_fields = ('saldo_atual',)
 
 
 # =========================

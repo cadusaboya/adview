@@ -408,16 +408,49 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         instance = serializer.save(company=self.request.user.company)
-        instance.conta_bancaria.atualizar_saldo()
 
+        # Atualiza saldo da conta incrementalmente
         if instance.receita:
+            # Entrada de dinheiro (+)
+            instance.conta_bancaria.saldo_atual += instance.valor
             instance.receita.atualizar_status()
         else:
+            # Saída de dinheiro (-)
+            instance.conta_bancaria.saldo_atual -= instance.valor
             instance.despesa.atualizar_status()
 
+        instance.conta_bancaria.save()
+
     def perform_update(self, serializer):
+        # Guarda valor antigo antes de atualizar
+        old_instance = Payment.objects.get(pk=serializer.instance.pk)
+        old_valor = old_instance.valor
+        old_conta = old_instance.conta_bancaria
+
         instance = serializer.save()
-        instance.conta_bancaria.atualizar_saldo()
+
+        # Se mudou de conta bancária, reverte na antiga e aplica na nova
+        if old_conta.pk != instance.conta_bancaria.pk:
+            # Reverte na conta antiga
+            if old_instance.receita:
+                old_conta.saldo_atual -= old_valor
+            else:
+                old_conta.saldo_atual += old_valor
+            old_conta.save()
+
+            # Aplica na conta nova
+            if instance.receita:
+                instance.conta_bancaria.saldo_atual += instance.valor
+            else:
+                instance.conta_bancaria.saldo_atual -= instance.valor
+        else:
+            # Mesma conta: reverte valor antigo e aplica novo
+            if instance.receita:
+                instance.conta_bancaria.saldo_atual = instance.conta_bancaria.saldo_atual - old_valor + instance.valor
+            else:
+                instance.conta_bancaria.saldo_atual = instance.conta_bancaria.saldo_atual + old_valor - instance.valor
+
+        instance.conta_bancaria.save()
 
         if instance.receita:
             instance.receita.atualizar_status()
@@ -428,9 +461,16 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         conta = instance.conta_bancaria
         receita = instance.receita
         despesa = instance.despesa
+        valor = instance.valor
 
+        # Reverte o pagamento do saldo
+        if receita:
+            conta.saldo_atual -= valor  # Remove entrada
+        else:
+            conta.saldo_atual += valor  # Remove saída
+
+        conta.save()
         instance.delete()
-        conta.atualizar_saldo()
 
         if receita:
             receita.atualizar_status()

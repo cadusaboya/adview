@@ -28,7 +28,7 @@ export default function BancoDialog({
   const [formData, setFormData] = useState<BancoCreate>({
     nome: '',
     descricao: '',
-    saldo_inicial: 0,
+    saldo_atual: 0,
   });
 
   const [saldoDisplay, setSaldoDisplay] = useState('');
@@ -41,19 +41,19 @@ export default function BancoDialog({
       setFormData({
         nome: banco.nome,
         descricao: banco.descricao,
-        saldo_inicial: banco.saldo_inicial,
+        saldo_atual: banco.saldo_atual,
       });
 
       setSaldoDisplay(
-        banco.saldo_inicial
-          ? formatCurrencyInput(banco.saldo_inicial)
+        banco.saldo_atual
+          ? formatCurrencyInput(banco.saldo_atual)
           : ''
       );
     } else {
       setFormData({
         nome: '',
         descricao: '',
-        saldo_inicial: 0,
+        saldo_atual: 0,
       });
 
       setSaldoDisplay('');
@@ -69,7 +69,7 @@ export default function BancoDialog({
       const payload: BancoUpdate = {
         nome: formData.nome,
         descricao: formData.descricao,
-        saldo_inicial: formData.saldo_inicial,
+        saldo_atual: formData.saldo_atual,
       };
 
       onSubmit(payload);
@@ -78,7 +78,7 @@ export default function BancoDialog({
       const payload: BancoCreate = {
         nome: formData.nome,
         descricao: formData.descricao,
-        saldo_inicial: formData.saldo_inicial,
+        saldo_atual: formData.saldo_atual,
       };
 
       onSubmit(payload);
@@ -109,7 +109,7 @@ export default function BancoDialog({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium block">Saldo Inicial</label>
+            <label className="text-sm font-medium block">Saldo Atual</label>
             <Input
               type="text"
               inputMode="decimal"
@@ -132,7 +132,7 @@ export default function BancoDialog({
 
                 setFormData((prev) => ({
                   ...prev,
-                  saldo_inicial: parsed,
+                  saldo_atual: parsed,
                 }));
               }}
             />

@@ -188,10 +188,6 @@ class DespesaSerializer(serializers.ModelSerializer):
 
 # 🔹 Conta Bancaria
 class ContaBancariaSerializer(serializers.ModelSerializer):
-    saldo_atual = serializers.DecimalField(
-        max_digits=12, decimal_places=2, read_only=True
-    )
-
     class Meta:
         model = ContaBancaria
         fields = (
@@ -199,7 +195,6 @@ class ContaBancariaSerializer(serializers.ModelSerializer):
             'company',
             'nome',
             'descricao',
-            'saldo_inicial',
             'saldo_atual',
             'criado_em',
             'atualizado_em'
@@ -207,7 +202,6 @@ class ContaBancariaSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id',
             'company',
-            'saldo_atual',
             'criado_em',
             'atualizado_em'
         )

@@ -249,8 +249,7 @@ class ContaBancaria(models.Model):
     nome = models.CharField(max_length=100)  # Ex.: Itaú PJ, Caixa, Nubank, Carteira
     descricao = models.TextField(blank=True, null=True)
 
-    saldo_inicial = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    saldo_atual = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # Sempre atualizado
+    saldo_atual = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -261,25 +260,6 @@ class ContaBancaria(models.Model):
 
     def __str__(self):
         return self.nome
-
-    def save(self, *args, **kwargs):
-        # Se estiver criando a conta (não existe PK ainda)
-        if not self.pk:
-            self.saldo_atual = self.saldo_inicial
-
-        super().save(*args, **kwargs)
-
-    def atualizar_saldo(self):
-        entradas = self.payments.filter(receita__isnull=False).aggregate(
-            total=models.Sum('valor')
-        )['total'] or Decimal('0.00')
-
-        saidas = self.payments.filter(despesa__isnull=False).aggregate(
-            total=models.Sum('valor')
-        )['total'] or Decimal('0.00')
-
-        self.saldo_atual = self.saldo_inicial + Decimal(entradas) - Decimal(saidas)
-        self.save()
 
 
 
