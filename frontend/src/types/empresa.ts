@@ -10,6 +10,7 @@ export interface Empresa {
   telefone?: string;
   email?: string;
   logo?: string | null;
+  percentual_comissao: number;
   criado_em: string;
 }
 
@@ -23,4 +24,5 @@ export type EmpresaUpdate = {
   estado?: string;
   telefone?: string;
   email?: string;
+  percentual_comissao?: number;
 };

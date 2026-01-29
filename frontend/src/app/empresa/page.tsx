@@ -23,6 +23,7 @@ export default function EmpresaPage() {
     estado: "",
     telefone: "",
     email: "",
+    percentual_comissao: 20,
   });
 
   // ======================
@@ -44,6 +45,7 @@ export default function EmpresaPage() {
         estado: data.estado || "",
         telefone: data.telefone || "",
         email: data.email || "",
+        percentual_comissao: data.percentual_comissao || 20,
       });
     } catch (error: unknown) {
       console.error("Erro ao buscar empresa:", error);
@@ -229,6 +231,31 @@ export default function EmpresaPage() {
                     }
                   />
                 </div>
+              </div>
+
+              {/* Percentual de Comissão */}
+              <div className="space-y-1">
+                <label className="text-sm font-medium block">
+                  Percentual de Comissão (%)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="20.00"
+                  value={formData.percentual_comissao}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      percentual_comissao: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Este percentual será aplicado automaticamente ao criar
+                  receitas com comissionado. Padrão: 20%
+                </p>
               </div>
 
               {/* Info adicional */}

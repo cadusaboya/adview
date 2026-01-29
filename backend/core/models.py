@@ -24,6 +24,14 @@ class Company(models.Model):
     # 🔹 Identidade visual
     logo = models.ImageField(upload_to='logos/', blank=True, null=True)
 
+    # 🔹 Configurações financeiras
+    percentual_comissao = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('20.00'),
+        help_text='Percentual de comissão sobre receitas (padrão: 20%)'
+    )
+
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

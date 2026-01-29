@@ -258,7 +258,9 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         ).exists():
             return
 
-        percentual = Decimal('0.30') ## % da Comissão
+        # Usa o percentual configurado na empresa (padrão: 20%)
+        percentual_comissao = receita.company.percentual_comissao or Decimal('20.00')
+        percentual = percentual_comissao / Decimal('100.00')
         valor_comissao = receita.valor * percentual
 
         Despesa.objects.create(
