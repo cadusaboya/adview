@@ -6,56 +6,61 @@
 
 @layer base {
   :root {
+    /* Navy Blue - Primary Authority Color */
+    --primary: 210 100% 12%;          /* #0A192F */
+    --primary-foreground: 0 0% 100%;
 
-    --background: 0 0% 100%;
+    /* Gold - Accent/CTA Color */
+    --accent: 45 72% 53%;             /* #D4AF37 */
+    --accent-foreground: 210 100% 12%;
 
-    --foreground: 0 0% 3.9%;
+    /* Slate Gray - Secondary */
+    --secondary: 215 20% 55%;         /* #64748B */
+    --secondary-foreground: 210 100% 12%;
 
+    /* Backgrounds */
+    --background: 0 0% 100%;          /* White */
+    --foreground: 210 100% 12%;       /* Navy text */
+
+    --muted: 210 40% 98%;             /* #F8FAFC - Off-white */
+    --muted-foreground: 215 16% 47%;
+
+    /* Cards */
     --card: 0 0% 100%;
+    --card-foreground: 210 100% 12%;
 
-    --card-foreground: 0 0% 3.9%;
-
+    /* Popovers */
     --popover: 0 0% 100%;
+    --popover-foreground: 210 100% 12%;
 
-    --popover-foreground: 0 0% 3.9%;
+    /* Semantic Colors */
+    --success: 142 76% 36%;           /* #16a34a */
+    --success-foreground: 0 0% 100%;
 
-    --primary: 0 0% 9%;
+    --warning: 38 92% 50%;            /* #f59e0b */
+    --warning-foreground: 210 100% 12%;
 
-    --primary-foreground: 0 0% 98%;
+    --danger: 0 84% 60%;              /* #ef4444 */
+    --danger-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96.1%;
+    /* Legacy destructive (maps to danger) */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --secondary-foreground: 0 0% 9%;
+    /* Borders & Inputs */
+    --border: 214 32% 91%;            /* #e2e8f0 */
+    --input: 214 32% 91%;
+    --ring: 45 72% 53%;               /* Gold ring */
 
-    --muted: 0 0% 96.1%;
+    /* Charts */
+    --chart-1: 142 76% 36%;           /* Green */
+    --chart-2: 210 100% 12%;          /* Navy */
+    --chart-3: 45 72% 53%;            /* Gold */
+    --chart-4: 215 20% 55%;           /* Slate */
+    --chart-5: 0 84% 60%;             /* Red */
 
-    --muted-foreground: 0 0% 45.1%;
-
-    --accent: 0 0% 96.1%;
-
-    --accent-foreground: 0 0% 9%;
-
-    --destructive: 0 84.2% 60.2%;
-
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 0 0% 89.8%;
-
-    --input: 0 0% 89.8%;
-
-    --ring: 0 0% 3.9%;
-
-    --chart-1: 12 76% 61%;
-
-    --chart-2: 173 58% 39%;
-
-    --chart-3: 197 37% 24%;
-
-    --chart-4: 43 74% 66%;
-
-    --chart-5: 27 87% 67%;
-
-    --radius: 0.5rem
+    /* Border Radius */
+    --radius: 0.25rem;                /* 4px corporate */
   }
   .dark {
 
@@ -115,8 +120,41 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-playfair), Georgia, serif;
+    font-weight: 700;
+    color: hsl(var(--primary));
+  }
+
+  h1 {
+    font-size: 3rem;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-size: 2.25rem;
+    line-height: 1.3;
+  }
+
+  h3 {
+    font-size: 1.875rem;
+    line-height: 1.4;
+  }
+
+  h4 {
+    font-size: 1.5rem;
+    line-height: 1.4;
+  }
+
+  button, a, input, select, textarea {
+    @apply transition-all;
+    transition-duration: 200ms;
   }
 }
 
@@ -141,4 +179,98 @@
 /* Prevent column resizing on hover */
 .ant-table-wrapper .ant-table-thead > tr > th {
   position: relative;
+}
+
+/* ===== Ant Design Customization for Juris Prudence Design System ===== */
+
+/* Ant Design Button Customization */
+.ant-btn-primary {
+  background-color: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+  color: white !important;
+  font-weight: 600;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.ant-btn-primary:hover {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+  transform: scale(1.02);
+}
+
+.ant-btn {
+  border-radius: 4px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Ant Design Table Customization */
+.ant-table-wrapper .ant-table {
+  border-radius: 4px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--primary)) !important;
+  font-weight: 600;
+  border-bottom: 2px solid hsl(var(--border)) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background-color: hsl(var(--muted)) !important;
+}
+
+/* Ant Design Pagination */
+.ant-pagination-item-active {
+  border-color: hsl(var(--accent)) !important;
+  background-color: hsl(var(--accent)) !important;
+}
+
+.ant-pagination-item-active a {
+  color: hsl(var(--accent-foreground)) !important;
+}
+
+/* Ant Design Select Dropdown - ensure it appears above dialogs */
+.ant-select-dropdown {
+  z-index: 99999 !important;
+}
+
+/* Ant Design Select in dialogs */
+.ant-select {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.ant-select-selector {
+  border-radius: 4px !important;
+  border-color: hsl(var(--input)) !important;
+  height: 40px !important;
+  align-items: center !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring)) !important;
+}
+
+/* Ant Design Select Item Highlights */
+.ant-select-item-option-selected {
+  background-color: hsl(var(--accent) / 0.4) !important;
+  color: hsl(var(--primary)) !important;
+  font-weight: 600;
+}
+
+.ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: hsl(var(--accent) / 0.1) !important;
+}
+
+.ant-select-item-option-selected.ant-select-item-option-active {
+  background-color: hsl(var(--accent) / 0.4) !important;
+}
+
+/* Shadcn Select Item Highlights */
+[data-radix-collection-item][data-highlighted] {
+  background-color: hsl(var(--accent) / 0.4) !important;
+  color: hsl(var(--primary)) !important;
 }

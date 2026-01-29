@@ -144,6 +144,7 @@ export default function ClienteDialog({
           <div>
             <label className="text-sm font-medium">CPF / CNPJ</label>
             <Input
+              placeholder="000.000.000-00"
               value={formData.cpf}
               onChange={(e) =>
                 setFormData({ ...formData, cpf: e.target.value })
@@ -154,6 +155,7 @@ export default function ClienteDialog({
           <div className="md:col-span-2">
             <label className="text-sm font-medium">Nome</label>
             <Input
+              placeholder="Nome do cliente"
               value={formData.nome}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
@@ -167,6 +169,7 @@ export default function ClienteDialog({
           <div>
             <label className="text-sm font-medium">Email</label>
             <Input
+              placeholder="email@exemplo.com"
               value={formData.email}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
@@ -177,6 +180,7 @@ export default function ClienteDialog({
           <div>
             <label className="text-sm font-medium">Telefone</label>
             <Input
+              placeholder="(00) 00000-0000"
               value={formData.telefone}
               onChange={(e) =>
                 setFormData({ ...formData, telefone: e.target.value })

@@ -40,7 +40,7 @@ export default function GenericTable<T extends object>({
           onChange(pagination);
         }
       }}
-      className='shadow-md bg-white'
+      className='shadow-soft bg-white rounded border border-border'
       style={{ width: '100%' }}
     />
   );

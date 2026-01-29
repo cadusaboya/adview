@@ -121,6 +121,7 @@ export default function FuncionarioDialog({
           <div>
             <label className="text-sm">Nome</label>
             <Input
+              placeholder="Nome completo"
               value={formData.nome}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
@@ -131,6 +132,7 @@ export default function FuncionarioDialog({
           <div>
             <label className="text-sm">CPF</label>
             <Input
+              placeholder="000.000.000-00"
               value={formData.cpf}
               onChange={(e) =>
                 setFormData({ ...formData, cpf: e.target.value })
@@ -144,6 +146,7 @@ export default function FuncionarioDialog({
           <div>
             <label className="text-sm">Email</label>
             <Input
+              placeholder="email@exemplo.com"
               value={formData.email}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
@@ -154,6 +157,7 @@ export default function FuncionarioDialog({
           <div>
             <label className="text-sm">Telefone</label>
             <Input
+              placeholder="(00) 00000-0000"
               value={formData.telefone}
               onChange={(e) =>
                 setFormData({ ...formData, telefone: e.target.value })

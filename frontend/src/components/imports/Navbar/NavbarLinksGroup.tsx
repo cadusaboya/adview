@@ -30,7 +30,11 @@ export function LinksGroup({ icon: Icon, label, initiallyOpened, links, link }: 
       <>
         <UnstyledButton onClick={() => setOpened((o) => !o)} className={classes.control}>
           <Box className={classes.mainLink}>
-            <ThemeIcon variant="light" size={30}>
+            <ThemeIcon
+              variant="light"
+              size={30}
+              style={{ backgroundColor: 'transparent', color: '#D4AF37' }}
+            >
               <Icon style={{ width: rem(18), height: rem(18) }} />
             </ThemeIcon>
             <Box ml="md">{label}</Box>
@@ -51,7 +55,11 @@ export function LinksGroup({ icon: Icon, label, initiallyOpened, links, link }: 
   return (
     <Link className={classes.control} href={link || '#'}>
       <Box className={classes.mainLink}>
-        <ThemeIcon variant="light" size={30}>
+        <ThemeIcon
+          variant="light"
+          size={30}
+          style={{ backgroundColor: 'transparent', color: '#D4AF37' }}
+        >
           <Icon style={{ width: rem(18), height: rem(18) }} />
         </ThemeIcon>
         <Box ml="md">{label}</Box>

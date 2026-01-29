@@ -226,36 +226,36 @@ export default function DespesasPagasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+      <main className="bg-muted min-h-screen w-full p-6">
         {/* HEADER */}
-        <div className="flex items-center gap-4 mb-6">
-          <h1 className="text-xl font-semibold whitespace-nowrap">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h1 className="text-2xl font-serif font-bold text-navy">
             Despesas Pagas
           </h1>
 
-          <Input
-            placeholder="Buscar por favorecido, nome, valor, data..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="max-w-md"
-          />
+          <div className="flex flex-wrap gap-3 items-center">
+            <Input
+              placeholder="Buscar por favorecido, nome, valor, data..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-80"
+            />
 
-          <div className="flex-1" />
-
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={async () => {
-              await loadFavorecidos();
-              setOpenRelatorioModal(true);
-            }}
-            loading={loadingRelatorio}
-            className="shadow-md whitespace-nowrap"
-          >
-            Gerar Relatório PDF
-          </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={async () => {
+                await loadFavorecidos();
+                setOpenRelatorioModal(true);
+              }}
+              loading={loadingRelatorio}
+              className="shadow-md whitespace-nowrap"
+            >
+              Gerar Relatório PDF
+            </Button>
+          </div>
         </div>
 
         <GenericTable<Payment>

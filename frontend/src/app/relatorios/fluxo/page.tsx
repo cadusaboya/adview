@@ -220,7 +220,7 @@ export default function FluxoCaixaPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6 space-y-6">
+      <main className="bg-muted min-h-screen w-full p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold">Fluxo de Caixa Realizado</h1>
 

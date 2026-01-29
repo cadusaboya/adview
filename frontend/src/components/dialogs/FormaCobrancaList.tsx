@@ -11,6 +11,7 @@ import {
   formatCurrencyInput,
   parseCurrencyBR,
 } from "@/lib/formatters";
+import { Trash2 } from "lucide-react";
 
 export interface FormaCobrancaItem {
   id: string;
@@ -56,7 +57,7 @@ export default function FormaCobrancaList({ formas, setFormas }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-md font-semibold">Formas de Cobrança</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Formas de Cobrança</h3>
         <Button variant="outline" onClick={handleAdd}>
           + Adicionar
         </Button>
@@ -145,9 +146,11 @@ export default function FormaCobrancaList({ formas, setFormas }: Props) {
             <div className="md:col-span-1 flex justify-end">
               <Button
                 variant="destructive"
+                size="sm"
                 onClick={() => handleRemove(forma.id)}
+                title="Excluir forma de cobrança"
               >
-                Remover
+                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
           </div>

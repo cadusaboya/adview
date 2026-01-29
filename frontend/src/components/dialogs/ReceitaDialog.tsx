@@ -138,7 +138,6 @@ export default function ReceitaDialog({
               setFormData({ ...formData, cliente_id: val })
             }
             style={{ width: '100%' }}
-            getPopupContainer={(trigger) => trigger.parentElement!}
           />
 
           <Input
@@ -153,7 +152,7 @@ export default function ReceitaDialog({
         {/* Valor / Data / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Valor"
+            placeholder="0,00"
             value={valorDisplay}
             onChange={(e) => setValorDisplay(e.target.value)}
             onBlur={() => {
@@ -226,7 +225,6 @@ export default function ReceitaDialog({
               })
             }
             style={{ width: '100%' }}
-            getPopupContainer={(trigger) => trigger.parentElement!}
           />
         </div>
 

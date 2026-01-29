@@ -150,13 +150,13 @@ export default function DespesaDialog({
                 })
               }
               style={{ width: '100%' }}
-              getPopupContainer={(trigger) => trigger.parentElement!}
             />
           </div>
 
           <div>
             <label className="text-sm">Nome</label>
             <Input
+              placeholder="Nome da despesa"
               value={formData.nome}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
@@ -169,6 +169,7 @@ export default function DespesaDialog({
         <div>
           <label className="text-sm">Descrição</label>
           <Input
+            placeholder="Detalhes sobre a despesa"
             value={formData.descricao}
             onChange={(e) =>
               setFormData({ ...formData, descricao: e.target.value })
@@ -181,6 +182,7 @@ export default function DespesaDialog({
           <div>
             <label className="text-sm">Valor (R$)</label>
             <Input
+              placeholder="0,00"
               value={valorDisplay}
               onChange={(e) => setValorDisplay(e.target.value)}
               onBlur={() => {

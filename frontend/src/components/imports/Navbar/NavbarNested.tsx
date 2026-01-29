@@ -10,7 +10,8 @@ import {
   IconFileAnalytics,
   IconBuilding,
 } from '@tabler/icons-react';
-import { Code, Group, ScrollArea } from '@mantine/core';
+import { Group, ScrollArea } from '@mantine/core';
+import Image from 'next/image';
 import classes from './NavbarNested.module.css';
 import { LinksGroup } from '../Navbar/NavbarLinksGroup';
 
@@ -59,8 +60,15 @@ export function NavbarNested() {
   return (
     <nav className={classes.navbar}>
       <div className={classes.header}>
-        <Group justify="space-between">
-          <Code fw={700}>Vincor</Code>
+        <Group justify="center">
+          <Image
+            src="/vincor.png"
+            alt="Vincor Logo"
+            width={180}
+            height={60}
+            priority
+            style={{ objectFit: 'contain' }}
+          />
         </Group>
       </div>
 

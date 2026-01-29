@@ -223,38 +223,39 @@ export default function ReceitasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-xl font-semibold whitespace-nowrap">
+      <main className="bg-muted min-h-screen w-full p-6">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h1 className="text-2xl font-serif font-bold text-navy">
             Receitas em Aberto
           </h1>
 
-          <div className="flex-1 md:px-6">
+          <div className="flex flex-wrap gap-3 items-center">
             <Input
               placeholder="Buscar por nome, cliente, valor, data..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
             />
+
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => setOpenRelatorioModal(true)}
+              loading={loadingRelatorio}
+              className="shadow-md whitespace-nowrap"
+            >
+              Gerar Relatório PDF
+            </Button>
+
+            <Button
+              className="shadow-md"
+              onClick={() => {
+                setEditingReceita(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Receita
+            </Button>
           </div>
-
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => setOpenRelatorioModal(true)}
-            loading={loadingRelatorio}
-            className="shadow-md whitespace-nowrap"
-          >
-            Gerar Relatório PDF
-          </Button>
-
-          <Button
-            className="shadow-md"
-            onClick={() => {
-              setEditingReceita(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Receita
-          </Button>
         </div>
 
         <GenericTable<Receita>

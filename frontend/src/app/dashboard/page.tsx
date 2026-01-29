@@ -303,11 +303,11 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <NavbarNested />
-      <div className="bg-[#FAFCFF] min-h-screen w-full p-6">
+      <div className="bg-muted min-h-screen w-full p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <h1 className="text-3xl font-serif font-bold text-navy">Dashboard</h1>
             <p className="text-gray-600 mt-2">
               Bem-vindo! Aqui está um resumo da sua situação financeira.
             </p>
@@ -345,8 +345,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Alerts and Birthdays Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Alerts Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {/* Vencidas Alert */}
             <Card className="border-l-4 border-red-500">
               <div className="flex items-center justify-between">
@@ -376,21 +376,6 @@ export default function DashboardPage() {
                 <XCircle className="w-8 h-8 text-orange-500" />
               </div>
             </Card>
-
-            {/* Aniversariantes */}
-            <Card className="border-l-4 border-pink-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Aniversariantes Hoje
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {totalAniversariantes}
-                  </p>
-                </div>
-                <Cake className="w-8 h-8 text-pink-500" />
-              </div>
-            </Card>
           </div>
 
           {/* Aniversariantes Details */}
@@ -400,52 +385,34 @@ export default function DashboardPage() {
                 <Cake className="w-5 h-5 mr-2 text-pink-600" />
                 Aniversariantes de Hoje
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Clientes */}
-                {data.aniversariantes.clientes.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-3">Clientes</h3>
-                    <div className="space-y-2">
-                      {data.aniversariantes.clientes.map((cliente) => (
-                        <div
-                          key={cliente.id}
-                          className="p-3 bg-white rounded-lg border border-pink-200"
-                        >
-                          <p className="font-medium text-gray-900">{cliente.nome}</p>
-                          {cliente.email && (
-                            <p className="text-xs text-gray-600">{cliente.email}</p>
-                          )}
-                          {cliente.telefone && (
-                            <p className="text-xs text-gray-600">{cliente.telefone}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {data.aniversariantes.clientes.map((cliente) => (
+                  <div
+                    key={`cliente-${cliente.id}`}
+                    className="p-3 bg-white rounded-lg border border-pink-200"
+                  >
+                    <p className="font-medium text-gray-900">{cliente.nome}</p>
+                    <p className="text-xs text-gray-500 mb-1">{cliente.tipo}</p>
+                    {cliente.email && (
+                      <p className="text-xs text-gray-600">{cliente.email}</p>
+                    )}
+                    {cliente.telefone && (
+                      <p className="text-xs text-gray-600">{cliente.telefone}</p>
+                    )}
                   </div>
-                )}
-
-                {/* Funcionários */}
-                {data.aniversariantes.funcionarios.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-3">
-                      Funcionários/Parceiros
-                    </h3>
-                    <div className="space-y-2">
-                      {data.aniversariantes.funcionarios.map((funcionario) => (
-                        <div
-                          key={funcionario.id}
-                          className="p-3 bg-white rounded-lg border border-pink-200"
-                        >
-                          <p className="font-medium text-gray-900">{funcionario.nome}</p>
-                          <p className="text-xs text-gray-600">{funcionario.tipo}</p>
-                          {funcionario.email && (
-                            <p className="text-xs text-gray-600">{funcionario.email}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                ))}
+                {data.aniversariantes.funcionarios.map((funcionario) => (
+                  <div
+                    key={`funcionario-${funcionario.id}`}
+                    className="p-3 bg-white rounded-lg border border-pink-200"
+                  >
+                    <p className="font-medium text-gray-900">{funcionario.nome}</p>
+                    <p className="text-xs text-gray-500 mb-1">{funcionario.tipo}</p>
+                    {funcionario.email && (
+                      <p className="text-xs text-gray-600">{funcionario.email}</p>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             </Card>
           )}
@@ -460,8 +427,18 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.receitaVsDespesaData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="mes" />
-                  <YAxis />
+                  <XAxis
+                    dataKey="mes"
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    tickLine={{ stroke: '#d1d5db' }}
+                  />
+                  <YAxis
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    tickLine={{ stroke: '#d1d5db' }}
+                    tickFormatter={(value) =>
+                      `R$ ${(value / 1000).toFixed(0)}k`
+                    }
+                  />
                   <Tooltip
                     formatter={(value) =>
                       `R$ ${Number(value).toLocaleString('pt-BR', {
@@ -484,8 +461,18 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={data.fluxoCaixaData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="mes" />
-                  <YAxis />
+                  <XAxis
+                    dataKey="mes"
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    tickLine={{ stroke: '#d1d5db' }}
+                  />
+                  <YAxis
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    tickLine={{ stroke: '#d1d5db' }}
+                    tickFormatter={(value) =>
+                      `R$ ${(value / 1000).toFixed(0)}k`
+                    }
+                  />
                   <Tooltip
                     formatter={(value) =>
                       `R$ ${Number(value).toLocaleString('pt-BR', {
@@ -504,7 +491,15 @@ export default function DashboardPage() {
                     name="Fluxo Líquido"
                     yAxisId="right"
                   />
-                  <YAxis yAxisId="right" orientation="right" />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    tickLine={{ stroke: '#d1d5db' }}
+                    tickFormatter={(value) =>
+                      `R$ ${(value / 1000).toFixed(0)}k`
+                    }
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </Card>

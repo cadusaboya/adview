@@ -41,7 +41,7 @@ export default function DialogBase({
             Cancelar
           </Button>
           {onSubmit && (
-            <Button onClick={onSubmit}>
+            <Button variant="accent" onClick={onSubmit}>
               Salvar
             </Button>
           )}

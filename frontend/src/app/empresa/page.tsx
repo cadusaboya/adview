@@ -83,7 +83,7 @@ export default function EmpresaPage() {
     return (
       <div className="flex">
         <NavbarNested />
-        <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+        <main className="bg-muted min-h-screen w-full p-6">
           <div className="flex justify-center items-center h-64">
             <p className="text-gray-500">Carregando...</p>
           </div>
@@ -96,7 +96,7 @@ export default function EmpresaPage() {
     return (
       <div className="flex">
         <NavbarNested />
-        <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+        <main className="bg-muted min-h-screen w-full p-6">
           <div className="flex justify-center items-center h-64">
             <p className="text-gray-500">
               Nenhuma empresa associada ao usuário.
@@ -111,10 +111,10 @@ export default function EmpresaPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+      <main className="bg-muted min-h-screen w-full p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-xl font-semibold">Dados da Empresa</h1>
+            <h1 className="text-2xl font-serif font-bold text-navy">Dados da Empresa</h1>
             <Button
               type="primary"
               className="shadow-md"

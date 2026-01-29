@@ -236,39 +236,40 @@ export default function DespesasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-xl font-semibold">Despesas em Aberto</h1>
+      <main className="bg-muted min-h-screen w-full p-6">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h1 className="text-2xl font-serif font-bold text-navy">Despesas em Aberto</h1>
 
-          <div className="flex-1 md:px-6">
+          <div className="flex flex-wrap gap-3 items-center">
             <Input
               placeholder="Buscar despesas..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
             />
+
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={async () => {
+                await loadFavorecidos();
+                setOpenRelatorioModal(true);
+              }}
+              loading={loadingRelatorio}
+              className="shadow-md"
+            >
+              Gerar Relatório PDF
+            </Button>
+
+            <Button
+              className="shadow-md"
+              onClick={() => {
+                setEditingDespesa(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Despesa
+            </Button>
           </div>
-
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={async () => {
-              await loadFavorecidos();
-              setOpenRelatorioModal(true);
-            }}
-            loading={loadingRelatorio}
-            className="shadow-md"
-          >
-            Gerar Relatório PDF
-          </Button>
-
-          <Button
-            className="shadow-md"
-            onClick={() => {
-              setEditingDespesa(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Despesa
-          </Button>
         </div>
 
         <GenericTable<Despesa>

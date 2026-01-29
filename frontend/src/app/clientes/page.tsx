@@ -140,9 +140,9 @@ export default function ClientePage() {
   // ======================
   const columns: TableColumnsType<Cliente> = [
     { title: 'Nome', dataIndex: 'nome', width: '50%' },
-    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '18%' },
+    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '16%' },
     { title: 'Email', dataIndex: 'email', width: '20%' },
-    { title: 'Tipo', dataIndex: 'tipo_display', width: '6%' },
+    { title: 'Tipo', dataIndex: 'tipo_display', width: '8%' },
     {
       title: 'Ações',
       key: 'actions',
@@ -196,9 +196,9 @@ export default function ClientePage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+      <main className="bg-muted min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Clientes</h1>
+          <h1 className="text-2xl font-serif font-bold text-navy">Clientes</h1>
           <Button
             className="shadow-md"
             onClick={() => {

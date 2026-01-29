@@ -163,6 +163,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
           <div>
             <label className="text-sm">Valor</label>
             <Input
+              placeholder="0,00"
               value={valorDisplay}
               onChange={(e) => setValorDisplay(e.target.value)}
               onBlur={() => {
@@ -176,6 +177,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
           <div>
             <label className="text-sm">Observação</label>
             <Input
+              placeholder="Observações sobre o pagamento (opcional)"
               value={form.observacao}
               onChange={(e) =>
                 setForm({ ...form, observacao: e.target.value })

@@ -202,9 +202,9 @@ export default function FornecedorPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-[#FAFCFF] min-h-screen w-full p-6">
+      <main className="bg-muted min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
-          <h1 className="text-xl font-semibold">Fornecedores</h1>
+          <h1 className="text-2xl font-serif font-bold text-navy">Fornecedores</h1>
 
           <Button
             className="shadow-md"

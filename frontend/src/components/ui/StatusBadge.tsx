@@ -2,23 +2,23 @@ interface Props {
     status: 'P' | 'A' | 'V';
     label?: string;
   }
-  
+
   export default function StatusBadge({ status, label }: Props) {
     const config = {
       P: {
         text: label || 'Paga',
-        className: 'bg-green-100 text-green-700 border-green-300',
+        className: 'bg-success/10 text-success border-success',
       },
       A: {
         text: label || 'Em aberto',
-        className: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+        className: 'bg-warning/10 text-warning border-warning',
       },
       V: {
         text: label || 'Vencida',
-        className: 'bg-red-100 text-red-700 border-red-300',
+        className: 'bg-danger/10 text-danger border-danger',
       },
     }[status];
-  
+
     return (
       <span
         className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${config.className}`}
