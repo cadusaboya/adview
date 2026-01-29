@@ -7,6 +7,7 @@ import type { TableColumnsType } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+import { useDebounce } from '@/hooks/useDebounce';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
@@ -43,17 +44,12 @@ export default function ReceitaRecebidasPage() {
 
   // 🔎 Busca
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
 
-  // ======================
-  // 🔁 SEARCH DEBOUNCE
-  // ======================
+  // Reset page when search changes
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPage(1);
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [search]);
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // 👥 CLIENTES (RELATÓRIO)
@@ -81,7 +77,7 @@ export default function ReceitaRecebidasPage() {
       const res = await getPayments({
         page,
         page_size: pageSize,
-        search,
+        search: debouncedSearch,
         tipo: 'receita',
       });
 
@@ -93,7 +89,7 @@ export default function ReceitaRecebidasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadData();

@@ -33,6 +33,7 @@ import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { getFavorecidos, Favorecido } from '@/services/favorecidos';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
 
 interface Responsavel {
@@ -47,6 +48,7 @@ export default function DespesasPage() {
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
 
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
@@ -58,6 +60,11 @@ export default function DespesasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   // ======================
   // 🔄 LOAD DESPESAS
   // ======================
@@ -68,7 +75,7 @@ export default function DespesasPage() {
       const res = await getDespesasAbertas({
         page,
         page_size: pageSize,
-        search,
+        search: debouncedSearch,
       });
 
       setDespesas(res.results);
@@ -79,7 +86,7 @@ export default function DespesasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadDespesas();
@@ -237,10 +244,7 @@ export default function DespesasPage() {
             <Input
               placeholder="Buscar despesas..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 

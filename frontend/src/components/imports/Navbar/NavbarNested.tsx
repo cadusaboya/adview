@@ -60,7 +60,7 @@ export function NavbarNested() {
     <nav className={classes.navbar}>
       <div className={classes.header}>
         <Group justify="space-between">
-          <Code fw={700}>JurisFinance</Code>
+          <Code fw={700}>Vincor</Code>
         </Group>
       </div>
 

@@ -44,7 +44,9 @@ export default function LoginPage() {
       toast.success("Login realizado com sucesso!");
       router.push("/dashboard");
     } catch (error: unknown) {
-      throw new Error(getErrorMessage(error, 'Erro ao buscar dados'));
+      const errorMessage = getErrorMessage(error, 'Usuário ou senha incorretos');
+      toast.error(errorMessage);
+      setPasswordError("Verifique suas credenciais e tente novamente.");
     }
   };
 
@@ -53,7 +55,7 @@ export default function LoginPage() {
       {/* 🔹 Esquerda */}
       <div className="hidden md:flex flex-col justify-center items-start flex-1 px-20 bg-white">
         <h1 className="text-2xl font-bold text-blue-700 mb-2">
-          ⚖️ Jurisfinance
+          ⚖️ Vincor
         </h1>
         <p className="text-sm text-muted-foreground mb-10">
           Gestão financeira simples e eficiente para escritórios de advocacia.

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+import { useDebounce } from '@/hooks/useDebounce';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import DespesaDialog from '@/components/dialogs/DespesaDialog';
@@ -48,18 +49,24 @@ export default function DespesasPagasPage() {
 
   // Busca
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // 🔄 LOAD PAYMENTS
   // ======================
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
       const res = await getPayments({
         page,
         page_size: pageSize,
-        search,
+        search: debouncedSearch,
         tipo: 'despesa',
       });
 
@@ -71,26 +78,11 @@ export default function DespesasPagasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadData();
-  }, [page]);
-
-  // ======================
-  // 🔁 SEARCH DEBOUNCE
-  // ======================
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (page === 1) {
-        loadData();
-      } else {
-        setPage(1);
-      }
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [search]);
+  }, [loadData]);
 
   // ======================
   // 👥 LOAD FAVORECIDOS

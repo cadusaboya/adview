@@ -33,6 +33,7 @@ import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
+import { useDebounce } from '@/hooks/useDebounce';
 
 // ✅ Dropdown reutilizável
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
@@ -44,6 +45,7 @@ export default function ReceitasPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
 
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
@@ -63,7 +65,7 @@ export default function ReceitasPage() {
       const res = await getReceitasAbertas({
         page,
         page_size: pageSize,
-        search,
+        search: debouncedSearch,
       });
       setReceitas(res.results);
       setTotal(res.count);
@@ -73,19 +75,16 @@ export default function ReceitasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadReceitas();
   }, [loadReceitas]);
 
+  // Reset page when search changes
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPage(1);
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [search]);
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // 🔄 CLIENTES (RELATÓRIO)
@@ -234,10 +233,7 @@ export default function ReceitasPage() {
             <Input
               placeholder="Buscar por nome, cliente, valor, data..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
