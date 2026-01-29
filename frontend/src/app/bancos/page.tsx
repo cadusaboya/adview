@@ -96,19 +96,23 @@ export default function BancosPage() {
     {
       title: "Nome",
       dataIndex: "nome",
+      width: "15%",
     },
     {
       title: "Descrição",
       dataIndex: "descricao",
+      width: "40%",
     },
     {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
+      width: "20%",
       render: (value: number) => formatCurrencyBR(value),
     },
     {
       title: "Ações",
       key: "actions",
+      width: "6%",
       render: (_: unknown, record: Banco) => (
         <ActionsDropdown
           actions={[

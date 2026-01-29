@@ -166,20 +166,24 @@ export default function DespesasPage() {
     {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
+      width: '12%',
       render: (value: string) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
       dataIndex: 'responsavel',
+      width: '22%',
       render: (r: Responsavel | undefined) => r?.nome || '—',
     },
     {
       title: 'Nome',
       dataIndex: 'nome',
+      width: '24%',
     },
     {
       title: 'Situação',
       dataIndex: 'situacao',
+      width: '12%',
       render: (value: 'A' | 'P' | 'V') => (
         <StatusBadge status={value} />
       ),
@@ -187,12 +191,14 @@ export default function DespesasPage() {
     {
       title: 'Valor em Aberto',
       dataIndex: 'valor_aberto',
+      width: '16%',
       render: (v: number | undefined, record: Despesa) =>
         formatCurrencyBR(v ?? record.valor),
     },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
           actions={[

@@ -157,26 +157,31 @@ export default function ReceitaRecebidasPage() {
     {
       title: 'Data de Recebimento',
       dataIndex: 'data_pagamento',
+      width: '15%',
       render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
       dataIndex: 'cliente_nome',
+      width: '25%',
       render: (v?: string) => v ?? '—',
     },
     {
       title: 'Descrição',
       dataIndex: 'receita_nome',
+      width: '30%',
       render: (v?: string) => v ?? '—',
     },
     {
       title: 'Valor Recebido',
       dataIndex: 'valor',
+      width: '15%',
       render: (v: number) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[

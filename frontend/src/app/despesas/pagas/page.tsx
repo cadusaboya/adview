@@ -182,26 +182,31 @@ export default function DespesasPagasPage() {
     {
       title: 'Data de Pagamento',
       dataIndex: 'data_pagamento',
+      width: '15%',
       render: (value) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
       dataIndex: 'favorecido_nome',
+      width: '25%',
       render: (nome) => nome ?? '—',
     },
     {
       title: 'Nome',
       dataIndex: 'despesa_nome',
+      width: '30%',
       render: (nome) => nome ?? '—',
     },
     {
       title: 'Valor Pago',
       dataIndex: 'valor',
+      width: '15%',
       render: (v) => formatCurrencyBR(v),
     },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[

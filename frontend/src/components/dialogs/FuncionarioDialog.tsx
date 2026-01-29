@@ -21,12 +21,14 @@ import {
   FuncionarioCreate,
   FuncionarioUpdate,
 } from '@/types/funcionarios';
+import { Fornecedor } from '@/types/fornecedores';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: FuncionarioCreate | FuncionarioUpdate) => Promise<void>;
-  funcionario?: Funcionario | null;
+  funcionario?: Funcionario | Fornecedor | null;
+  mode?: 'funcionario' | 'fornecedor'; // Novo: define se é funcionário ou fornecedor
 }
 
 export default function FuncionarioDialog({
@@ -34,14 +36,16 @@ export default function FuncionarioDialog({
   onClose,
   onSubmit,
   funcionario,
+  mode = 'funcionario', // Padrão: funcionário
 }: Props) {
+  const isFornecedor = mode === 'fornecedor';
   const [formData, setFormData] = useState<FuncionarioCreate>({
     nome: '',
     cpf: '',
     email: '',
     telefone: '',
     aniversario: null,
-    tipo: 'O',
+    tipo: isFornecedor ? 'O' : 'F',
     salario_mensal: null,
   });
 
@@ -77,12 +81,12 @@ export default function FuncionarioDialog({
         email: '',
         telefone: '',
         aniversario: null,
-        tipo: 'F',
+        tipo: isFornecedor ? 'O' : 'F',
         salario_mensal: null,
       });
       setSalarioDisplay('');
     }
-  }, [funcionario, open]);
+  }, [funcionario, open, isFornecedor]);
 
   // ======================
   // 💾 SUBMIT
@@ -96,11 +100,19 @@ export default function FuncionarioDialog({
     onClose();
   };
 
+  // Define título baseado no modo
+  const getTitle = () => {
+    if (isFornecedor) {
+      return funcionario ? 'Editar Fornecedor' : 'Novo Fornecedor';
+    }
+    return funcionario ? 'Editar Funcionário' : 'Novo Funcionário';
+  };
+
   return (
     <DialogBase
       open={open}
       onClose={onClose}
-      title={funcionario ? 'Editar Funcionário' : 'Novo Funcionário'}
+      title={getTitle()}
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-1 gap-4">
@@ -150,8 +162,9 @@ export default function FuncionarioDialog({
           </div>
         </div>
 
-        {/* Aniversário / Tipo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Aniversário / Tipo (ou só Aniversário para fornecedor) */}
+        {isFornecedor ? (
+          // Fornecedor: só mostra aniversário
           <div>
             <label className="text-sm">Data de Nascimento</label>
             <Input
@@ -165,32 +178,48 @@ export default function FuncionarioDialog({
               }
             />
           </div>
+        ) : (
+          // Funcionário: mostra aniversário e tipo
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm">Data de Nascimento</label>
+              <Input
+                type="date"
+                value={formData.aniversario ?? ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    aniversario: e.target.value || null,
+                  })
+                }
+              />
+            </div>
 
-          <div>
-            <label className="text-sm">Tipo</label>
-            <Select
-              value={formData.tipo}
-              onValueChange={(val) =>
-                setFormData({
-                  ...formData,
-                  tipo: val as FuncionarioCreate['tipo'],
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Funcionário</SelectItem>
-                <SelectItem value="P">Parceiro</SelectItem>
-                <SelectItem value="C">Colaborador</SelectItem>
-              </SelectContent>
-            </Select>
+            <div>
+              <label className="text-sm">Tipo</label>
+              <Select
+                value={formData.tipo}
+                onValueChange={(val) =>
+                  setFormData({
+                    ...formData,
+                    tipo: val as FuncionarioCreate['tipo'],
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="F">Funcionário</SelectItem>
+                  <SelectItem value="P">Parceiro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Salário */}
-        {formData.tipo === 'F' && (
+        {/* Salário (só para funcionários tipo F) */}
+        {!isFornecedor && formData.tipo === 'F' && (
           <div>
             <label className="text-sm">Salário Mensal</label>
             <Input

@@ -19,20 +19,29 @@ export default function GenericTable<T extends object>({
   pagination,
   onChange,
 }: GenericTableProps<T>) {
+  // Aplica ellipsis em todas as colunas que não têm configuração explícita
+  const columnsWithEllipsis = columns.map((col) => ({
+    ...col,
+    ellipsis: col.ellipsis !== undefined ? col.ellipsis : {
+      showTitle: true,
+    },
+  }));
+
   return (
     <Table<T>
-      columns={columns}
+      columns={columnsWithEllipsis}
       dataSource={data}
       rowKey={rowKey}
       loading={loading}
       pagination={pagination}
-      scroll={{ x: 'max-content' }}
+      tableLayout="fixed"
       onChange={(pagination) => {
         if (onChange) {
           onChange(pagination);
         }
       }}
       className='shadow-md bg-white'
+      style={{ width: '100%' }}
     />
   );
 }

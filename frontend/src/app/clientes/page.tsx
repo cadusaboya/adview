@@ -139,13 +139,14 @@ export default function ClientePage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Cliente> = [
-    { title: 'Nome', dataIndex: 'nome' },
-    { title: 'CPF / CNPJ', dataIndex: 'cpf' },
-    { title: 'Email', dataIndex: 'email' },
-    { title: 'Tipo', dataIndex: 'tipo_display' },
+    { title: 'Nome', dataIndex: 'nome', width: '50%' },
+    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '18%' },
+    { title: 'Email', dataIndex: 'email', width: '20%' },
+    { title: 'Tipo', dataIndex: 'tipo_display', width: '6%' },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Cliente) => (
         <ActionsDropdown
           actions={[

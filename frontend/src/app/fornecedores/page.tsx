@@ -147,12 +147,13 @@ export default function FornecedorPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Fornecedor> = [
-    { title: 'Nome', dataIndex: 'nome' },
-    { title: 'CPF / CNPJ', dataIndex: 'cpf' },
-    { title: 'Email', dataIndex: 'email' },
+    { title: 'Nome', dataIndex: 'nome', width: '49%' },
+    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '20%' },
+    { title: 'Email', dataIndex: 'email', width: '25%' },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Fornecedor) => (
         <ActionsDropdown
           actions={[
@@ -237,6 +238,7 @@ export default function FornecedorPage() {
           }}
           onSubmit={handleSubmit}
           funcionario={editingFornecedor}
+          mode="fornecedor"
         />
 
         {/* 🔹 DIALOG FINANCEIRO (hidden triggers) */}

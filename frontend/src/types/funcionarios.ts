@@ -8,11 +8,11 @@ export interface Funcionario {
     email: string;
     telefone: string;
     aniversario: string | null;
-    tipo: 'F' | 'P' | 'C' | 'O'; // Funcionário, Parceiro, Colaborador
+    tipo: 'F' | 'P' | 'O'; // F = Funcionário, P = Parceiro, O = Fornecedor
     tipo_display: string;
     salario_mensal: number | null;
   }
-  
+
   // =======================
   // Payloads
   // =======================
@@ -22,9 +22,9 @@ export interface Funcionario {
     email: string;
     telefone: string;
     aniversario: string | null;
-    tipo: 'F' | 'P' | 'C' | 'O';
+    tipo: 'F' | 'P' | 'O';
     salario_mensal: number | null;
   };
-  
+
   export type FuncionarioUpdate = Partial<FuncionarioCreate>;
   

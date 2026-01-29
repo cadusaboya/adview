@@ -166,29 +166,34 @@ export default function ReceitasPage() {
     {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
+      width: '12%',
       render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
       dataIndex: 'cliente',
+      width: '25%',
       render: (cliente: { nome?: string } | undefined) =>
         cliente?.nome || '—',
     },
-    { title: 'Nome', dataIndex: 'nome' },
+    { title: 'Nome', dataIndex: 'nome', width: '25%' },
     {
       title: 'Situação',
       dataIndex: 'situacao',
+      width: '12%',
       render: (v: 'A' | 'P' | 'V') => <StatusBadge status={v} />,
     },
     {
       title: 'Valor',
       dataIndex: 'valor_aberto',
+      width: '12%',
       render: (v: number | undefined, record) =>
         formatCurrencyBR(v ?? record.valor),
     },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
           actions={[

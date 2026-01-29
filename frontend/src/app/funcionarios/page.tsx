@@ -140,18 +140,20 @@ export default function FuncionarioPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Funcionario> = [
-    { title: 'Nome', dataIndex: 'nome' },
-    { title: 'CPF', dataIndex: 'cpf' },
-    { title: 'Email', dataIndex: 'email' },
+    { title: 'Nome', dataIndex: 'nome', width: '44%' },
+    { title: 'CPF', dataIndex: 'cpf', width: '15%' },
+    { title: 'Email', dataIndex: 'email', width: '20%' },
     {
       title: 'Salário Mensal',
       dataIndex: 'salario_mensal',
+      width: '15%',
       render: (v: number | null) =>
         v ? formatCurrencyBR(v) : '—',
     },
     {
       title: 'Ações',
       key: 'actions',
+      width: '6%',
       render: (_: unknown, record: Funcionario) => (
         <ActionsDropdown
           actions={[
