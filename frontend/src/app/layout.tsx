@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'JurisFinance',
+  title: 'Vincor',
   description: 'ERP Financeiro para Advogados',
 };
 

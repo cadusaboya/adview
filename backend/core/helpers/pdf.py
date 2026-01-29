@@ -1,5 +1,5 @@
 """
-PDF Helper Functions para Relatórios do JurisFinance
+PDF Helper Functions para Relatórios do Vincor
 Otimizado para eficiência e reutilização
 """
 
@@ -59,7 +59,7 @@ def shorten_text_by_width(text: str, max_width: float, pdf_canvas,
 class PDFReportBase:
     """Classe base para geração de relatórios em PDF com padrão consistente."""
     
-    def __init__(self, title: str, company_name: str = "JurisFinance"):
+    def __init__(self, title: str, company_name: str = "Vincor"):
         self.title = title
         self.company_name = company_name
         self.margin = 40
@@ -227,7 +227,7 @@ class TableBuilder:
 
 def create_simple_table(pdf: canvas.Canvas, width: float, height: float,
                        data: list, columns: list, title: str = "",
-                       company_name: str = "JurisFinance"):
+                       company_name: str = "Vincor"):
     """
     Cria um relatório simples com tabela.
     

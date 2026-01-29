@@ -1,5 +1,5 @@
 """
-Views para geração de relatórios em PDF do JurisFinance
+Views para geração de relatórios em PDF do Vincor
 Otimizados com select_related e prefetch_related
 """
 
