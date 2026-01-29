@@ -196,8 +196,23 @@ if ENV == "production":
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-    # CSRF (vamos ajustar domínios depois)
-    CSRF_TRUSTED_ORIGINS = ["*"]
+    # CSRF - domínios confiáveis (Django 4.0+ requer esquema)
+    CSRF_TRUSTED_ORIGINS = [
+        "https://*.railway.app",
+        "https://*.up.railway.app",
+        "https://jurisfinance-bice.vercel.app"
+    ]
+    # Adicionar domínios customizados via env (separados por vírgula)
+    if custom_origins := os.getenv("CSRF_TRUSTED_ORIGINS"):
+        CSRF_TRUSTED_ORIGINS.extend(custom_origins.split(","))
+else:
+    # Desenvolvimento - localhost
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ]
 
 
 # Include core app urls in the main project urls
