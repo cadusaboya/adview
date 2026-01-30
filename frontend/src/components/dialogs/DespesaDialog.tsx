@@ -20,7 +20,8 @@ import {
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
-import { getFavorecidos, Favorecido } from '@/services/favorecidos';
+import { Favorecido } from '@/types/favorecidos';
+import { getFavorecidos } from '@/services/favorecidos';
 
 import {
   Despesa,
