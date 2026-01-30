@@ -160,6 +160,70 @@ class Receita(models.Model):
 
         self.save()
 
+
+class ReceitaRecorrente(models.Model):
+    """Receitas que se repetem mensalmente (honorários fixos, mensalidades, etc.)"""
+
+    TIPO_CHOICES = (
+        ('F', 'Receita Fixa'),
+        ('V', 'Receita Variável'),
+    )
+
+    STATUS_CHOICES = (
+        ('A', 'Ativa'),
+        ('P', 'Pausada'),
+    )
+
+    # Multi-tenancy
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+
+    # Dados básicos
+    nome = models.CharField(max_length=255)
+    descricao = models.TextField(blank=True, null=True)
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.PROTECT,
+        help_text="Cliente da receita"
+    )
+
+    # Valores
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='F')
+
+    # Recorrência
+    data_inicio = models.DateField(
+        help_text="Data da primeira ocorrência"
+    )
+    data_fim = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Data da última ocorrência (opcional)"
+    )
+    dia_vencimento = models.IntegerField(
+        default=1,
+        help_text="Dia do mês para vencimento (1-31)"
+    )
+
+    # Controle
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='A')
+    ultimo_mes_gerado = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Último mês em que receitas foram geradas"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.nome} - {self.cliente.nome}'
+
+    class Meta:
+        verbose_name = 'Receita Recorrente'
+        verbose_name_plural = 'Receitas Recorrentes'
+        ordering = ['nome']
+
+
 class Despesa(models.Model):
     TIPO_CHOICES = (
         ('F', 'Despesa Fixa'),
@@ -219,6 +283,69 @@ class Despesa(models.Model):
             self.situacao = 'A'  # Em aberto
 
         self.save()
+
+
+class DespesaRecorrente(models.Model):
+    """Despesas que se repetem mensalmente (salários, aluguéis, etc.)"""
+
+    TIPO_CHOICES = (
+        ('F', 'Despesa Fixa'),
+        ('V', 'Despesa Variável'),
+    )
+
+    STATUS_CHOICES = (
+        ('A', 'Ativa'),
+        ('P', 'Pausada'),
+    )
+
+    # Multi-tenancy
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+
+    # Dados básicos
+    nome = models.CharField(max_length=255)
+    descricao = models.TextField(blank=True, null=True)
+    responsavel = models.ForeignKey(
+        Funcionario,
+        on_delete=models.PROTECT,
+        help_text="Favorecido da despesa"
+    )
+
+    # Valores
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='F')
+
+    # Recorrência
+    data_inicio = models.DateField(
+        help_text="Data da primeira ocorrência"
+    )
+    data_fim = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Data da última ocorrência (opcional)"
+    )
+    dia_vencimento = models.IntegerField(
+        default=1,
+        help_text="Dia do mês para vencimento (1-31)"
+    )
+
+    # Controle
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='A')
+    ultimo_mes_gerado = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Último mês em que despesas foram geradas"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.nome} - {self.responsavel.nome}'
+
+    class Meta:
+        verbose_name = 'Despesa Recorrente'
+        verbose_name_plural = 'Despesas Recorrentes'
+        ordering = ['nome']
 
 
 class Payment(models.Model):

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, FormaCobranca, ContaBancaria, Payment
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment
 from decimal import Decimal
 
 
@@ -160,6 +160,56 @@ class ReceitaAbertaSerializer(ReceitaSerializer):
         )
         return obj.valor - total_pago
 
+
+# 🔹 Receita Recorrente
+class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
+    """Serializer para receitas recorrentes"""
+
+    # Read-only fields
+    company = CompanySerializer(read_only=True)
+    cliente = ClienteSerializer(read_only=True)
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
+    tipo_display = serializers.CharField(
+        source='get_tipo_display',
+        read_only=True
+    )
+
+    # Write-only fields
+    cliente_id = serializers.PrimaryKeyRelatedField(
+        queryset=Cliente.objects.all(),
+        source='cliente',
+        write_only=True
+    )
+
+    class Meta:
+        model = ReceitaRecorrente
+        fields = '__all__'
+        read_only_fields = ('company', 'cliente', 'ultimo_mes_gerado')
+
+    def validate_dia_vencimento(self, value):
+        """Valida que dia está entre 1 e 31"""
+        if not 1 <= value <= 31:
+            raise serializers.ValidationError(
+                "Dia de vencimento deve estar entre 1 e 31"
+            )
+        return value
+
+    def validate(self, data):
+        """Validações gerais"""
+        data_inicio = data.get('data_inicio')
+        data_fim = data.get('data_fim')
+
+        if data_fim and data_inicio and data_fim < data_inicio:
+            raise serializers.ValidationError({
+                'data_fim': 'Data fim não pode ser anterior à data início'
+            })
+
+        return data
+
+
 # 🔹 Despesa
 class DespesaSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
@@ -220,6 +270,55 @@ class DespesaAbertaSerializer(DespesaSerializer):
             Decimal("0.00")
         )
         return obj.valor - total_pago
+
+
+# 🔹 Despesa Recorrente
+class DespesaRecorrenteSerializer(serializers.ModelSerializer):
+    """Serializer para despesas recorrentes"""
+
+    # Read-only fields
+    company = CompanySerializer(read_only=True)
+    responsavel = FuncionarioSerializer(read_only=True)
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
+    tipo_display = serializers.CharField(
+        source='get_tipo_display',
+        read_only=True
+    )
+
+    # Write-only fields
+    responsavel_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.all(),
+        source='responsavel',
+        write_only=True
+    )
+
+    class Meta:
+        model = DespesaRecorrente
+        fields = '__all__'
+        read_only_fields = ('company', 'responsavel', 'ultimo_mes_gerado')
+
+    def validate_dia_vencimento(self, value):
+        """Valida que dia está entre 1 e 31"""
+        if not 1 <= value <= 31:
+            raise serializers.ValidationError(
+                "Dia de vencimento deve estar entre 1 e 31"
+            )
+        return value
+
+    def validate(self, data):
+        """Validações gerais"""
+        data_inicio = data.get('data_inicio')
+        data_fim = data.get('data_fim')
+
+        if data_fim and data_inicio and data_fim < data_inicio:
+            raise serializers.ValidationError({
+                'data_fim': 'Data fim não pode ser anterior à data início'
+            })
+
+        return data
 
 
 # 🔹 Payment

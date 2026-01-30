@@ -1,8 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    CompanyViewSet, CustomUserViewSet, ClienteViewSet, 
-    FuncionarioViewSet, ReceitaViewSet, DespesaViewSet,
+    CompanyViewSet, CustomUserViewSet, ClienteViewSet,
+    FuncionarioViewSet, ReceitaViewSet, ReceitaRecorrenteViewSet, DespesaViewSet, DespesaRecorrenteViewSet,
     FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,
     FavorecidoViewSet, dashboard_view,  # 👈 adiciona aqui
     # Import Report Views
@@ -30,7 +30,9 @@ router.register(r'users', CustomUserViewSet, basename='customuser')
 router.register(r'clientes', ClienteViewSet, basename='cliente')
 router.register(r'funcionarios', FuncionarioViewSet, basename='funcionario')
 router.register(r'receitas', ReceitaViewSet, basename='receita')
+router.register(r'receitas-recorrentes', ReceitaRecorrenteViewSet, basename='receita-recorrente')
 router.register(r'despesas', DespesaViewSet, basename='despesa')
+router.register(r'despesas-recorrentes', DespesaRecorrenteViewSet, basename='despesa-recorrente')
 router.register(r'fornecedores', FornecedorViewSet, basename='Fornecedor')
 router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')  # 👈 novo
 router.register(r'pagamentos', PaymentViewSet, basename='payment')  # 👈 novo

@@ -8,11 +8,11 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria
 from .serializers import (
-    CompanySerializer, CustomUserSerializer, ClienteSerializer, 
-    FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, DespesaSerializer, DespesaAbertaSerializer,
-    PaymentSerializer, ContaBancariaSerializer
+    CompanySerializer, CustomUserSerializer, ClienteSerializer,
+    FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer, DespesaSerializer, DespesaAbertaSerializer,
+    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer
 )
 
 # --- Base ViewSet for Company context ---
@@ -276,7 +276,184 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         )
 
 
-from django.utils import timezone
+class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gerenciar receitas recorrentes.
+
+    Endpoints:
+    - GET/POST /api/receitas-recorrentes/
+    - GET/PUT/PATCH/DELETE /api/receitas-recorrentes/{id}/
+    - POST /api/receitas-recorrentes/gerar-mes/
+    """
+
+    queryset = ReceitaRecorrente.objects.all()
+    serializer_class = ReceitaRecorrenteSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related(
+            'cliente', 'company'
+        )
+
+        params = self.request.query_params
+
+        # Busca
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(descricao__icontains=search) |
+                Q(cliente__nome__icontains=search)
+            )
+
+        # Filtros
+        status_filter = params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        cliente_id = params.get('cliente_id')
+        if cliente_id:
+            queryset = queryset.filter(cliente_id=cliente_id)
+
+        tipo = params.get('tipo')
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        return queryset.order_by('nome')
+
+    @action(detail=False, methods=['post'], url_path='gerar-mes')
+    def gerar_mes(self, request):
+        """
+        Gera receitas individuais para o mês atual baseado nas recorrentes ativas.
+
+        POST /api/receitas-recorrentes/gerar-mes/
+        Body: {
+            "mes": "2024-01" (opcional, default: mês atual)
+        }
+
+        Retorna:
+        {
+            "criadas": 5,
+            "ignoradas": 2,
+            "detalhes": [...]
+        }
+        """
+        from datetime import date
+        import calendar
+
+        # Pega mês da requisição ou usa mês atual
+        mes_str = request.data.get('mes')
+        if mes_str:
+            try:
+                ano, mes = map(int, mes_str.split('-'))
+                mes_referencia = date(ano, mes, 1)
+            except:
+                return Response(
+                    {'erro': 'Formato de mês inválido. Use YYYY-MM'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            hoje = timezone.now().date()
+            mes_referencia = date(hoje.year, hoje.month, 1)
+
+        # Busca receitas recorrentes ativas
+        # Compara apenas ano e mês (ignora o dia) para data_inicio
+        recorrentes = ReceitaRecorrente.objects.filter(
+            company=request.user.company,
+            status='A',
+            data_inicio__year__lte=mes_referencia.year
+        )
+
+        # Refinar: se mesmo ano, verificar se mês de início <= mês de referência
+        recorrentes = recorrentes.filter(
+            Q(data_inicio__year__lt=mes_referencia.year) |
+            Q(data_inicio__year=mes_referencia.year, data_inicio__month__lte=mes_referencia.month)
+        )
+
+        # Filtrar por data_fim se existir (também compara apenas ano/mês)
+        recorrentes = recorrentes.filter(
+            Q(data_fim__isnull=True) |
+            Q(data_fim__year__gt=mes_referencia.year) |
+            Q(data_fim__year=mes_referencia.year, data_fim__month__gte=mes_referencia.month)
+        )
+
+        criadas = 0
+        ignoradas = 0
+        detalhes = []
+
+        for recorrente in recorrentes:
+            # Verifica se já gerou neste mês E se a receita ainda existe
+            nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
+
+            receita_existente = Receita.objects.filter(
+                company=request.user.company,
+                nome=nome_esperado
+            ).exists()
+
+            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and receita_existente:
+                ignoradas += 1
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'ignorada',
+                    'motivo': 'Já gerada para este mês'
+                })
+                continue
+
+            # Se foi marcado como gerado mas a receita não existe mais, permite recriar
+            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and not receita_existente:
+                # Reset ultimo_mes_gerado para permitir recriação
+                recorrente.ultimo_mes_gerado = None
+
+            # Calcula data de vencimento
+            ultimo_dia_mes = calendar.monthrange(
+                mes_referencia.year,
+                mes_referencia.month
+            )[1]
+            dia_vencimento = min(recorrente.dia_vencimento, ultimo_dia_mes)
+            data_vencimento = date(
+                mes_referencia.year,
+                mes_referencia.month,
+                dia_vencimento
+            )
+
+            # Cria receita individual
+            try:
+                Receita.objects.create(
+                    company=request.user.company,
+                    cliente=recorrente.cliente,
+                    nome=f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}",
+                    descricao=recorrente.descricao or '',
+                    valor=recorrente.valor,
+                    tipo=recorrente.tipo,
+                    data_vencimento=data_vencimento,
+                    situacao='A'
+                )
+
+                # Atualiza último mês gerado
+                recorrente.ultimo_mes_gerado = mes_referencia
+                recorrente.save()
+
+                criadas += 1
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'criada',
+                    'data_vencimento': str(data_vencimento)
+                })
+
+            except Exception as e:
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'erro',
+                    'motivo': str(e)
+                })
+
+        return Response({
+            'criadas': criadas,
+            'ignoradas': ignoradas,
+            'mes': mes_referencia.strftime('%Y-%m'),
+            'detalhes': detalhes
+        })
+
 
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Despesa.objects.all()
@@ -350,6 +527,183 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         return queryset
 
 
+class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gerenciar despesas recorrentes.
+
+    Endpoints:
+    - GET/POST /api/despesas-recorrentes/
+    - GET/PUT/PATCH/DELETE /api/despesas-recorrentes/{id}/
+    - POST /api/despesas-recorrentes/gerar-mes/
+    """
+
+    queryset = DespesaRecorrente.objects.all()
+    serializer_class = DespesaRecorrenteSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related(
+            'responsavel', 'company'
+        )
+
+        params = self.request.query_params
+
+        # Busca
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(descricao__icontains=search) |
+                Q(responsavel__nome__icontains=search)
+            )
+
+        # Filtros
+        status_filter = params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        responsavel_id = params.get('responsavel_id')
+        if responsavel_id:
+            queryset = queryset.filter(responsavel_id=responsavel_id)
+
+        tipo = params.get('tipo')
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        return queryset.order_by('nome')
+
+    @action(detail=False, methods=['post'], url_path='gerar-mes')
+    def gerar_mes(self, request):
+        """
+        Gera despesas individuais para o mês atual baseado nas recorrentes ativas.
+
+        POST /api/despesas-recorrentes/gerar-mes/
+        Body: {
+            "mes": "2024-01" (opcional, default: mês atual)
+        }
+
+        Retorna:
+        {
+            "criadas": 5,
+            "ignoradas": 2,
+            "detalhes": [...]
+        }
+        """
+        from datetime import date
+        import calendar
+
+        # Pega mês da requisição ou usa mês atual
+        mes_str = request.data.get('mes')
+        if mes_str:
+            try:
+                ano, mes = map(int, mes_str.split('-'))
+                mes_referencia = date(ano, mes, 1)
+            except:
+                return Response(
+                    {'erro': 'Formato de mês inválido. Use YYYY-MM'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            hoje = timezone.now().date()
+            mes_referencia = date(hoje.year, hoje.month, 1)
+
+        # Busca despesas recorrentes ativas
+        # Compara apenas ano e mês (ignora o dia) para data_inicio
+        recorrentes = DespesaRecorrente.objects.filter(
+            company=request.user.company,
+            status='A',
+            data_inicio__year__lte=mes_referencia.year
+        )
+
+        # Refinar: se mesmo ano, verificar se mês de início <= mês de referência
+        recorrentes = recorrentes.filter(
+            Q(data_inicio__year__lt=mes_referencia.year) |
+            Q(data_inicio__year=mes_referencia.year, data_inicio__month__lte=mes_referencia.month)
+        )
+
+        # Filtrar por data_fim se existir (também compara apenas ano/mês)
+        recorrentes = recorrentes.filter(
+            Q(data_fim__isnull=True) |
+            Q(data_fim__year__gt=mes_referencia.year) |
+            Q(data_fim__year=mes_referencia.year, data_fim__month__gte=mes_referencia.month)
+        )
+
+        criadas = 0
+        ignoradas = 0
+        detalhes = []
+
+        for recorrente in recorrentes:
+            # Verifica se já gerou neste mês E se a despesa ainda existe
+            nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
+
+            despesa_existente = Despesa.objects.filter(
+                company=request.user.company,
+                nome=nome_esperado
+            ).exists()
+
+            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and despesa_existente:
+                ignoradas += 1
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'ignorada',
+                    'motivo': 'Já gerada para este mês'
+                })
+                continue
+
+            # Se foi marcado como gerado mas a despesa não existe mais, permite recriar
+            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and not despesa_existente:
+                # Reset ultimo_mes_gerado para permitir recriação
+                recorrente.ultimo_mes_gerado = None
+
+            # Calcula data de vencimento
+            ultimo_dia_mes = calendar.monthrange(
+                mes_referencia.year,
+                mes_referencia.month
+            )[1]
+            dia_vencimento = min(recorrente.dia_vencimento, ultimo_dia_mes)
+            data_vencimento = date(
+                mes_referencia.year,
+                mes_referencia.month,
+                dia_vencimento
+            )
+
+            # Cria despesa individual
+            try:
+                Despesa.objects.create(
+                    company=request.user.company,
+                    responsavel=recorrente.responsavel,
+                    nome=f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}",
+                    descricao=recorrente.descricao or '',
+                    valor=recorrente.valor,
+                    tipo=recorrente.tipo,
+                    data_vencimento=data_vencimento,
+                    situacao='A'
+                )
+
+                # Atualiza último mês gerado
+                recorrente.ultimo_mes_gerado = mes_referencia
+                recorrente.save()
+
+                criadas += 1
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'criada',
+                    'data_vencimento': str(data_vencimento)
+                })
+
+            except Exception as e:
+                detalhes.append({
+                    'nome': recorrente.nome,
+                    'status': 'erro',
+                    'motivo': str(e)
+                })
+
+        return Response({
+            'criadas': criadas,
+            'ignoradas': ignoradas,
+            'mes': mes_referencia.strftime('%Y-%m'),
+            'detalhes': detalhes
+        })
 
 
 from django.db.models import Q
