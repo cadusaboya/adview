@@ -25,6 +25,7 @@ const menuItems = [
     links: [
       { label: 'Contas a pagar', link: '/despesas/pagar' },
       { label: 'Contas pagas', link: '/despesas/pagas' },
+      { label: 'Despesas Recorrentes', link: '/despesas-recorrentes' },
     ],
   },
 
@@ -35,6 +36,7 @@ const menuItems = [
     links: [
       { label: 'Contas a receber', link: '/receitas/receber' },
       { label: 'Contas recebidas', link: '/receitas/recebidas' },
+      { label: 'Receitas Recorrentes', link: '/receitas-recorrentes' },
     ],
   },
 
