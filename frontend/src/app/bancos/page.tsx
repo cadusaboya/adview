@@ -148,7 +148,7 @@ export default function BancosPage() {
           <h1 className="text-2xl font-serif font-bold text-navy">Contas Bancárias</h1>
 
           <Button
-            className="shadow-md"
+            className="shadow-md bg-navy text-white hover:bg-navy/90"
             onClick={() => {
               setEditingBanco(null);
               setOpenDialog(true);
@@ -169,6 +169,7 @@ export default function BancosPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingBanco(null);
+            loadBancos(); // Refetch para atualizar mudanças
           }}
           onSubmit={handleSubmit}
           banco={editingBanco}

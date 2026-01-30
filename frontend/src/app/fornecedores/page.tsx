@@ -26,6 +26,7 @@ import {
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { formatCpfCnpj } from '@/lib/formatters';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
@@ -148,7 +149,12 @@ export default function FornecedorPage() {
   // ======================
   const columns: TableColumnsType<Fornecedor> = [
     { title: 'Nome', dataIndex: 'nome', width: '49%' },
-    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '20%' },
+    {
+      title: 'CPF / CNPJ',
+      dataIndex: 'cpf',
+      width: '20%',
+      render: (cpf: string) => formatCpfCnpj(cpf),
+    },
     { title: 'Email', dataIndex: 'email', width: '25%' },
     {
       title: 'Ações',
@@ -207,7 +213,7 @@ export default function FornecedorPage() {
           <h1 className="text-2xl font-serif font-bold text-navy">Fornecedores</h1>
 
           <Button
-            className="shadow-md"
+            className="shadow-md bg-navy text-white hover:bg-navy/90"
             onClick={() => {
               setEditingFornecedor(null);
               setOpenDialog(true);
@@ -235,6 +241,7 @@ export default function FornecedorPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingFornecedor(null);
+            loadFornecedores(); // Refetch para atualizar mudanças
           }}
           onSubmit={handleSubmit}
           funcionario={editingFornecedor}

@@ -26,7 +26,7 @@ import {
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
-import { formatCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyBR, formatCpfCnpj } from '@/lib/formatters';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
@@ -141,7 +141,12 @@ export default function FuncionarioPage() {
   // ======================
   const columns: TableColumnsType<Funcionario> = [
     { title: 'Nome', dataIndex: 'nome', width: '44%' },
-    { title: 'CPF', dataIndex: 'cpf', width: '15%' },
+    {
+      title: 'CPF',
+      dataIndex: 'cpf',
+      width: '15%',
+      render: (cpf: string) => formatCpfCnpj(cpf),
+    },
     { title: 'Email', dataIndex: 'email', width: '20%' },
     {
       title: 'Salário Mensal',
@@ -205,7 +210,7 @@ export default function FuncionarioPage() {
           <h1 className="text-2xl font-serif font-bold text-navy">Funcionários</h1>
 
           <Button
-            className="shadow-md"
+            className="shadow-md bg-navy text-white hover:bg-navy/90"
             onClick={() => {
               setEditingFuncionario(null);
               setOpenDialog(true);
@@ -232,6 +237,7 @@ export default function FuncionarioPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingFuncionario(null);
+            loadFuncionarios(); // Refetch para atualizar mudanças
           }}
           onSubmit={handleSubmit}
           funcionario={editingFuncionario}

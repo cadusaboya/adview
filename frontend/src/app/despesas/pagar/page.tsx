@@ -31,7 +31,8 @@ import {
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
-import { getFavorecidos, Favorecido } from '@/services/favorecidos';
+import { Favorecido } from '@/types/favorecidos';
+import { getFavorecidos } from '@/services/favorecidos';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -255,13 +256,13 @@ export default function DespesasPage() {
                 setOpenRelatorioModal(true);
               }}
               loading={loadingRelatorio}
-              className="shadow-md"
+              className="shadow-md bg-gold text-navy hover:bg-gold/90"
             >
               Gerar Relatório PDF
             </Button>
 
             <Button
-              className="shadow-md"
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
               onClick={() => {
                 setEditingDespesa(null);
                 setOpenDialog(true);
@@ -290,6 +291,7 @@ export default function DespesasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingDespesa(null);
+            loadDespesas(); // Refetch para atualizar mudanças (ex: pagamentos)
           }}
           onSubmit={handleSubmit}
         />

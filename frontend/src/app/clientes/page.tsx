@@ -23,6 +23,7 @@ import ClienteDialog from '@/components/dialogs/ClienteDialog';
 import { ClienteProfileDialog } from '@/components/dialogs/ClienteProfileDialog';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { toast } from 'sonner';
+import { formatCpfCnpj } from '@/lib/formatters';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import {
@@ -140,7 +141,12 @@ export default function ClientePage() {
   // ======================
   const columns: TableColumnsType<Cliente> = [
     { title: 'Nome', dataIndex: 'nome', width: '50%' },
-    { title: 'CPF / CNPJ', dataIndex: 'cpf', width: '16%' },
+    {
+      title: 'CPF / CNPJ',
+      dataIndex: 'cpf',
+      width: '16%',
+      render: (cpf: string) => formatCpfCnpj(cpf),
+    },
     { title: 'Email', dataIndex: 'email', width: '20%' },
     { title: 'Tipo', dataIndex: 'tipo_display', width: '8%' },
     {
@@ -200,7 +206,7 @@ export default function ClientePage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Clientes</h1>
           <Button
-            className="shadow-md"
+            className="shadow-md bg-navy text-white hover:bg-navy/90"
             onClick={() => {
               setEditingCliente(null);
               setOpenDialog(true);
@@ -227,6 +233,7 @@ export default function ClientePage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingCliente(null);
+            loadClientes(); // Refetch para atualizar mudanças (ex: formas de cobrança)
           }}
           onSubmit={handleSubmit}
           cliente={editingCliente}

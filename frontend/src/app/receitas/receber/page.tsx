@@ -241,13 +241,13 @@ export default function ReceitasPage() {
               icon={<DownloadOutlined />}
               onClick={() => setOpenRelatorioModal(true)}
               loading={loadingRelatorio}
-              className="shadow-md whitespace-nowrap"
+              className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
               Gerar Relatório PDF
             </Button>
 
             <Button
-              className="shadow-md"
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
               onClick={() => {
                 setEditingReceita(null);
                 setOpenDialog(true);
@@ -275,6 +275,7 @@ export default function ReceitasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
+            loadReceitas(); // Refetch para atualizar mudanças (ex: pagamentos)
           }}
           receita={editingReceita}
           onSubmit={handleSubmit}

@@ -16,7 +16,8 @@ import { Input } from '@/components/ui/input';
 
 import { getPayments, deletePayment } from '@/services/payments';
 import { updateDespesa, getDespesaById } from '@/services/despesas';
-import { getFavorecidos, Favorecido } from '@/services/favorecidos';
+import { Favorecido } from '@/types/favorecidos';
+import { getFavorecidos } from '@/services/favorecidos';
 import { gerarRelatorioPDF } from '@/services/pdf';
 
 import { Payment } from '@/types/payments';
@@ -251,7 +252,7 @@ export default function DespesasPagasPage() {
                 setOpenRelatorioModal(true);
               }}
               loading={loadingRelatorio}
-              className="shadow-md whitespace-nowrap"
+              className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
               Gerar Relatório PDF
             </Button>
