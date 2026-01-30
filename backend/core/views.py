@@ -1027,6 +1027,24 @@ def dashboard_view(request):
         situacao='V'
     ).count()
 
+    valor_despesas_vencidas = (
+        Despesa.objects.filter(
+            company=company,
+            situacao='V'
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+
+    valor_receitas_vencidas = (
+        Receita.objects.filter(
+            company=company,
+            situacao='V'
+        )
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+
     # ======================================================
     # 📊 GRÁFICO RECEITA x DESPESA (ÚLTIMOS 6 MESES - REALIZADO)
     # ======================================================
@@ -1195,6 +1213,8 @@ def dashboard_view(request):
         # Alertas
         'despesasVencidas': despesas_vencidas,
         'receitasVencidas': receitas_vencidas,
+        'valorDespesasVencidas': float(valor_despesas_vencidas),
+        'valorReceitasVencidas': float(valor_receitas_vencidas),
         
         # Aniversariantes
         'aniversariantes': aniversariantes,

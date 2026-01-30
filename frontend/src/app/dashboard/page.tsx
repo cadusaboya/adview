@@ -46,6 +46,8 @@ interface DashboardData {
   // Alertas
   despesasVencidas: number;
   receitasVencidas: number;
+  valorDespesasVencidas: number;
+  valorReceitasVencidas: number;
 
   // Aniversariantes
   aniversariantes: {
@@ -136,7 +138,7 @@ const StatCard: React.FC<{
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
   trendLabel?: string;
-  color?: 'blue' | 'green' | 'red' | 'yellow' | 'purple';
+  color?: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'orange';
 }> = ({ title, value, icon, trend, trendValue, trendLabel, color = 'blue' }) => {
   const colorClasses = {
     blue: 'bg-blue-50 border-blue-200',
@@ -144,6 +146,7 @@ const StatCard: React.FC<{
     red: 'bg-red-50 border-red-200',
     yellow: 'bg-yellow-50 border-yellow-200',
     purple: 'bg-purple-50 border-purple-200',
+    orange: 'bg-white border-orange-400',
   };
 
   const iconColorClasses = {
@@ -152,10 +155,11 @@ const StatCard: React.FC<{
     red: 'text-red-600',
     yellow: 'text-yellow-600',
     purple: 'text-purple-600',
+    orange: 'text-orange-500',
   };
 
   return (
-    <Card className={`${colorClasses[color]} border-2`}>
+    <Card className={`${colorClasses[color]} border-2 relative`}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
@@ -164,31 +168,31 @@ const StatCard: React.FC<{
               ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               : value}
           </p>
-          {trend && trendValue && (
-            <div className="flex items-center mt-2">
-              {trend === 'up' && (
-                <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
-              )}
-              {trend === 'down' && (
-                <TrendingDown className="w-4 h-4 text-red-600 mr-1" />
-              )}
-              <span
-                className={`text-xs font-semibold ${
-                  trend === 'up' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {trendValue}
-              </span>
-              {trendLabel && (
-                <span className="text-xs text-gray-500 ml-1">{trendLabel}</span>
-              )}
-            </div>
-          )}
         </div>
         <div className={`p-3 rounded-lg ${iconColorClasses[color]}`}>
           {icon}
         </div>
       </div>
+      {trend && trendValue && (
+        <div className="absolute bottom-3 right-3 flex items-center">
+          {trend === 'up' && (
+            <TrendingUp className="w-3 h-3 text-green-600 mr-1" />
+          )}
+          {trend === 'down' && (
+            <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
+          )}
+          <span
+            className={`text-[10px] font-semibold ${
+              trend === 'up' ? 'text-green-600' : 'text-red-600'
+            }`}
+          >
+            {trendValue}
+          </span>
+          {trendLabel && (
+            <span className="text-[10px] text-gray-500 ml-1">{trendLabel}</span>
+          )}
+        </div>
+      )}
     </Card>
   );
 };
@@ -345,37 +349,32 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Alerts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {/* Vencidas Alert */}
-            <Card className="border-l-4 border-red-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Despesas Vencidas
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {data.despesasVencidas}
-                  </p>
-                </div>
-                <AlertCircle className="w-8 h-8 text-red-500" />
-              </div>
-            </Card>
-
-            {/* Receitas Vencidas Alert */}
-            <Card className="border-l-4 border-orange-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Receitas Vencidas
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {data.receitasVencidas}
-                  </p>
-                </div>
-                <XCircle className="w-8 h-8 text-orange-500" />
-              </div>
-            </Card>
+          {/* Alerts Row - Despesas e Receitas Vencidas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard
+              title="Despesas Vencidas"
+              value={data.despesasVencidas.toString()}
+              icon={<AlertCircle className="w-6 h-6" />}
+              color="red"
+            />
+            <StatCard
+              title="Despesas Vencidas"
+              value={data.valorDespesasVencidas}
+              icon={<TrendingDown className="w-6 h-6" />}
+              color="red"
+            />
+            <StatCard
+              title="Receitas Vencidas"
+              value={data.receitasVencidas.toString()}
+              icon={<XCircle className="w-6 h-6" />}
+              color="orange"
+            />
+            <StatCard
+              title="Receitas Vencidas"
+              value={data.valorReceitasVencidas}
+              icon={<TrendingUp className="w-6 h-6" />}
+              color="orange"
+            />
           </div>
 
           {/* Aniversariantes Details */}
