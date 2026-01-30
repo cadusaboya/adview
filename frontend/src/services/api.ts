@@ -1,5 +1,6 @@
 import axios from 'axios';
 import qs from 'qs';
+import { toast } from 'sonner';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -25,3 +26,25 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+// Response interceptor for handling 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear tokens
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
+
+      // Show error message
+      toast.error('Sessão expirada. Por favor, faça login novamente.');
+
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    }
+
+    return Promise.reject(error);
+  }
+);
