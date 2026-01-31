@@ -174,6 +174,11 @@ class ReceitaRecorrente(models.Model):
         ('P', 'Pausada'),
     )
 
+    FORMA_CHOICES = (
+        ('P', 'Pix'),
+        ('B', 'Boleto'),
+    )
+
     # Multi-tenancy
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
@@ -189,6 +194,15 @@ class ReceitaRecorrente(models.Model):
     # Valores
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='F')
+    forma_pagamento = models.CharField(max_length=1, choices=FORMA_CHOICES, blank=True, null=True)
+    comissionado = models.ForeignKey(
+        Funcionario,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        limit_choices_to={'tipo__in': ['F', 'P']},
+        help_text="Funcionário ou Parceiro que receberá comissão"
+    )
 
     # Recorrência
     data_inicio = models.DateField(
@@ -206,11 +220,6 @@ class ReceitaRecorrente(models.Model):
 
     # Controle
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='A')
-    ultimo_mes_gerado = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Último mês em que receitas foram geradas"
-    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -298,6 +307,11 @@ class DespesaRecorrente(models.Model):
         ('P', 'Pausada'),
     )
 
+    FORMA_CHOICES = (
+        ('P', 'Pix'),
+        ('B', 'Boleto'),
+    )
+
     # Multi-tenancy
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
@@ -313,6 +327,7 @@ class DespesaRecorrente(models.Model):
     # Valores
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='F')
+    forma_pagamento = models.CharField(max_length=1, choices=FORMA_CHOICES, blank=True, null=True)
 
     # Recorrência
     data_inicio = models.DateField(
@@ -330,11 +345,6 @@ class DespesaRecorrente(models.Model):
 
     # Controle
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='A')
-    ultimo_mes_gerado = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Último mês em que despesas foram geradas"
-    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -26,6 +26,7 @@ import {
   updateDespesaRecorrente,
   deleteDespesaRecorrente,
   gerarDespesasDoMes,
+  gerarProximosMeses,
 } from '@/services/despesasRecorrentes';
 
 import {
@@ -48,6 +49,11 @@ export default function DespesasRecorrentesPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [showGerarMesAlert, setShowGerarMesAlert] = useState(false);
+  const [mesSelecionado, setMesSelecionado] = useState('');
+
+  const [showGerarProximosMesesDialog, setShowGerarProximosMesesDialog] = useState(false);
+  const [despesaSelecionada, setDespesaSelecionada] = useState<DespesaRecorrente | null>(null);
+  const [quantidadeMeses, setQuantidadeMeses] = useState(1);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -154,7 +160,7 @@ export default function DespesasRecorrentesPage() {
     setShowGerarMesAlert(false);
 
     try {
-      const result = await gerarDespesasDoMes();
+      const result = await gerarDespesasDoMes(mesSelecionado || undefined);
 
       if (result.criadas > 0) {
         toast.success(
@@ -168,10 +174,42 @@ export default function DespesasRecorrentesPage() {
         toast.info('Nenhuma despesa foi gerada. Todas já existem.');
       }
 
+      setMesSelecionado('');
       loadDespesas();
     } catch (error) {
       console.error(error);
       toast.error('Erro ao gerar despesas do mês');
+    }
+  };
+
+  // ======================
+  // 📅 GERAR PRÓXIMOS MESES
+  // ======================
+  const handleGerarProximosMeses = async () => {
+    if (!despesaSelecionada) return;
+    setShowGerarProximosMesesDialog(false);
+
+    try {
+      const result = await gerarProximosMeses(despesaSelecionada.id, quantidadeMeses);
+
+      if (result.criadas > 0) {
+        toast.success(
+          `${result.criadas} despesa(s) gerada(s) para "${despesaSelecionada.nome}"!`
+        );
+
+        if (result.ignoradas > 0) {
+          toast.info(`${result.ignoradas} meses foram ignorados`);
+        }
+      } else {
+        toast.info('Nenhuma despesa foi gerada. Todas já existem ou estão fora do período.');
+      }
+
+      setQuantidadeMeses(1);
+      setDespesaSelecionada(null);
+      loadDespesas();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.erro || 'Erro ao gerar despesas');
     }
   };
 
@@ -237,6 +275,14 @@ export default function DespesasRecorrentesPage() {
       render: (_: unknown, record: DespesaRecorrente) => (
         <ActionsDropdown
           actions={[
+            {
+              label: 'Gerar Próximos Meses',
+              icon: CalendarPlus,
+              onClick: () => {
+                setDespesaSelecionada(record);
+                setShowGerarProximosMesesDialog(true);
+              },
+            },
             {
               label: record.status === 'A' ? 'Pausar' : 'Reativar',
               icon: record.status === 'A' ? Pause : Play,
@@ -332,15 +378,74 @@ export default function DespesasRecorrentesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Gerar Despesas do Mês</AlertDialogTitle>
               <AlertDialogDescription>
-                Deseja gerar as despesas recorrentes para o mês atual?
-                Esta ação criará automaticamente todas as despesas ativas que ainda não foram geradas.
+                Selecione o mês para gerar as despesas recorrentes ativas.
+                Deixe em branco para gerar o mês atual.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="py-4">
+              <label className="text-sm font-medium mb-2 block">
+                Mês (opcional)
+              </label>
+              <Input
+                type="month"
+                value={mesSelecionado}
+                onChange={(e) => setMesSelecionado(e.target.value)}
+                placeholder="Selecione o mês"
+              />
+            </div>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setMesSelecionado('')}>
+                Cancelar
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleGerarMes}
                 className="bg-gold text-navy hover:bg-gold/90"
+              >
+                Gerar Despesas
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={showGerarProximosMesesDialog}
+          onOpenChange={setShowGerarProximosMesesDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Gerar Próximos Meses</AlertDialogTitle>
+              <AlertDialogDescription>
+                Gerar múltiplas despesas para "{despesaSelecionada?.nome}"
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Quantidade de meses (1-24)
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={quantidadeMeses}
+                  onChange={(e) => setQuantidadeMeses(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Serão geradas {quantidadeMeses} despesa(s) a partir do mês atual.
+                Despesas já existentes serão automaticamente ignoradas.
+              </p>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setQuantidadeMeses(1);
+                setDespesaSelecionada(null);
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleGerarProximosMeses}
+                className="bg-navy text-white hover:bg-navy/90"
               >
                 Gerar Despesas
               </AlertDialogAction>

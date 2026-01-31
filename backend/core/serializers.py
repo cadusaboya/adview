@@ -168,12 +168,17 @@ class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
     # Read-only fields
     company = CompanySerializer(read_only=True)
     cliente = ClienteSerializer(read_only=True)
+    comissionado = FuncionarioSerializer(read_only=True)
     status_display = serializers.CharField(
         source='get_status_display',
         read_only=True
     )
     tipo_display = serializers.CharField(
         source='get_tipo_display',
+        read_only=True
+    )
+    forma_pagamento_display = serializers.CharField(
+        source='get_forma_pagamento_display',
         read_only=True
     )
 
@@ -183,11 +188,18 @@ class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
         source='cliente',
         write_only=True
     )
+    comissionado_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.all(),
+        source='comissionado',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = ReceitaRecorrente
         fields = '__all__'
-        read_only_fields = ('company', 'cliente', 'ultimo_mes_gerado')
+        read_only_fields = ('company', 'cliente', 'comissionado')
 
     def validate_dia_vencimento(self, value):
         """Valida que dia está entre 1 e 31"""
@@ -287,6 +299,10 @@ class DespesaRecorrenteSerializer(serializers.ModelSerializer):
         source='get_tipo_display',
         read_only=True
     )
+    forma_pagamento_display = serializers.CharField(
+        source='get_forma_pagamento_display',
+        read_only=True
+    )
 
     # Write-only fields
     responsavel_id = serializers.PrimaryKeyRelatedField(
@@ -298,7 +314,7 @@ class DespesaRecorrenteSerializer(serializers.ModelSerializer):
     class Meta:
         model = DespesaRecorrente
         fields = '__all__'
-        read_only_fields = ('company', 'responsavel', 'ultimo_mes_gerado')
+        read_only_fields = ('company', 'responsavel')
 
     def validate_dia_vencimento(self, value):
         """Valida que dia está entre 1 e 31"""

@@ -382,7 +382,7 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         detalhes = []
 
         for recorrente in recorrentes:
-            # Verifica se já gerou neste mês E se a receita ainda existe
+            # Verifica se já existe receita para este mês
             nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
 
             receita_existente = Receita.objects.filter(
@@ -390,7 +390,7 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                 nome=nome_esperado
             ).exists()
 
-            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and receita_existente:
+            if receita_existente:
                 ignoradas += 1
                 detalhes.append({
                     'nome': recorrente.nome,
@@ -398,11 +398,6 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     'motivo': 'Já gerada para este mês'
                 })
                 continue
-
-            # Se foi marcado como gerado mas a receita não existe mais, permite recriar
-            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and not receita_existente:
-                # Reset ultimo_mes_gerado para permitir recriação
-                recorrente.ultimo_mes_gerado = None
 
             # Calcula data de vencimento
             ultimo_dia_mes = calendar.monthrange(
@@ -418,7 +413,7 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
 
             # Cria receita individual
             try:
-                Receita.objects.create(
+                receita = Receita.objects.create(
                     company=request.user.company,
                     cliente=recorrente.cliente,
                     nome=f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}",
@@ -426,12 +421,30 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     valor=recorrente.valor,
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
-                    situacao='A'
+                    situacao='A',
+                    forma_pagamento=recorrente.forma_pagamento,
+                    comissionado=recorrente.comissionado
                 )
 
-                # Atualiza último mês gerado
-                recorrente.ultimo_mes_gerado = mes_referencia
-                recorrente.save()
+                # Cria despesa de comissão se houver comissionado
+                if recorrente.comissionado:
+                    # Verifica se já não existe uma despesa de comissão para essa receita
+                    if not Despesa.objects.filter(receita_origem=receita, tipo='C').exists():
+                        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
+                        percentual = percentual_comissao / Decimal('100.00')
+                        valor_comissao = receita.valor * percentual
+
+                        Despesa.objects.create(
+                            company=receita.company,
+                            responsavel=recorrente.comissionado,
+                            nome=f'Comissão - {receita.nome}',
+                            descricao=f'Comissão referente à receita {receita.id}',
+                            data_vencimento=receita.data_vencimento,
+                            valor=valor_comissao,
+                            tipo='C',
+                            situacao='A',
+                            receita_origem=receita,
+                        )
 
                 criadas += 1
                 detalhes.append({
@@ -451,6 +464,160 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             'criadas': criadas,
             'ignoradas': ignoradas,
             'mes': mes_referencia.strftime('%Y-%m'),
+            'detalhes': detalhes
+        })
+
+    @action(detail=True, methods=['post'], url_path='gerar-proximos-meses')
+    def gerar_proximos_meses(self, request, pk=None):
+        """
+        Gera receitas para os próximos X meses de uma receita recorrente específica.
+
+        POST /api/receitas-recorrentes/{id}/gerar-proximos-meses/
+        Body: {
+            "quantidade_meses": 10
+        }
+
+        Retorna:
+        {
+            "criadas": 10,
+            "ignoradas": 0,
+            "detalhes": [...]
+        }
+        """
+        from datetime import date
+        import calendar
+
+        recorrente = self.get_object()
+        quantidade_meses = request.data.get('quantidade_meses', 1)
+
+        if not isinstance(quantidade_meses, int) or quantidade_meses < 1 or quantidade_meses > 24:
+            return Response(
+                {'erro': 'Quantidade de meses deve ser um número entre 1 e 24'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Helper function to add months
+        def add_months(source_date, months):
+            month = source_date.month - 1 + months
+            year = source_date.year + month // 12
+            month = month % 12 + 1
+            day = min(source_date.day, calendar.monthrange(year, month)[1])
+            return date(year, month, day)
+
+        # Começar sempre do mês atual
+        hoje = timezone.now().date()
+        mes_inicial = date(hoje.year, hoje.month, 1)
+
+        criadas = 0
+        ignoradas = 0
+        detalhes = []
+
+        for i in range(quantidade_meses):
+            mes_referencia = add_months(mes_inicial, i)
+
+            # Verifica se está dentro do período de validade (compara apenas ano/mês)
+            if (recorrente.data_inicio.year > mes_referencia.year or
+                (recorrente.data_inicio.year == mes_referencia.year and
+                 recorrente.data_inicio.month > mes_referencia.month)):
+                ignoradas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'ignorada',
+                    'motivo': 'Antes da data de início'
+                })
+                continue
+
+            if recorrente.data_fim:
+                if (recorrente.data_fim.year < mes_referencia.year or
+                    (recorrente.data_fim.year == mes_referencia.year and
+                     recorrente.data_fim.month < mes_referencia.month)):
+                    ignoradas += 1
+                    detalhes.append({
+                        'mes': mes_referencia.strftime('%Y-%m'),
+                        'status': 'ignorada',
+                        'motivo': 'Depois da data de fim'
+                    })
+                    continue
+
+            # Verifica se já existe
+            nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
+            receita_existente = Receita.objects.filter(
+                company=request.user.company,
+                nome=nome_esperado
+            ).exists()
+
+            if receita_existente:
+                ignoradas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'ignorada',
+                    'motivo': 'Já existe'
+                })
+                continue
+
+            # Calcula data de vencimento
+            ultimo_dia_mes = calendar.monthrange(
+                mes_referencia.year,
+                mes_referencia.month
+            )[1]
+            dia_vencimento = min(recorrente.dia_vencimento, ultimo_dia_mes)
+            data_vencimento = date(
+                mes_referencia.year,
+                mes_referencia.month,
+                dia_vencimento
+            )
+
+            # Cria receita individual
+            try:
+                receita = Receita.objects.create(
+                    company=request.user.company,
+                    cliente=recorrente.cliente,
+                    nome=nome_esperado,
+                    descricao=recorrente.descricao or '',
+                    valor=recorrente.valor,
+                    tipo=recorrente.tipo,
+                    data_vencimento=data_vencimento,
+                    situacao='A',
+                    forma_pagamento=recorrente.forma_pagamento,
+                    comissionado=recorrente.comissionado
+                )
+
+                # Cria despesa de comissão se houver comissionado
+                if recorrente.comissionado:
+                    if not Despesa.objects.filter(receita_origem=receita, tipo='C').exists():
+                        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
+                        percentual = percentual_comissao / Decimal('100.00')
+                        valor_comissao = receita.valor * percentual
+
+                        Despesa.objects.create(
+                            company=receita.company,
+                            responsavel=recorrente.comissionado,
+                            nome=f'Comissão - {receita.nome}',
+                            descricao=f'Comissão referente à receita {receita.id}',
+                            data_vencimento=receita.data_vencimento,
+                            valor=valor_comissao,
+                            tipo='C',
+                            situacao='A',
+                            receita_origem=receita,
+                        )
+
+                criadas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'criada',
+                    'data_vencimento': str(data_vencimento)
+                })
+
+            except Exception as e:
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'erro',
+                    'motivo': str(e)
+                })
+
+        return Response({
+            'criadas': criadas,
+            'ignoradas': ignoradas,
             'detalhes': detalhes
         })
 
@@ -633,7 +800,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         detalhes = []
 
         for recorrente in recorrentes:
-            # Verifica se já gerou neste mês E se a despesa ainda existe
+            # Verifica se já existe despesa para este mês
             nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
 
             despesa_existente = Despesa.objects.filter(
@@ -641,7 +808,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                 nome=nome_esperado
             ).exists()
 
-            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and despesa_existente:
+            if despesa_existente:
                 ignoradas += 1
                 detalhes.append({
                     'nome': recorrente.nome,
@@ -649,11 +816,6 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     'motivo': 'Já gerada para este mês'
                 })
                 continue
-
-            # Se foi marcado como gerado mas a despesa não existe mais, permite recriar
-            if recorrente.ultimo_mes_gerado and recorrente.ultimo_mes_gerado >= mes_referencia and not despesa_existente:
-                # Reset ultimo_mes_gerado para permitir recriação
-                recorrente.ultimo_mes_gerado = None
 
             # Calcula data de vencimento
             ultimo_dia_mes = calendar.monthrange(
@@ -677,12 +839,9 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     valor=recorrente.valor,
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
-                    situacao='A'
+                    situacao='A',
+                    forma_pagamento=recorrente.forma_pagamento
                 )
-
-                # Atualiza último mês gerado
-                recorrente.ultimo_mes_gerado = mes_referencia
-                recorrente.save()
 
                 criadas += 1
                 detalhes.append({
@@ -702,6 +861,140 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             'criadas': criadas,
             'ignoradas': ignoradas,
             'mes': mes_referencia.strftime('%Y-%m'),
+            'detalhes': detalhes
+        })
+
+    @action(detail=True, methods=['post'], url_path='gerar-proximos-meses')
+    def gerar_proximos_meses(self, request, pk=None):
+        """
+        Gera despesas para os próximos X meses de uma despesa recorrente específica.
+
+        POST /api/despesas-recorrentes/{id}/gerar-proximos-meses/
+        Body: {
+            "quantidade_meses": 10
+        }
+
+        Retorna:
+        {
+            "criadas": 10,
+            "ignoradas": 0,
+            "detalhes": [...]
+        }
+        """
+        from datetime import date
+        import calendar
+
+        recorrente = self.get_object()
+        quantidade_meses = request.data.get('quantidade_meses', 1)
+
+        if not isinstance(quantidade_meses, int) or quantidade_meses < 1 or quantidade_meses > 24:
+            return Response(
+                {'erro': 'Quantidade de meses deve ser um número entre 1 e 24'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Helper function to add months
+        def add_months(source_date, months):
+            month = source_date.month - 1 + months
+            year = source_date.year + month // 12
+            month = month % 12 + 1
+            day = min(source_date.day, calendar.monthrange(year, month)[1])
+            return date(year, month, day)
+
+        # Começar sempre do mês atual
+        hoje = timezone.now().date()
+        mes_inicial = date(hoje.year, hoje.month, 1)
+
+        criadas = 0
+        ignoradas = 0
+        detalhes = []
+
+        for i in range(quantidade_meses):
+            mes_referencia = add_months(mes_inicial, i)
+
+            # Verifica se está dentro do período de validade (compara apenas ano/mês)
+            if (recorrente.data_inicio.year > mes_referencia.year or
+                (recorrente.data_inicio.year == mes_referencia.year and
+                 recorrente.data_inicio.month > mes_referencia.month)):
+                ignoradas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'ignorada',
+                    'motivo': 'Antes da data de início'
+                })
+                continue
+
+            if recorrente.data_fim:
+                if (recorrente.data_fim.year < mes_referencia.year or
+                    (recorrente.data_fim.year == mes_referencia.year and
+                     recorrente.data_fim.month < mes_referencia.month)):
+                    ignoradas += 1
+                    detalhes.append({
+                        'mes': mes_referencia.strftime('%Y-%m'),
+                        'status': 'ignorada',
+                        'motivo': 'Depois da data de fim'
+                    })
+                    continue
+
+            # Verifica se já existe
+            nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
+            despesa_existente = Despesa.objects.filter(
+                company=request.user.company,
+                nome=nome_esperado
+            ).exists()
+
+            if despesa_existente:
+                ignoradas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'ignorada',
+                    'motivo': 'Já existe'
+                })
+                continue
+
+            # Calcula data de vencimento
+            ultimo_dia_mes = calendar.monthrange(
+                mes_referencia.year,
+                mes_referencia.month
+            )[1]
+            dia_vencimento = min(recorrente.dia_vencimento, ultimo_dia_mes)
+            data_vencimento = date(
+                mes_referencia.year,
+                mes_referencia.month,
+                dia_vencimento
+            )
+
+            # Cria despesa individual
+            try:
+                Despesa.objects.create(
+                    company=request.user.company,
+                    responsavel=recorrente.responsavel,
+                    nome=nome_esperado,
+                    descricao=recorrente.descricao or '',
+                    valor=recorrente.valor,
+                    tipo=recorrente.tipo,
+                    data_vencimento=data_vencimento,
+                    situacao='A',
+                    forma_pagamento=recorrente.forma_pagamento
+                )
+
+                criadas += 1
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'criada',
+                    'data_vencimento': str(data_vencimento)
+                })
+
+            except Exception as e:
+                detalhes.append({
+                    'mes': mes_referencia.strftime('%Y-%m'),
+                    'status': 'erro',
+                    'motivo': str(e)
+                })
+
+        return Response({
+            'criadas': criadas,
+            'ignoradas': ignoradas,
             'detalhes': detalhes
         })
 

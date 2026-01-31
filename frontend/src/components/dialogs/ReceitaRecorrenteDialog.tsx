@@ -20,7 +20,9 @@ import {
   ReceitaRecorrenteUpdate,
 } from '@/types/receitasRecorrentes';
 import { Cliente } from '@/types/clientes';
+import { Funcionario } from '@/types/funcionarios';
 import { getClientes } from '@/services/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
 import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 interface Props {
@@ -42,26 +44,33 @@ export default function ReceitaRecorrenteDialog({
     cliente_id: 0,
     valor: 0,
     tipo: 'F',
+    forma_pagamento: null,
+    comissionado_id: null,
     data_inicio: '',
     dia_vencimento: 1,
   });
 
   const [valorDisplay, setValorDisplay] = useState('');
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
 
   // ======================
-  // 🔹 Clientes
+  // 🔹 Load auxiliary data
   // ======================
   useEffect(() => {
-    const loadClientes = async () => {
+    const loadData = async () => {
       try {
-        const { results } = await getClientes({ page_size: 1000 });
-        setClientes(results);
+        const [clientesRes, funcionariosRes] = await Promise.all([
+          getClientes({ page_size: 1000 }),
+          getFuncionarios({ page_size: 1000 }),
+        ]);
+        setClientes(clientesRes.results);
+        setFuncionarios(funcionariosRes.results);
       } catch (error) {
-        console.error('Erro ao carregar clientes:', error);
+        console.error('Erro ao carregar dados:', error);
       }
     };
-    loadClientes();
+    loadData();
   }, []);
 
   // ======================
@@ -75,6 +84,8 @@ export default function ReceitaRecorrenteDialog({
         cliente_id: receita.cliente_id,
         valor: receita.valor,
         tipo: receita.tipo,
+        forma_pagamento: receita.forma_pagamento,
+        comissionado_id: receita.comissionado?.id ?? null,
         data_inicio: receita.data_inicio,
         data_fim: receita.data_fim,
         dia_vencimento: receita.dia_vencimento,
@@ -90,6 +101,8 @@ export default function ReceitaRecorrenteDialog({
         cliente_id: 0,
         valor: 0,
         tipo: 'F',
+        forma_pagamento: null,
+        comissionado_id: null,
         data_inicio: '',
         dia_vencimento: 1,
       });
@@ -229,6 +242,52 @@ export default function ReceitaRecorrenteDialog({
           </div>
         </div>
 
+        {/* Forma de Pagamento e Comissionado */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium">Forma de Pagamento</label>
+            <Select
+              value={formData.forma_pagamento || ''}
+              onValueChange={(val) =>
+                setFormData({
+                  ...formData,
+                  forma_pagamento: val ? (val as 'P' | 'B') : null,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="P">Pix</SelectItem>
+                <SelectItem value="B">Boleto</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Comissionado (Opcional)</label>
+            <AntdSelect
+              allowClear
+              placeholder="Selecione um funcionário/parceiro"
+              value={formData.comissionado_id ?? undefined}
+              options={funcionarios
+                .filter((f) => f.tipo === 'F' || f.tipo === 'P')
+                .map((f) => ({
+                  value: f.id,
+                  label: f.nome,
+                }))}
+              onChange={(val) =>
+                setFormData({
+                  ...formData,
+                  comissionado_id: val ?? null,
+                })
+              }
+              style={{ width: '100%' }}
+            />
+          </div>
+        </div>
+
         {/* Data Início, Data Fim, Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -274,21 +333,6 @@ export default function ReceitaRecorrenteDialog({
             </Select>
           </div>
         </div>
-
-        {/* Info sobre último mês gerado (só no edit) */}
-        {receita?.ultimo_mes_gerado && (
-          <div className="bg-muted p-3 rounded-md">
-            <p className="text-sm text-muted-foreground">
-              Último mês gerado:{' '}
-              <span className="font-medium">
-                {new Date(receita.ultimo_mes_gerado).toLocaleDateString('pt-BR', {
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </span>
-            </p>
-          </div>
-        )}
       </div>
     </DialogBase>
   );

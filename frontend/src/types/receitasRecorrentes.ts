@@ -13,14 +13,21 @@ export interface ReceitaRecorrente {
   tipo: 'F' | 'V';
   tipo_display: string;
 
+  forma_pagamento: 'P' | 'B' | null; // P = Pix, B = Boleto
+  forma_pagamento_display: string | null;
+
+  comissionado_id: number | null;
+  comissionado: {
+    id: number;
+    nome: string;
+  } | null;
+
   data_inicio: string;
   data_fim: string | null;
   dia_vencimento: number;
 
   status: 'A' | 'P';
   status_display: string;
-
-  ultimo_mes_gerado: string | null;
 
   created_at: string;
   updated_at: string;
@@ -32,6 +39,8 @@ export type ReceitaRecorrenteCreate = {
   cliente_id: number;
   valor: number;
   tipo: 'F' | 'V';
+  forma_pagamento?: 'P' | 'B' | null;
+  comissionado_id?: number | null;
   data_inicio: string;
   data_fim?: string | null;
   dia_vencimento: number;

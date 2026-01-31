@@ -13,14 +13,15 @@ export interface DespesaRecorrente {
   tipo: 'F' | 'V';
   tipo_display: string;
 
+  forma_pagamento: 'P' | 'B' | null; // P = Pix, B = Boleto
+  forma_pagamento_display: string | null;
+
   data_inicio: string;
   data_fim: string | null;
   dia_vencimento: number;
 
   status: 'A' | 'P';
   status_display: string;
-
-  ultimo_mes_gerado: string | null;
 
   created_at: string;
   updated_at: string;
@@ -32,6 +33,7 @@ export type DespesaRecorrenteCreate = {
   responsavel_id: number;
   valor: number;
   tipo: 'F' | 'V';
+  forma_pagamento?: 'P' | 'B' | null;
   data_inicio: string;
   data_fim?: string | null;
   dia_vencimento: number;

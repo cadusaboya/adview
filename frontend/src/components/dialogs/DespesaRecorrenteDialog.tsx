@@ -42,6 +42,7 @@ export default function DespesaRecorrenteDialog({
     responsavel_id: 0,
     valor: 0,
     tipo: 'F',
+    forma_pagamento: null,
     data_inicio: '',
     dia_vencimento: 1,
   });
@@ -75,6 +76,7 @@ export default function DespesaRecorrenteDialog({
         responsavel_id: despesa.responsavel_id,
         valor: despesa.valor,
         tipo: despesa.tipo,
+        forma_pagamento: despesa.forma_pagamento,
         data_inicio: despesa.data_inicio,
         data_fim: despesa.data_fim,
         dia_vencimento: despesa.dia_vencimento,
@@ -90,6 +92,7 @@ export default function DespesaRecorrenteDialog({
         responsavel_id: 0,
         valor: 0,
         tipo: 'F',
+        forma_pagamento: null,
         data_inicio: '',
         dia_vencimento: 1,
       });
@@ -229,6 +232,28 @@ export default function DespesaRecorrenteDialog({
           </div>
         </div>
 
+        {/* Forma de Pagamento */}
+        <div>
+          <label className="text-sm font-medium">Forma de Pagamento</label>
+          <Select
+            value={formData.forma_pagamento || ''}
+            onValueChange={(val) =>
+              setFormData({
+                ...formData,
+                forma_pagamento: val ? (val as 'P' | 'B') : null,
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="P">Pix</SelectItem>
+              <SelectItem value="B">Boleto</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Data Início, Data Fim, Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -274,21 +299,6 @@ export default function DespesaRecorrenteDialog({
             </Select>
           </div>
         </div>
-
-        {/* Info sobre último mês gerado (só no edit) */}
-        {despesa?.ultimo_mes_gerado && (
-          <div className="bg-muted p-3 rounded-md">
-            <p className="text-sm text-muted-foreground">
-              Último mês gerado:{' '}
-              <span className="font-medium">
-                {new Date(despesa.ultimo_mes_gerado).toLocaleDateString('pt-BR', {
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </span>
-            </p>
-          </div>
-        )}
       </div>
     </DialogBase>
   );

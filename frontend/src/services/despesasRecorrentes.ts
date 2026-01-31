@@ -65,3 +65,14 @@ export async function gerarDespesasDoMes(
   );
   return res.data;
 }
+
+export async function gerarProximosMeses(
+  id: number,
+  quantidadeMeses: number
+): Promise<GerarMesResponse> {
+  const res = await api.post<GerarMesResponse>(
+    `/api/despesas-recorrentes/${id}/gerar-proximos-meses/`,
+    { quantidade_meses: quantidadeMeses }
+  );
+  return res.data;
+}

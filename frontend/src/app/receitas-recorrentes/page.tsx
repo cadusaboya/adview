@@ -26,6 +26,7 @@ import {
   updateReceitaRecorrente,
   deleteReceitaRecorrente,
   gerarReceitasDoMes,
+  gerarProximosMeses,
 } from '@/services/receitasRecorrentes';
 
 import {
@@ -48,6 +49,11 @@ export default function ReceitasRecorrentesPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [showGerarMesAlert, setShowGerarMesAlert] = useState(false);
+  const [mesSelecionado, setMesSelecionado] = useState('');
+
+  const [showGerarProximosMesesDialog, setShowGerarProximosMesesDialog] = useState(false);
+  const [receitaSelecionada, setReceitaSelecionada] = useState<ReceitaRecorrente | null>(null);
+  const [quantidadeMeses, setQuantidadeMeses] = useState(1);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -154,7 +160,7 @@ export default function ReceitasRecorrentesPage() {
     setShowGerarMesAlert(false);
 
     try {
-      const result = await gerarReceitasDoMes();
+      const result = await gerarReceitasDoMes(mesSelecionado || undefined);
 
       if (result.criadas > 0) {
         toast.success(
@@ -168,10 +174,42 @@ export default function ReceitasRecorrentesPage() {
         toast.info('Nenhuma receita foi gerada. Todas já existem.');
       }
 
+      setMesSelecionado('');
       loadReceitas();
     } catch (error) {
       console.error(error);
       toast.error('Erro ao gerar receitas do mês');
+    }
+  };
+
+  // ======================
+  // 📅 GERAR PRÓXIMOS MESES
+  // ======================
+  const handleGerarProximosMeses = async () => {
+    if (!receitaSelecionada) return;
+    setShowGerarProximosMesesDialog(false);
+
+    try {
+      const result = await gerarProximosMeses(receitaSelecionada.id, quantidadeMeses);
+
+      if (result.criadas > 0) {
+        toast.success(
+          `${result.criadas} receita(s) gerada(s) para "${receitaSelecionada.nome}"!`
+        );
+
+        if (result.ignoradas > 0) {
+          toast.info(`${result.ignoradas} meses foram ignorados`);
+        }
+      } else {
+        toast.info('Nenhuma receita foi gerada. Todas já existem ou estão fora do período.');
+      }
+
+      setQuantidadeMeses(1);
+      setReceitaSelecionada(null);
+      loadReceitas();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.erro || 'Erro ao gerar receitas');
     }
   };
 
@@ -237,6 +275,14 @@ export default function ReceitasRecorrentesPage() {
       render: (_: unknown, record: ReceitaRecorrente) => (
         <ActionsDropdown
           actions={[
+            {
+              label: 'Gerar Próximos Meses',
+              icon: CalendarPlus,
+              onClick: () => {
+                setReceitaSelecionada(record);
+                setShowGerarProximosMesesDialog(true);
+              },
+            },
             {
               label: record.status === 'A' ? 'Pausar' : 'Reativar',
               icon: record.status === 'A' ? Pause : Play,
@@ -332,15 +378,74 @@ export default function ReceitasRecorrentesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Gerar Receitas do Mês</AlertDialogTitle>
               <AlertDialogDescription>
-                Deseja gerar as receitas recorrentes para o mês atual?
-                Esta ação criará automaticamente todas as receitas ativas que ainda não foram geradas.
+                Selecione o mês para gerar as receitas recorrentes ativas.
+                Deixe em branco para gerar o mês atual.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="py-4">
+              <label className="text-sm font-medium mb-2 block">
+                Mês (opcional)
+              </label>
+              <Input
+                type="month"
+                value={mesSelecionado}
+                onChange={(e) => setMesSelecionado(e.target.value)}
+                placeholder="Selecione o mês"
+              />
+            </div>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setMesSelecionado('')}>
+                Cancelar
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleGerarMes}
                 className="bg-gold text-navy hover:bg-gold/90"
+              >
+                Gerar Receitas
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={showGerarProximosMesesDialog}
+          onOpenChange={setShowGerarProximosMesesDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Gerar Próximos Meses</AlertDialogTitle>
+              <AlertDialogDescription>
+                Gerar múltiplas receitas para "{receitaSelecionada?.nome}"
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Quantidade de meses (1-24)
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={quantidadeMeses}
+                  onChange={(e) => setQuantidadeMeses(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Serão geradas {quantidadeMeses} receita(s) a partir do mês atual.
+                Receitas já existentes serão automaticamente ignoradas.
+              </p>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setQuantidadeMeses(1);
+                setReceitaSelecionada(null);
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleGerarProximosMeses}
+                className="bg-navy text-white hover:bg-navy/90"
               >
                 Gerar Receitas
               </AlertDialogAction>
