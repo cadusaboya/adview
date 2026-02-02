@@ -18,7 +18,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <MantineProvider defaultColorScheme="light">
         {children}
-        <Toaster richColors />
+        <Toaster
+          richColors
+          position="bottom-right"
+          expand={true}
+          visibleToasts={9}
+          gap={8}
+        />
       </MantineProvider>
     </ConfigProvider>
   );
