@@ -121,9 +121,18 @@
     @apply border-border;
   }
 
+  html {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-inter), system-ui, sans-serif;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -273,4 +282,11 @@
 [data-radix-collection-item][data-highlighted] {
   background-color: hsl(var(--accent) / 0.4) !important;
   color: hsl(var(--primary)) !important;
+}
+
+/* Remove any unwanted white borders/backgrounds from Next.js or Mantine */
+#__next, [data-mantine-color-scheme] {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
 }

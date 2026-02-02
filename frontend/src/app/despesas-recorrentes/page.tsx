@@ -207,9 +207,10 @@ export default function DespesasRecorrentesPage() {
       setQuantidadeMeses(1);
       setDespesaSelecionada(null);
       loadDespesas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.response?.data?.erro || 'Erro ao gerar despesas');
+      const err = error as { response?: { data?: { erro?: string } } };
+      toast.error(err.response?.data?.erro || 'Erro ao gerar despesas');
     }
   };
 
@@ -415,7 +416,7 @@ export default function DespesasRecorrentesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Gerar Próximos Meses</AlertDialogTitle>
               <AlertDialogDescription>
-                Gerar múltiplas despesas para "{despesaSelecionada?.nome}"
+                Gerar múltiplas despesas para &quot;{despesaSelecionada?.nome}&quot;
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4 space-y-3">

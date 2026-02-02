@@ -207,9 +207,10 @@ export default function ReceitasRecorrentesPage() {
       setQuantidadeMeses(1);
       setReceitaSelecionada(null);
       loadReceitas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.response?.data?.erro || 'Erro ao gerar receitas');
+      const err = error as { response?: { data?: { erro?: string } } };
+      toast.error(err.response?.data?.erro || 'Erro ao gerar receitas');
     }
   };
 
@@ -415,7 +416,7 @@ export default function ReceitasRecorrentesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Gerar Próximos Meses</AlertDialogTitle>
               <AlertDialogDescription>
-                Gerar múltiplas receitas para "{receitaSelecionada?.nome}"
+                Gerar múltiplas receitas para &quot;{receitaSelecionada?.nome}&quot;
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4 space-y-3">
