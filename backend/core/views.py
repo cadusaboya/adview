@@ -357,20 +357,13 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             mes_referencia = date(hoje.year, hoje.month, 1)
 
         # Busca receitas recorrentes ativas
-        # Compara apenas ano e mês (ignora o dia) para data_inicio
         recorrentes = ReceitaRecorrente.objects.filter(
             company=request.user.company,
-            status='A',
-            data_inicio__year__lte=mes_referencia.year
+            status='A'
         )
 
-        # Refinar: se mesmo ano, verificar se mês de início <= mês de referência
-        recorrentes = recorrentes.filter(
-            Q(data_inicio__year__lt=mes_referencia.year) |
-            Q(data_inicio__year=mes_referencia.year, data_inicio__month__lte=mes_referencia.month)
-        )
-
-        # Filtrar por data_fim se existir (também compara apenas ano/mês)
+        # Apenas filtrar por data_fim se existir (respeitar fim de período)
+        # Não filtrar por data_inicio quando o mês é especificado manualmente
         recorrentes = recorrentes.filter(
             Q(data_fim__isnull=True) |
             Q(data_fim__year__gt=mes_referencia.year) |
@@ -775,20 +768,13 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             mes_referencia = date(hoje.year, hoje.month, 1)
 
         # Busca despesas recorrentes ativas
-        # Compara apenas ano e mês (ignora o dia) para data_inicio
         recorrentes = DespesaRecorrente.objects.filter(
             company=request.user.company,
-            status='A',
-            data_inicio__year__lte=mes_referencia.year
+            status='A'
         )
 
-        # Refinar: se mesmo ano, verificar se mês de início <= mês de referência
-        recorrentes = recorrentes.filter(
-            Q(data_inicio__year__lt=mes_referencia.year) |
-            Q(data_inicio__year=mes_referencia.year, data_inicio__month__lte=mes_referencia.month)
-        )
-
-        # Filtrar por data_fim se existir (também compara apenas ano/mês)
+        # Apenas filtrar por data_fim se existir (respeitar fim de período)
+        # Não filtrar por data_inicio quando o mês é especificado manualmente
         recorrentes = recorrentes.filter(
             Q(data_fim__isnull=True) |
             Q(data_fim__year__gt=mes_referencia.year) |
