@@ -340,6 +340,7 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         """
         from datetime import date
         import calendar
+        from django.db.models import Q
 
         # Pega mês da requisição ou usa mês atual
         mes_str = request.data.get('mes')
@@ -356,18 +357,11 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             hoje = timezone.now().date()
             mes_referencia = date(hoje.year, hoje.month, 1)
 
-        # Busca receitas recorrentes ativas
+        # Busca todas as receitas recorrentes ativas
+        # Quando o mês é especificado manualmente, não filtra por data_inicio nem data_fim
         recorrentes = ReceitaRecorrente.objects.filter(
             company=request.user.company,
             status='A'
-        )
-
-        # Apenas filtrar por data_fim se existir (respeitar fim de período)
-        # Não filtrar por data_inicio quando o mês é especificado manualmente
-        recorrentes = recorrentes.filter(
-            Q(data_fim__isnull=True) |
-            Q(data_fim__year__gt=mes_referencia.year) |
-            Q(data_fim__year=mes_referencia.year, data_fim__month__gte=mes_referencia.month)
         )
 
         criadas = 0
@@ -751,6 +745,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         """
         from datetime import date
         import calendar
+        from django.db.models import Q
 
         # Pega mês da requisição ou usa mês atual
         mes_str = request.data.get('mes')
@@ -767,23 +762,17 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             hoje = timezone.now().date()
             mes_referencia = date(hoje.year, hoje.month, 1)
 
-        # Busca despesas recorrentes ativas
+        # Busca todas as despesas recorrentes ativas
+        # Quando o mês é especificado manualmente, não filtra por data_inicio nem data_fim
         recorrentes = DespesaRecorrente.objects.filter(
             company=request.user.company,
             status='A'
         )
 
-        # Apenas filtrar por data_fim se existir (respeitar fim de período)
-        # Não filtrar por data_inicio quando o mês é especificado manualmente
-        recorrentes = recorrentes.filter(
-            Q(data_fim__isnull=True) |
-            Q(data_fim__year__gt=mes_referencia.year) |
-            Q(data_fim__year=mes_referencia.year, data_fim__month__gte=mes_referencia.month)
-        )
-
         criadas = 0
         ignoradas = 0
         detalhes = []
+        total_recorrentes = recorrentes.count()
 
         for recorrente in recorrentes:
             # Verifica se já existe despesa para este mês
@@ -825,8 +814,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     valor=recorrente.valor,
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
-                    situacao='A',
-                    forma_pagamento=recorrente.forma_pagamento
+                    situacao='A'
                 )
 
                 criadas += 1
@@ -846,6 +834,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         return Response({
             'criadas': criadas,
             'ignoradas': ignoradas,
+            'total_recorrentes': total_recorrentes,
             'mes': mes_referencia.strftime('%Y-%m'),
             'detalhes': detalhes
         })
@@ -960,8 +949,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     valor=recorrente.valor,
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
-                    situacao='A',
-                    forma_pagamento=recorrente.forma_pagamento
+                    situacao='A'
                 )
 
                 criadas += 1
