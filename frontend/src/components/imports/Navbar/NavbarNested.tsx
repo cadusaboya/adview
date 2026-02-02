@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   IconGauge,
   IconCurrencyDollar,
@@ -9,11 +10,14 @@ import {
   IconUserCog,
   IconFileAnalytics,
   IconBuilding,
+  IconLogout,
 } from '@tabler/icons-react';
 import { Group, ScrollArea } from '@mantine/core';
 import Image from 'next/image';
 import classes from './NavbarNested.module.css';
 import { LinksGroup } from '../Navbar/NavbarLinksGroup';
+import { getMyEmpresa } from '@/services/empresa';
+import { logout } from '@/services/auth';
 
 const menuItems = [
   { label: 'Dashboard', icon: IconGauge, link: '/dashboard' },
@@ -57,7 +61,24 @@ const menuItems = [
 ];
 
 export function NavbarNested() {
+  const [companyName, setCompanyName] = useState<string>('');
   const links = menuItems.map((item) => <LinksGroup {...item} key={item.label} />);
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      try {
+        const empresa = await getMyEmpresa();
+        setCompanyName(empresa.name);
+      } catch (error) {
+        console.error('Erro ao carregar empresa:', error);
+      }
+    };
+    loadCompany();
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <nav className={classes.navbar}>
@@ -77,6 +98,19 @@ export function NavbarNested() {
       <ScrollArea className={classes.links} type="auto">
         <div className={classes.linksInner}>{links}</div>
       </ScrollArea>
+
+      <div className={classes.footer}>
+        {companyName && (
+          <div className={classes.companyInfo}>
+            <IconBuilding size={16} style={{ opacity: 0.7 }} />
+            <span className={classes.companyName}>{companyName}</span>
+          </div>
+        )}
+        <button className={classes.logoutButton} onClick={handleLogout}>
+          <IconLogout size={18} />
+          <span>Sair</span>
+        </button>
+      </div>
     </nav>
   );
 }
