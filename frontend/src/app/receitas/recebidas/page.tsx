@@ -10,6 +10,7 @@ import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
+import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
@@ -20,17 +21,22 @@ import {
 
 import { Payment } from '@/types/payments';
 import { Cliente } from '@/types/clientes';
+import { Receita, ReceitaUpdate } from '@/types/receitas';
+import { getReceitaById, updateReceita } from '@/services/receitas';
 
 import { getClientes } from '@/services/clientes';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Trash, FileText } from 'lucide-react';
+import { Pencil, Trash, FileText } from 'lucide-react';
 
 export default function ReceitaRecebidasPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
 
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
@@ -152,6 +158,43 @@ export default function ReceitaRecebidasPage() {
   };
 
   // ======================
+  // ✏️ EDITAR RECEITA
+  // ======================
+  const handleEditReceita = async (receitaId?: number | null) => {
+    if (!receitaId) return;
+
+    try {
+      setLoading(true);
+      const receita = await getReceitaById(receitaId);
+      setEditingReceita(receita);
+      setOpenDialog(true);
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao carregar receita');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 💾 UPDATE RECEITA
+  // ======================
+  const handleUpdateReceita = async (payload: ReceitaUpdate) => {
+    if (!editingReceita) return;
+
+    try {
+      await updateReceita(editingReceita.id, payload);
+      toast.success('Receita atualizada com sucesso!');
+      setOpenDialog(false);
+      setEditingReceita(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao atualizar receita');
+    }
+  };
+
+  // ======================
   // 📄 GERAR RECIBO
   // ======================
   const handleGerarRecibo = async (paymentId: number) => {
@@ -221,6 +264,11 @@ export default function ReceitaRecebidasPage() {
       render: (_: unknown, record: Payment) => (
         <ActionsDropdown
           actions={[
+            {
+              label: 'Editar Receita',
+              icon: Pencil,
+              onClick: () => handleEditReceita(record.receita),
+            },
             {
               label: 'Gerar Recibo',
               icon: FileText,
@@ -298,6 +346,19 @@ export default function ReceitaRecebidasPage() {
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
+
+        {/* DIALOG RECEITA */}
+        {openDialog && (
+          <ReceitaDialog
+            open={openDialog}
+            receita={editingReceita}
+            onClose={() => {
+              setOpenDialog(false);
+              setEditingReceita(null);
+            }}
+            onSubmit={handleUpdateReceita}
+          />
+        )}
 
         {/* 📊 MODAL RELATÓRIO */}
         <RelatorioFiltrosModal
