@@ -29,6 +29,9 @@ export default function BancosPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingBanco, setEditingBanco] = useState<Banco | null>(null);
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD
   // ======================
@@ -63,6 +66,43 @@ export default function BancosPage() {
       console.error(error);
       toast.error("Erro ao excluir conta bancária");
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error("Selecione pelo menos uma conta bancária");
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} conta(s) bancária(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteBanco(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} conta(s) bancária(s) excluída(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadBancos();
+    } catch (error: unknown) {
+      console.error(error);
+      toast.error("Erro ao excluir contas bancárias");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Banco[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -147,21 +187,35 @@ export default function BancosPage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Contas Bancárias</h1>
 
-          <Button
-            className="shadow-md bg-navy text-white hover:bg-navy/90"
-            onClick={() => {
-              setEditingBanco(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Conta Bancária
-          </Button>
+          <div className="flex gap-2">
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+            <Button
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              onClick={() => {
+                setEditingBanco(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Conta Bancária
+            </Button>
+          </div>
         </div>
 
         <GenericTable<Banco>
           columns={columns}
           data={bancos}
           loading={loading}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <BancoDialog

@@ -56,6 +56,9 @@ export default function ReceitasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD
   // ======================
@@ -113,6 +116,43 @@ export default function ReceitasPage() {
     } catch {
       toast.error('Erro ao excluir receita');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma receita');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} receita(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteReceita(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} receita(s) excluída(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadReceitas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir receitas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Receita[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -237,6 +277,17 @@ export default function ReceitasPage() {
               className="w-80"
             />
 
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
             <Button
               icon={<DownloadOutlined />}
               onClick={() => setOpenRelatorioModal(true)}
@@ -268,6 +319,8 @@ export default function ReceitasPage() {
             total,
             onChange: (page) => setPage(page),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <ReceitaDialog

@@ -61,6 +61,9 @@ export default function DespesasPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
@@ -122,6 +125,43 @@ export default function DespesasPage() {
       console.error(error);
       toast.error('Erro ao excluir despesa');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma despesa');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} despesa(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteDespesa(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} despesa(s) excluída(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadDespesas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir despesas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Despesa[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -249,6 +289,17 @@ export default function DespesasPage() {
               className="w-80"
             />
 
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
             <Button
               icon={<DownloadOutlined />}
               onClick={async () => {
@@ -283,6 +334,8 @@ export default function DespesasPage() {
             total,
             onChange: (p) => setPage(p),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <DespesaDialog

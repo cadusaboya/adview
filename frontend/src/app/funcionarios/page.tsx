@@ -48,6 +48,9 @@ export default function FuncionarioPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD
   // ======================
@@ -83,6 +86,43 @@ export default function FuncionarioPage() {
       console.error(error);
       toast.error('Erro ao excluir funcionário');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um funcionário');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} funcionário(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteFuncionario(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} funcionário(s) excluído(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadFuncionarios();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir funcionários');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Funcionario[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -140,7 +180,7 @@ export default function FuncionarioPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Funcionario> = [
-    { title: 'Nome', dataIndex: 'nome', width: '44%' },
+    { title: 'Nome', dataIndex: 'nome', width: '39%' },
     {
       title: 'CPF',
       dataIndex: 'cpf',
@@ -209,15 +249,27 @@ export default function FuncionarioPage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Funcionários</h1>
 
-          <Button
-            className="shadow-md bg-navy text-white hover:bg-navy/90"
-            onClick={() => {
-              setEditingFuncionario(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Funcionário
-          </Button>
+          <div className="flex gap-2">
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+            <Button
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              onClick={() => {
+                setEditingFuncionario(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Funcionário
+            </Button>
+          </div>
         </div>
 
         <GenericTable<Funcionario>
@@ -230,6 +282,8 @@ export default function FuncionarioPage() {
             total,
             onChange: setPage,
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <FuncionarioDialog

@@ -24,6 +24,9 @@ import { ClienteProfileDialog } from '@/components/dialogs/ClienteProfileDialog'
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { toast } from 'sonner';
 import { formatCpfCnpj } from '@/lib/formatters';
+import RelatorioFiltrosModal, {
+  RelatorioFiltros,
+} from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import {
@@ -40,10 +43,15 @@ export default function ClientePage() {
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
 
   const [loadingRelatorio, setLoadingRelatorio] = useState<number | null>(null);
+  const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
+  const [selectedClienteId, setSelectedClienteId] = useState<number | null>(null);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // ======================
   // 🔄 LOAD
@@ -83,6 +91,43 @@ export default function ClientePage() {
   };
 
   // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um cliente');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} cliente(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteCliente(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} cliente(s) excluído(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadClientes();
+    } catch (error: unknown) {
+      console.error(error);
+      toast.error('Erro ao excluir clientes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Cliente[]) => {
+    setSelectedRowKeys(selectedKeys);
+  };
+
+  // ======================
   // 💾 CREATE / UPDATE
   // ======================
   const handleSubmit = async (
@@ -114,12 +159,20 @@ export default function ClientePage() {
   // ======================
   // 📊 RELATÓRIO
   // ======================
-  const handleGerarRelatorio = async (clienteId: number) => {
+  const handleOpenRelatorioModal = (clienteId: number) => {
+    setSelectedClienteId(clienteId);
+    setOpenRelatorioModal(true);
+  };
+
+  const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
+    if (!selectedClienteId) return;
+
     try {
-      setLoadingRelatorio(clienteId);
+      setLoadingRelatorio(selectedClienteId);
 
       await gerarRelatorioPDF('cliente-especifico', {
-        cliente_id: clienteId,
+        cliente_id: selectedClienteId,
+        ...filtros,
       });
 
       toast.success('Relatório gerado com sucesso!');
@@ -140,7 +193,7 @@ export default function ClientePage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Cliente> = [
-    { title: 'Nome', dataIndex: 'nome', width: '50%' },
+    { title: 'Nome', dataIndex: 'nome', width: '45%' },
     {
       title: 'CPF / CNPJ',
       dataIndex: 'cpf',
@@ -169,7 +222,7 @@ export default function ClientePage() {
               label: 'Gerar PDF',
               icon: FileText,
               onClick: () =>
-                handleGerarRelatorio(record.id),
+                handleOpenRelatorioModal(record.id),
               disabled:
                 loadingRelatorio === record.id,
             },
@@ -205,15 +258,27 @@ export default function ClientePage() {
       <main className="bg-muted min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Clientes</h1>
-          <Button
-            className="shadow-md bg-navy text-white hover:bg-navy/90"
-            onClick={() => {
-              setEditingCliente(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Cliente
-          </Button>
+          <div className="flex gap-2">
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+            <Button
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              onClick={() => {
+                setEditingCliente(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Cliente
+            </Button>
+          </div>
         </div>
 
         <GenericTable<Cliente>
@@ -226,6 +291,8 @@ export default function ClientePage() {
             total,
             onChange: (page) => setPage(page),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <ClienteDialog
@@ -250,6 +317,18 @@ export default function ClientePage() {
             />
           </ClienteProfileDialog>
         ))}
+
+        <RelatorioFiltrosModal
+          open={openRelatorioModal}
+          onClose={() => {
+            setOpenRelatorioModal(false);
+            setSelectedClienteId(null);
+          }}
+          onGenerate={handleGerarRelatorio}
+          title="Relatório de Cliente"
+          tipoRelatorio="cliente-especifico"
+          clientes={clientes}
+        />
       </main>
     </div>
   );

@@ -50,6 +50,9 @@ export default function FornecedorPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD
   // ======================
@@ -85,6 +88,43 @@ export default function FornecedorPage() {
       console.error(error);
       toast.error('Erro ao excluir fornecedor');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um fornecedor');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} fornecedor(es)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteFornecedor(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} fornecedor(es) excluído(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadFornecedores();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir fornecedores');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Fornecedor[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -148,7 +188,7 @@ export default function FornecedorPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Fornecedor> = [
-    { title: 'Nome', dataIndex: 'nome', width: '49%' },
+    { title: 'Nome', dataIndex: 'nome', width: '45%' },
     {
       title: 'CPF / CNPJ',
       dataIndex: 'cpf',
@@ -212,15 +252,27 @@ export default function FornecedorPage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Fornecedores</h1>
 
-          <Button
-            className="shadow-md bg-navy text-white hover:bg-navy/90"
-            onClick={() => {
-              setEditingFornecedor(null);
-              setOpenDialog(true);
-            }}
-          >
-            Criar Fornecedor
-          </Button>
+          <div className="flex gap-2">
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+            <Button
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              onClick={() => {
+                setEditingFornecedor(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Fornecedor
+            </Button>
+          </div>
         </div>
 
         <GenericTable<Fornecedor>
@@ -233,6 +285,8 @@ export default function FornecedorPage() {
             total,
             onChange: (page) => setPage(page),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* 🔹 DIALOG CRIAR / EDITAR */}
