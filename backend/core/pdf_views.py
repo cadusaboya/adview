@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.db.models import Sum, Q, F, DecimalField, Prefetch
 from django.db.models.functions import Coalesce
 
@@ -111,6 +111,49 @@ def relatorio_receitas_pagas(request):
 
 
 
+def calcular_dias_atraso(data_vencimento, data_atual):
+    """
+    Calcula o número de dias de atraso entre duas datas.
+    """
+    if data_vencimento >= data_atual:
+        return 0
+
+    delta = data_atual - data_vencimento
+    return delta.days
+
+
+def calcular_juros_compostos(valor_principal, percentual_juros_mensal, dias_atraso):
+    """
+    Calcula juros compostos diários baseado em uma taxa mensal.
+
+    Fórmula:
+    - taxa_diaria = (1 + taxa_mensal)^(1/30) - 1
+    - juros = valor * ((1 + taxa_diaria)^dias - 1)
+
+    Args:
+        valor_principal: Valor sobre o qual calcular juros
+        percentual_juros_mensal: Taxa de juros mensal em percentual (ex: 2 para 2%)
+        dias_atraso: Número de dias de atraso
+
+    Returns:
+        Valor dos juros calculados
+    """
+    if dias_atraso <= 0 or percentual_juros_mensal <= 0:
+        return Decimal("0.00")
+
+    # Converter percentual para decimal (2% -> 0.02)
+    taxa_mensal = float(percentual_juros_mensal) / 100
+
+    # Calcular taxa diária: (1 + taxa_mensal)^(1/30) - 1
+    taxa_diaria = pow(1 + taxa_mensal, 1/30) - 1
+
+    # Calcular juros: valor * ((1 + taxa_diaria)^dias - 1)
+    fator_juros = pow(1 + taxa_diaria, dias_atraso) - 1
+    juros = float(valor_principal) * fator_juros
+
+    return Decimal(str(round(juros, 2)))
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def relatorio_cliente_especifico(request):
@@ -127,73 +170,113 @@ def relatorio_cliente_especifico(request):
     if not cliente:
         return Response({"error": "Cliente não encontrado"}, status=404)
 
+    # Get percentual de multa e juros
+    percentual_multa = Decimal(request.query_params.get("percentual_multa", "0"))
+    percentual_juros = Decimal(request.query_params.get("percentual_juros", "0"))
+    visualizacao = request.query_params.get("visualizacao", "ambas")  # ambas, recebidas, a_receber
+    hoje = date.today()
+
     rows = []
 
     # ===================== CONTAS A RECEBER (CORRIGIDO)
-    receitas_abertas = Receita.objects.filter(
-        company=company,
-        cliente=cliente,
-        situacao__in=["A", "V"]
-    ).prefetch_related(
-        "payments"
-    ).order_by("data_vencimento")
-
     total_aberto = Decimal("0.00")
+    total_juros = Decimal("0.00")
+    total_multa = Decimal("0.00")
+    total_com_encargos = Decimal("0.00")
 
-    rows.append({"is_section": True, "section_title": "Contas a Receber"})
+    # Só mostra contas a receber se visualizacao for 'ambas' ou 'a_receber'
+    if visualizacao in ["ambas", "a_receber"]:
+        receitas_abertas = Receita.objects.filter(
+            company=company,
+            cliente=cliente,
+            situacao__in=["A", "V"]
+        ).prefetch_related(
+            "payments"
+        ).order_by("data_vencimento")
 
-    for r in receitas_abertas:
-        total_recebido = sum(
-            (p.valor for p in r.payments.all()),
-            Decimal("0.00")
-        )
+        rows.append({"is_section": True, "section_title": "Contas a Receber"})
 
-        valor_aberto = r.valor - total_recebido
+        for r in receitas_abertas:
+            total_recebido = sum(
+                (p.valor for p in r.payments.all()),
+                Decimal("0.00")
+            )
 
-        # ❌ Não mostrar receitas quitadas
-        if valor_aberto <= 0:
-            continue
+            valor_aberto = r.valor - total_recebido
+
+            # ❌ Não mostrar receitas quitadas
+            if valor_aberto <= 0:
+                continue
+
+            # Calcular juros e multa se estiver em atraso
+            juros = Decimal("0.00")
+            multa = Decimal("0.00")
+
+            if r.data_vencimento and r.data_vencimento < hoje:
+                # Calcular dias em atraso
+                dias_atraso = calcular_dias_atraso(r.data_vencimento, hoje)
+
+                # Calcular multa (aplicada uma vez)
+                if percentual_multa > 0:
+                    multa = valor_aberto * (percentual_multa / 100)
+
+                # Calcular juros compostos diários
+                if percentual_juros > 0 and dias_atraso > 0:
+                    juros = calcular_juros_compostos(valor_aberto, percentual_juros, dias_atraso)
+
+            em_aberto = valor_aberto + juros + multa
+
+            rows.append({
+                "data": format_date_br(r.data_vencimento),
+                "descricao": truncate_text(r.nome, 40),
+                "valor": valor_aberto,
+                "juros": juros,
+                "multa": multa,
+                "em_aberto": em_aberto,
+            })
+
+            total_aberto += valor_aberto
+            total_juros += juros
+            total_multa += multa
+            total_com_encargos += em_aberto
 
         rows.append({
-            "data": format_date_br(r.data_vencimento),
-            "descricao": truncate_text(r.nome, 40),
-            "valor": valor_aberto,
+            "is_subtotal": True,
+            "label": "Total a Receber",
+            "valor": total_aberto,
+            "juros": total_juros,
+            "multa": total_multa,
+            "em_aberto": total_com_encargos,
         })
-
-        total_aberto += valor_aberto
-
-    rows.append({
-        "is_subtotal": True,
-        "label": "Total a Receber",
-        "valor": total_aberto,
-    })
 
     # ===================== CONTAS RECEBIDAS (JÁ CORRETO)
-    pagamentos = Payment.objects.filter(
-        company=company,
-        receita__cliente=cliente
-    ).select_related(
-        "receita",
-        "conta_bancaria"
-    ).order_by("data_pagamento")
-
     total_recebido = Decimal("0.00")
 
-    rows.append({"is_section": True, "section_title": "Contas Recebidas"})
+    # Só mostra contas recebidas se visualizacao for 'ambas' ou 'recebidas'
+    if visualizacao in ["ambas", "recebidas"]:
+        pagamentos = Payment.objects.filter(
+            company=company,
+            receita__cliente=cliente
+        ).select_related(
+            "receita",
+            "conta_bancaria"
+        ).order_by("data_pagamento")
 
-    for p in pagamentos:
+        rows.append({"is_section": True, "section_title": "Contas Recebidas"})
+
+        for p in pagamentos:
+            rows.append({
+                "data": format_date_br(p.data_pagamento),
+                "descricao": truncate_text(p.receita.nome, 40),
+                "valor": p.valor,
+            })
+            total_recebido += p.valor
+
         rows.append({
-            "data": format_date_br(p.data_pagamento),
-            "descricao": truncate_text(p.receita.nome, 40),
-            "valor": p.valor,
+            "is_subtotal": True,
+            "label": "Total Recebido",
+            "valor": total_recebido,
         })
-        total_recebido += p.valor
-
-    rows.append({
-        "is_subtotal": True,
-        "label": "Total Recebido",
-        "valor": total_recebido,
-    })
 
     # ===================== PDF
     response = HttpResponse(content_type="application/pdf")
@@ -208,8 +291,11 @@ def relatorio_cliente_especifico(request):
 
     columns = [
         {"label": "Data", "key": "data", "x": margin},
-        {"label": "Descrição", "key": "descricao", "x": margin + 120},
-        {"label": "Valor", "key": "valor", "x": width - 100, "is_amount": True},
+        {"label": "Descrição", "key": "descricao", "x": margin + 100},
+        {"label": "Valor", "key": "valor", "x": width - 380, "is_amount": True},
+        {"label": "Juros", "key": "juros", "x": width - 280, "is_amount": True},
+        {"label": "Multa", "key": "multa", "x": width - 180, "is_amount": True},
+        {"label": "Em Aberto", "key": "em_aberto", "x": width - 80, "is_amount": True},
     ]
 
     y = report.draw_table_header(pdf, y, columns, width, height)
@@ -224,7 +310,15 @@ def relatorio_cliente_especifico(request):
         elif row.get("is_subtotal"):
             pdf.setFont("Helvetica-Bold", 9)
             pdf.drawString(margin, y, row["label"])
-            pdf.drawString(width - 100, y, format_currency(row["valor"]))
+            # Display all totals
+            if "valor" in row:
+                pdf.drawString(width - 380, y, format_currency(row["valor"]))
+            if "juros" in row:
+                pdf.drawString(width - 280, y, format_currency(row["juros"]))
+            if "multa" in row:
+                pdf.drawString(width - 180, y, format_currency(row["multa"]))
+            if "em_aberto" in row:
+                pdf.drawString(width - 80, y, format_currency(row["em_aberto"]))
             y -= 15
         else:
             y = report.draw_row(pdf, y, row, columns)
@@ -805,7 +899,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 
 def get_company_from_request(request):
@@ -1070,21 +1164,22 @@ def format_date_br(date_obj) -> str:
 @permission_classes([IsAuthenticated])
 def recibo_pagamento(request):
     """
-    Gera recibo de pagamento em PDF
-    
+    Gera recibo de honorários advocatícios em PDF (formato FRS)
+    Baseado no modelo de recibo profissional de prestação de serviços
+
     Query Parameters:
     - payment_id: ID do pagamento (obrigatório)
     """
-    
+
     try:
         company = get_company_from_request(request)
     except PermissionError as e:
         return Response({"error": str(e)}, status=403)
-    
+
     payment_id = request.query_params.get('payment_id')
     if not payment_id:
         return Response({"error": "payment_id é obrigatório"}, status=400)
-    
+
     try:
         payment = Payment.objects.select_related(
             'company',
@@ -1096,217 +1191,228 @@ def recibo_pagamento(request):
         ).get(id=payment_id, company=company)
     except Payment.DoesNotExist:
         return Response({"error": "Pagamento não encontrado"}, status=404)
-    
+
+    # Validação: Apenas receitas por enquanto
+    if not payment.receita:
+        return Response({"error": "Recibo disponível apenas para receitas"}, status=400)
+
     # 🔹 Criar PDF
     response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = f"inline; filename=recibo_{payment_id}.pdf"
-    
+    response["Content-Disposition"] = f"inline; filename=recibo_honorarios_{payment_id}.pdf"
+
     pdf = canvas.Canvas(response, pagesize=portrait(A4))
     width, height = portrait(A4)
-    
-    # 🔹 Cores
-    color_header = colors.HexColor("#1E40AF")  # Azul escuro
-    color_border = colors.HexColor("#E5E7EB")  # Cinza claro
-    color_text = colors.HexColor("#1F2937")    # Cinza escuro
-    
+
+    # 🔹 Cores (baseado no modelo FRS)
+    color_navy = colors.HexColor("#1E3A8A")       # Azul navy (logo)
+    color_gray_bg = colors.HexColor("#D1D5DB")    # Cinza para fundo do título
+    color_text = colors.black                      # Texto preto
+
     # 🔹 Margens
-    margin = 40
+    margin = 50
     y = height - margin
-    
-    # ========== HEADER COM LOGO E EMPRESA ==========
-    # Logo (se existir)
+
+    # ========== CABEÇALHO COM LOGO E WEBSITE ==========
+    # Logo FRS (se existir)
     if company.logo:
         try:
-            pdf.drawImage(company.logo.path, margin, y - 50, width=80, height=50)
-            y -= 60
-        except:
-            pass
-    
-    # Informações da empresa
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.setFillColor(color_header)
-    pdf.drawString(margin, y, company.name)
-    y -= 20
-    
-    pdf.setFont("Helvetica", 9)
+            from reportlab.lib.utils import ImageReader
+            logo_path = company.logo.path
+            # Logo no canto superior esquerdo
+            pdf.drawImage(logo_path, margin, y - 60, width=120, height=60, preserveAspectRatio=True, mask='auto')
+        except Exception as e:
+            # Se falhar, apenas desenha o nome da empresa
+            pdf.setFont("Helvetica-Bold", 18)
+            pdf.setFillColor(color_navy)
+            pdf.drawString(margin, y - 40, company.name)
+    else:
+        # Se não tiver logo, desenha o nome da empresa
+        pdf.setFont("Helvetica-Bold", 18)
+        pdf.setFillColor(color_navy)
+        pdf.drawString(margin, y - 40, company.name)
+
+    # Website no canto superior direito (valor fixo por enquanto)
+    pdf.setFont("Helvetica", 10)
     pdf.setFillColor(color_text)
-    
-    # CNPJ/CPF
-    if company.cnpj:
-        pdf.drawString(margin, y, f"CNPJ: {company.cnpj}")
-        y -= 12
-    elif company.cpf:
-        pdf.drawString(margin, y, f"CPF: {company.cpf}")
-        y -= 12
-    
+    website = "frsadv.com.br"  # Fixo por enquanto
+    pdf.drawRightString(width - margin, y - 20, website)
+
+    # Slogan
+    pdf.setFont("Helvetica-Oblique", 9)
+    pdf.setFillColor(colors.HexColor("#6B7280"))
+    pdf.drawString(margin, y - 75, "advocacia e consultoria")
+
+    y -= 100
+
+    # ========== TÍTULO COM FUNDO CINZA ==========
+    # Retângulo de fundo cinza
+    pdf.setFillColor(color_gray_bg)
+    pdf.rect(margin - 10, y - 20, width - 2 * margin + 20, 30, fill=True, stroke=False)
+
+    # Título
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.setFillColor(color_text)
+    titulo = "RECIBO"
+    pdf.drawCentredString(width / 2, y - 10, titulo)
+
+    y -= 50
+
+    # ========== MARCA D'ÁGUA (opcional) ==========
+    # Desenhar marca d'água FRS grande no centro/fundo
+    if company.logo:
+        try:
+            from reportlab.lib.utils import ImageReader
+            # Salvar estado atual
+            pdf.saveState()
+            # Configurar transparência para marca d'água
+            pdf.setFillAlpha(0.05)  # 5% de opacidade
+            # Desenhar logo grande no centro do documento
+            watermark_size = 300
+            watermark_x = (width - watermark_size) / 2
+            watermark_y = (height - watermark_size) / 2
+            pdf.drawImage(
+                company.logo.path,
+                watermark_x,
+                watermark_y,
+                width=watermark_size,
+                height=watermark_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+            # Restaurar estado
+            pdf.restoreState()
+        except Exception:
+            pass  # Se falhar, continua sem marca d'água
+
+    # ========== CORPO DO RECIBO ==========
+    pdf.setFont("Helvetica", 11)
+    pdf.setFillColor(color_text)
+
+    # Data por extenso
+    meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+             'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+    data_pagamento = payment.data_pagamento
+    mes_extenso = meses[data_pagamento.month - 1]
+    cidade = company.cidade if company.cidade else "Belém"
+    data_extenso = f"{cidade}, {data_pagamento.day} de {mes_extenso} de {data_pagamento.year}."
+
+    pdf.drawString(margin, y, data_extenso)
+    y -= 40  # Mais espaço após data
+
+    # Destinatário
+    cliente = payment.receita.cliente
+    pdf.drawString(margin, y, "À/Ao")
+    y -= 20
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(margin, y, f"{cliente.nome.upper()},")
+    y -= 20
+
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(margin, y, "Nesta,")
+    y -= 40  # Mais espaço após "Nesta,"
+
+    # Determinar forma de pagamento
+    forma_pagamento = payment.observacao if payment.observacao else "transferência bancária"
+
+    # Texto formal
+    texto_linha1 = "Honrado em cumprimentá-lo/a, informamos que recebemos nesta data os seguintes"
+    texto_linha2 = f"valores, por meio de {forma_pagamento}, referentes ao contrato de prestação"
+    texto_linha3 = "dos seguintes serviços:"
+
+    pdf.setFont("Helvetica", 10)
+    linha_altura = 18  # Aumentar espaçamento entre linhas
+
+    pdf.drawString(margin, y, texto_linha1)
+    y -= linha_altura
+    pdf.drawString(margin, y, texto_linha2)
+    y -= linha_altura
+    pdf.drawString(margin, y, texto_linha3)
+    y -= 40  # Mais espaço antes da tabela
+
+    # ========== TABELA DE VALORES ==========
+    # Desenhar tabela com bordas completas (mesma largura do título)
+    table_x = margin
+    table_width = width - 2 * margin
+    table_col_split = table_width * 0.7  # 70% para descrição, 30% para valor
+
+    # Configurar estilo da tabela
+    pdf.setStrokeColor(color_text)
+    pdf.setLineWidth(0.5)
+
+    # Altura das linhas (aumentar para mais padding)
+    row_height = 25
+    y_table_top = y
+
+    # Linha superior
+    pdf.line(table_x, y, table_x + table_width, y)
+
+    y -= row_height
+
+    # Primeira linha: Nome da receita
+    pdf.setFont("Helvetica", 10)
+    receita_nome = payment.receita.nome or "Honorários advocatícios"
+    pdf.drawString(table_x + 10, y + 8, receita_nome)
+    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(payment.valor))
+
+    # Linha divisória horizontal
+    pdf.line(table_x, y, table_x + table_width, y)
+
+    y -= row_height
+
+    # Segunda linha: Total
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(table_x + 10, y + 8, "TOTAL")
+    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(payment.valor))
+
+    # Linha inferior
+    pdf.line(table_x, y, table_x + table_width, y)
+
+    # Bordas verticais
+    pdf.line(table_x, y_table_top, table_x, y)  # Borda esquerda
+    pdf.line(table_x + table_width, y_table_top, table_x + table_width, y)  # Borda direita
+    pdf.line(table_x + table_col_split, y_table_top, table_x + table_col_split, y)  # Divisória central
+
+    y -= 100  # Ainda mais espaço após a tabela para a assinatura
+
+    # ========== ASSINATURA ==========
+    # Nome e OAB
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.setFillColor(color_text)
+
+    # Nome do responsável (usar nome da empresa ou usuário)
+    responsavel_nome = "DANIEL PETROLA SABOYA"  # Fixo por enquanto
+    oab = "OAB/PA 27.333"  # Fixo por enquanto
+
+    pdf.drawCentredString(width / 2, y, responsavel_nome)
+    y -= 15
+    pdf.setFont("Helvetica", 10)
+    pdf.drawCentredString(width / 2, y, oab)
+
+    y -= 80
+
+    # ========== RODAPÉ COM INFORMAÇÕES DE CONTATO ==========
+    pdf.setFont("Helvetica", 8)
+    pdf.setFillColor(colors.HexColor("#6B7280"))
+
     # Endereço
     if company.endereco:
-        endereco_completo = company.endereco
-        if company.cidade:
-            endereco_completo += f", {company.cidade}"
-        if company.estado:
-            endereco_completo += f" - {company.estado}"
-        pdf.drawString(margin, y, endereco_completo)
-        y -= 12
-    
-    # Telefone e Email
+        endereco_linha = company.endereco
+        if company.cidade and company.estado:
+            endereco_linha += f" - {company.cidade} | {company.estado}"
+        pdf.drawString(margin, margin + 40, endereco_linha)
+
+    # Telefone e email
     if company.telefone or company.email:
         contato = []
         if company.telefone:
-            contato.append(f"Tel: {company.telefone}")
+            contato.append(company.telefone)
         if company.email:
-            contato.append(f"Email: {company.email}")
-        pdf.drawString(margin, y, " | ".join(contato))
-        y -= 12
-    
-    y -= 10
-    
-    # ========== TÍTULO DO RECIBO ==========
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.setFillColor(color_header)
-    pdf.drawCentredString(width / 2, y, "RECIBO")
-    y -= 20
-    
-    # Número do recibo
-    pdf.setFont("Helvetica", 10)
-    pdf.setFillColor(color_text)
-    pdf.drawString(margin, y, f"Recibo nº: {payment.id}")
-    pdf.drawRightString(width - margin, y, f"Data: {format_date_br(payment.data_pagamento)}")
-    y -= 15
-    
-    # ========== LINHA SEPARADORA ==========
-    pdf.setStrokeColor(color_border)
-    pdf.setLineWidth(1)
-    pdf.line(margin, y, width - margin, y)
-    y -= 15
-    
-    # ========== DADOS DO PAGADOR / RECEBEDOR ==========
-    if payment.receita:
-        # RECEITA - Dados do Pagador (Cliente)
-        pdf.setFont("Helvetica-Bold", 10)
-        pdf.setFillColor(color_header)
-        pdf.drawString(margin, y, "DADOS DO PAGADOR")
-        y -= 15
-        
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColor(color_text)
-        
-        cliente = payment.receita.cliente
-        pdf.drawString(margin, y, f"Cliente: {cliente.nome}")
-        y -= 12
-        pdf.drawString(margin, y, f"CPF / CNPJ: {cliente.cpf}")
-        y -= 12
-        
-    else:
-        # DESPESA - Dados do Recebedor (Funcionário/Fornecedor)
-        pdf.setFont("Helvetica-Bold", 10)
-        pdf.setFillColor(color_header)
-        pdf.drawString(margin, y, "DADOS DO RECEBEDOR")
-        y -= 15
-        
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColor(color_text)
-        
-        responsavel = payment.despesa.responsavel
-        tipo_responsavel = "Funcionário" if responsavel.tipo == 'F' else "Fornecedor"
-        pdf.drawString(margin, y, f"{tipo_responsavel}: {responsavel.nome}")
-        y -= 12
-        pdf.drawString(margin, y, f"CPF / CNPJ: {responsavel.cpf}")
-        y -= 12
-    
-    y -= 10
-    
-    # ========== DADOS DO PAGAMENTO ==========
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.setFillColor(color_header)
-    pdf.drawString(margin, y, "DADOS DO PAGAMENTO")
-    y -= 15
-    
-    pdf.setFont("Helvetica", 9)
-    pdf.setFillColor(color_text)
-    
-    # Motivo (Descrição)
-    descricao = payment.receita.nome if payment.receita else payment.despesa.nome
-    pdf.drawString(margin, y, f"Motivo: {descricao}")
-    y -= 12
-    
-    # Detalhes (Observação)
-    if payment.observacao:
-        # Quebra texto longo em múltiplas linhas
-        observacao = payment.observacao
-        if len(observacao) > 70:
-            # Simples quebra de linha
-            pdf.drawString(margin, y, f"Detalhes: {observacao[:70]}")
-            y -= 12
-            pdf.drawString(margin + 20, y, observacao[70:])
-            y -= 12
-        else:
-            pdf.drawString(margin, y, f"Detalhes: {observacao}")
-            y -= 12
-    
-    y -= 10
-    
-    # ========== VALOR ==========
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.setFillColor(color_header)
-    pdf.drawString(margin, y, "VALOR")
-    y -= 15
-    
-    # Valor em preto (não verde)
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.setFillColor(color_text)  # Preto em vez de verde
-    valor_formatado = format_currency(payment.valor)
-    pdf.drawCentredString(width / 2, y, valor_formatado)
-    y -= 15
-    
-    # Valor por extenso
-    pdf.setFont("Helvetica", 9)
-    pdf.setFillColor(color_text)
-    valor_extenso = format_currency_extenso(payment.valor)
-    
-    # Quebra texto longo
-    if len(valor_extenso) > 70:
-        pdf.drawCentredString(width / 2, y, f"({valor_extenso[:70]}")
-        y -= 12
-        pdf.drawCentredString(width / 2, y, f"{valor_extenso[:70]})")
-        y -= 12
-    else:
-        pdf.drawCentredString(width / 2, y, f"({valor_extenso})")
-        y -= 12
-    
-    y -= 10
-    
-    # ========== LINHA SEPARADORA ==========
-    pdf.setStrokeColor(color_border)
-    pdf.setLineWidth(1)
-    pdf.line(margin, y, width - margin, y)
-    y -= 15
-    
-    # ========== ASSINATURA E DATA ==========
-    pdf.setFont("Helvetica", 9)
-    pdf.setFillColor(color_text)
-    
-    # Espaço para assinatura
-    y -= 150
-    pdf.drawCentredString(width / 2, y, "_" * 50)
-    y -= 12
-    pdf.drawCentredString(width / 2, y, "Assinatura do Responsável")
-    y -= 20
-    
-    # Data de emissão
-    pdf.setFont("Helvetica", 8)
-    pdf.setFillColor(colors.grey)
-    data_emissao = datetime.now().strftime("%d/%m/%Y às %H:%M")
-    pdf.drawCentredString(width / 2, y, f"Emitido em: {data_emissao}")
-    
-    # ========== FOOTER ==========
-    pdf.setFont("Helvetica", 7)
-    pdf.setFillColor(colors.grey)
-    pdf.drawCentredString(width / 2, margin - 10, "Este é um recibo de pagamento. Conserve para sua documentação.")
-    
+            contato.append(company.email)
+        pdf.drawString(margin, margin + 25, " | ".join(contato))
+
     pdf.showPage()
     pdf.save()
-    
+
     return response
 
 

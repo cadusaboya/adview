@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal, Form, DatePicker, Select, Button } from 'antd';
+import { Modal, Form, DatePicker, Select, Button, InputNumber } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
@@ -33,6 +33,9 @@ export interface RelatorioFiltros {
   cliente_id?: number;
   conta_bancaria_id?: number;
   tipo?: string;
+  percentual_multa?: number;
+  percentual_juros?: number;
+  visualizacao?: 'ambas' | 'recebidas' | 'a_receber';
 }
 
 // 🔹 Payload de recibo
@@ -48,6 +51,9 @@ interface RelatorioFormValues {
   cliente_id?: number;
   conta_bancaria_id?: number;
   tipo?: string;
+  percentual_multa?: number;
+  percentual_juros?: number;
+  visualizacao?: 'ambas' | 'recebidas' | 'a_receber';
 }
 
 export default function RelatorioFiltrosModal({
@@ -65,10 +71,11 @@ export default function RelatorioFiltrosModal({
 
   // Determinar quais filtros mostrar baseado no tipo de relatório
   const mostrarFavorecido = ['despesas-pagas', 'despesas-a-pagar'].includes(tipoRelatorio);
-  const mostrarCliente = ['receitas-pagas', 'receitas-a-receber', 'cliente-especifico'].includes(tipoRelatorio);
+  const mostrarCliente = ['receitas-pagas', 'receitas-a-receber'].includes(tipoRelatorio);
   const mostrarConta = tipoRelatorio === 'fluxo-de-caixa';
   const mostrarTipo = ['receitas-pagas', 'despesas-pagas', 'despesas-a-pagar', 'receitas-a-receber'].includes(tipoRelatorio);
   const mostrarDatas = tipoRelatorio !== 'cliente-especifico';
+  const mostrarVisualizacao = tipoRelatorio === 'cliente-especifico';
 
   const handleSubmit = async (values: RelatorioFormValues) => {
     try {
@@ -98,6 +105,18 @@ export default function RelatorioFiltrosModal({
 
       if (values.tipo) {
         filtros.tipo = values.tipo;
+      }
+
+      if (values.percentual_multa !== undefined && values.percentual_multa !== null) {
+        filtros.percentual_multa = values.percentual_multa;
+      }
+
+      if (values.percentual_juros !== undefined && values.percentual_juros !== null) {
+        filtros.percentual_juros = values.percentual_juros;
+      }
+
+      if (values.visualizacao) {
+        filtros.visualizacao = values.visualizacao;
       }
 
       await onGenerate(filtros);
@@ -253,6 +272,62 @@ export default function RelatorioFiltrosModal({
               <DatePicker
                 format="DD/MM/YYYY"
                 style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </>
+        )}
+
+        {mostrarVisualizacao && (
+          <Form.Item
+            name="visualizacao"
+            label="Visualização"
+            tooltip="Escolha quais contas deseja ver no relatório"
+            initialValue="ambas"
+          >
+            <Select
+              placeholder="Selecione o tipo de visualização"
+              options={[
+                { value: 'ambas', label: 'Ambas (Recebidas e A Receber)' },
+                { value: 'recebidas', label: 'Apenas Contas Recebidas' },
+                { value: 'a_receber', label: 'Apenas Contas a Receber' },
+              ]}
+            />
+          </Form.Item>
+        )}
+
+        {tipoRelatorio === 'cliente-especifico' && (
+          <>
+            <Form.Item
+              name="percentual_multa"
+              label="% Multa"
+              tooltip="Percentual de multa para contas em atraso"
+              initialValue={0}
+            >
+              <InputNumber
+                min={0}
+                max={100}
+                step={0.1}
+                precision={2}
+                style={{ width: '100%' }}
+                placeholder="Ex: 2 (para 2%)"
+                suffix="%"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="percentual_juros"
+              label="% Juros (mensal)"
+              tooltip="Percentual de juros mensal para contas em atraso"
+              initialValue={0}
+            >
+              <InputNumber
+                min={0}
+                max={100}
+                step={0.1}
+                precision={2}
+                style={{ width: '100%' }}
+                placeholder="Ex: 1 (para 1% ao mês)"
+                suffix="%"
               />
             </Form.Item>
           </>
