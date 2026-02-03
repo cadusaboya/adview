@@ -46,6 +46,9 @@ export default function ReceitaRecebidasPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
@@ -109,6 +112,43 @@ export default function ReceitaRecebidasPage() {
       console.error(error);
       toast.error('Erro ao excluir recebimento');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um recebimento');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} recebimento(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deletePayment(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} recebimento(s) excluído(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir recebimentos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Payment[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -223,6 +263,17 @@ export default function ReceitaRecebidasPage() {
               className="w-80"
             />
 
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
             <Button
               icon={<DownloadOutlined />}
               onClick={() => setOpenRelatorioModal(true)}
@@ -244,6 +295,8 @@ export default function ReceitaRecebidasPage() {
             pageSize,
             onChange: (p) => setPage(p),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* 📊 MODAL RELATÓRIO */}
