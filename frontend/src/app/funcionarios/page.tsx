@@ -27,6 +27,9 @@ import {
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { formatCurrencyBR, formatCpfCnpj } from '@/lib/formatters';
+import { getErrorMessage } from '@/lib/errors';
+import { Input } from '@/components/ui/input';
+import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
@@ -48,6 +51,10 @@ export default function FuncionarioPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Search state
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -57,7 +64,11 @@ export default function FuncionarioPage() {
   const loadFuncionarios = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getFuncionarios({ page, page_size: pageSize });
+      const res = await getFuncionarios({
+        page,
+        page_size: pageSize,
+        search: debouncedSearch
+      });
       setFuncionarios(res.results);
       setTotal(res.count);
     } catch (error) {
@@ -66,11 +77,16 @@ export default function FuncionarioPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadFuncionarios();
   }, [loadFuncionarios]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // ❌ DELETE
@@ -145,7 +161,7 @@ export default function FuncionarioPage() {
       loadFuncionarios();
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao salvar funcionário');
+      toast.error(getErrorMessage(error, 'Erro ao salvar funcionário'));
     }
   };
 
@@ -249,7 +265,13 @@ export default function FuncionarioPage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Funcionários</h1>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 items-center">
+            <Input
+              placeholder="Buscar funcionários..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
+            />
             {selectedRowKeys.length > 0 && (
               <Button
                 danger

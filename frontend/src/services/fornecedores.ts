@@ -5,7 +5,7 @@ import {
   FornecedorUpdate,
 } from '@/types/fornecedores';
 
-export async function getFornecedores(params?: { page?: number; page_size?: number }) {
+export async function getFornecedores(params?: { page?: number; page_size?: number; search?: string }) {
   const res = await api.get<{ results: Fornecedor[]; count: number }>('/api/fornecedores/', {
     params,
   });

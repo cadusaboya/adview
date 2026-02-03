@@ -24,6 +24,9 @@ import { ClienteProfileDialog } from '@/components/dialogs/ClienteProfileDialog'
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { toast } from 'sonner';
 import { formatCpfCnpj } from '@/lib/formatters';
+import { getErrorMessage } from '@/lib/errors';
+import { Input } from '@/components/ui/input';
+import { useDebounce } from '@/hooks/useDebounce';
 import RelatorioFiltrosModal, {
   RelatorioFiltros,
 } from '@/components/dialogs/RelatorioFiltrosModal';
@@ -50,6 +53,10 @@ export default function ClientePage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Search state
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -59,7 +66,11 @@ export default function ClientePage() {
   const loadClientes = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getClientes({ page, page_size: pageSize });
+      const res = await getClientes({
+        page,
+        page_size: pageSize,
+        search: debouncedSearch
+      });
       setClientes(res.results);
       setTotal(res.count);
     } catch (error: unknown) {
@@ -68,11 +79,16 @@ export default function ClientePage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadClientes();
   }, [loadClientes]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // ❌ DELETE
@@ -152,7 +168,7 @@ export default function ClientePage() {
       loadClientes();
     } catch (error: unknown) {
       console.error(error);
-      toast.error('Erro ao salvar cliente');
+      toast.error(getErrorMessage(error, 'Erro ao salvar cliente'));
     }
   };
 
@@ -258,7 +274,13 @@ export default function ClientePage() {
       <main className="bg-muted min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Clientes</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-3 items-center">
+            <Input
+              placeholder="Buscar clientes..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
+            />
             {selectedRowKeys.length > 0 && (
               <Button
                 danger

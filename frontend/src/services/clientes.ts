@@ -14,6 +14,7 @@ type PaginatedResponse<T> = {
 export async function getClientes(params?: {
   page?: number;
   page_size?: number;
+  search?: string;
 }) {
   const res = await api.get<PaginatedResponse<Cliente>>(
     '/api/clientes/',

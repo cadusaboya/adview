@@ -27,6 +27,8 @@ import {
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { formatCpfCnpj } from '@/lib/formatters';
+import { Input } from '@/components/ui/input';
+import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { FileText, DollarSign, Pencil, Trash } from 'lucide-react';
@@ -50,6 +52,10 @@ export default function FornecedorPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Search state
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -59,7 +65,11 @@ export default function FornecedorPage() {
   const loadFornecedores = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getFornecedores({ page, page_size: pageSize });
+      const res = await getFornecedores({
+        page,
+        page_size: pageSize,
+        search: debouncedSearch
+      });
       setFornecedores(res.results);
       setTotal(res.count);
     } catch (error) {
@@ -68,11 +78,16 @@ export default function FornecedorPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     loadFornecedores();
   }, [loadFornecedores]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ======================
   // ❌ DELETE
@@ -252,7 +267,13 @@ export default function FornecedorPage() {
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Fornecedores</h1>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 items-center">
+            <Input
+              placeholder="Buscar fornecedores..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
+            />
             {selectedRowKeys.length > 0 && (
               <Button
                 danger

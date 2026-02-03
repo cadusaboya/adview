@@ -144,6 +144,21 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        # Search filter
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(cpf__icontains=search) |
+                Q(email__icontains=search) |
+                Q(telefone__icontains=search)
+            )
+
+        return queryset
+
 class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Funcionarios, scoped by company."""
     queryset = Funcionario.objects.all()
@@ -151,7 +166,19 @@ class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        return super().get_queryset().filter(tipo__in=['F', 'P'])
+        queryset = super().get_queryset().filter(tipo__in=['F', 'P'])
+
+        # Search filter
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(cpf__icontains=search) |
+                Q(email__icontains=search) |
+                Q(telefone__icontains=search)
+            )
+
+        return queryset
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
 class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
@@ -160,7 +187,19 @@ class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        return super().get_queryset().filter(tipo='O')
+        queryset = super().get_queryset().filter(tipo='O')
+
+        # Search filter
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(cpf__icontains=search) |
+                Q(email__icontains=search) |
+                Q(telefone__icontains=search)
+            )
+
+        return queryset
 
 class FavorecidoViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Funcionario.objects.all()
@@ -264,7 +303,7 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         company=self.request.user.company
                     )
 
-                    Payment.objects.create(
+                    payment = Payment.objects.create(
                         company=self.request.user.company,
                         receita=receita,
                         conta_bancaria=conta_bancaria,
@@ -272,6 +311,13 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         data_pagamento=data_pagamento,
                         observacao=observacao_pagamento
                     )
+
+                    # Atualiza saldo da conta bancária (entrada de dinheiro)
+                    conta_bancaria.saldo_atual += payment.valor
+                    conta_bancaria.save()
+
+                    # Atualiza status da receita
+                    receita.atualizar_status()
                 except ContaBancaria.DoesNotExist:
                     pass  # Silently ignore if bank account doesn't exist
 
@@ -402,7 +448,8 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
 
             receita_existente = Receita.objects.filter(
                 company=request.user.company,
-                nome=nome_esperado
+                nome=nome_esperado,
+                cliente=recorrente.cliente
             ).exists()
 
             if receita_existente:
@@ -558,7 +605,8 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
             receita_existente = Receita.objects.filter(
                 company=request.user.company,
-                nome=nome_esperado
+                nome=nome_esperado,
+                cliente=recorrente.cliente
             ).exists()
 
             if receita_existente:
@@ -727,7 +775,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         company=self.request.user.company
                     )
 
-                    Payment.objects.create(
+                    payment = Payment.objects.create(
                         company=self.request.user.company,
                         despesa=despesa,
                         conta_bancaria=conta_bancaria,
@@ -735,6 +783,13 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         data_pagamento=data_pagamento,
                         observacao=observacao_pagamento
                     )
+
+                    # Atualiza saldo da conta bancária (saída de dinheiro)
+                    conta_bancaria.saldo_atual -= payment.valor
+                    conta_bancaria.save()
+
+                    # Atualiza status da despesa
+                    despesa.atualizar_status()
                 except ContaBancaria.DoesNotExist:
                     pass  # Silently ignore if bank account doesn't exist
 
@@ -838,7 +893,8 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
 
             despesa_existente = Despesa.objects.filter(
                 company=request.user.company,
-                nome=nome_esperado
+                nome=nome_esperado,
+                responsavel=recorrente.responsavel
             ).exists()
 
             if despesa_existente:
@@ -973,7 +1029,8 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             nome_esperado = f"{recorrente.nome} - {mes_referencia.strftime('%m/%Y')}"
             despesa_existente = Despesa.objects.filter(
                 company=request.user.company,
-                nome=nome_esperado
+                nome=nome_esperado,
+                responsavel=recorrente.responsavel
             ).exists()
 
             if despesa_existente:

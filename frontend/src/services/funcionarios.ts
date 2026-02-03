@@ -8,6 +8,7 @@ import {
 export async function getFuncionarios(params?: {
   page?: number;
   page_size?: number;
+  search?: string;
 }) {
   const res = await api.get<{
     results: Funcionario[];

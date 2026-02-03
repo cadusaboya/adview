@@ -78,7 +78,7 @@ export default function DespesaDialog({
       setFormData({
         nome: despesa.nome,
         descricao: despesa.descricao,
-        responsavel_id: despesa.responsavel_id,
+        responsavel_id: despesa.responsavel?.id ?? despesa.responsavel_id,
         valor: despesa.valor,
         data_vencimento: despesa.data_vencimento,
         tipo: despesa.tipo,

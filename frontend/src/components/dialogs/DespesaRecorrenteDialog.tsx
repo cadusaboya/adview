@@ -73,7 +73,7 @@ export default function DespesaRecorrenteDialog({
       setFormData({
         nome: despesa.nome,
         descricao: despesa.descricao,
-        responsavel_id: despesa.responsavel_id,
+        responsavel_id: despesa.responsavel?.id ?? despesa.responsavel_id,
         valor: despesa.valor,
         tipo: despesa.tipo,
         forma_pagamento: despesa.forma_pagamento,

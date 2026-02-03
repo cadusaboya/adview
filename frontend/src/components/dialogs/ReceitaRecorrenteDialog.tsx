@@ -81,7 +81,7 @@ export default function ReceitaRecorrenteDialog({
       setFormData({
         nome: receita.nome,
         descricao: receita.descricao,
-        cliente_id: receita.cliente_id,
+        cliente_id: receita.cliente?.id ?? receita.cliente_id,
         valor: receita.valor,
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento,

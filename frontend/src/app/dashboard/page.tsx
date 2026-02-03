@@ -329,6 +329,13 @@ export default function DashboardPage() {
               trendLabel="vs 30 dias"
             />
             <StatCard
+              title="Fluxo de Caixa Realizado"
+              value={data.fluxoCaixaRealizado}
+              icon={<CreditCard className="w-6 h-6" />}
+              color={data.fluxoCaixaRealizado > 0 ? 'green' : 'red'}
+              trend={data.fluxoCaixaRealizado > 0 ? 'up' : 'down'}
+            />
+            <StatCard
               title="Receitas Projetadas"
               value={data.receitasProjetadas}
               icon={<TrendingUp className="w-6 h-6" />}
@@ -339,13 +346,6 @@ export default function DashboardPage() {
               value={data.despesasProjetadas}
               icon={<TrendingDown className="w-6 h-6" />}
               color="red"
-            />
-            <StatCard
-              title="Fluxo de Caixa Realizado"
-              value={data.fluxoCaixaRealizado}
-              icon={<CreditCard className="w-6 h-6" />}
-              color={data.fluxoCaixaRealizado > 0 ? 'green' : 'red'}
-              trend={data.fluxoCaixaRealizado > 0 ? 'up' : 'down'}
             />
           </div>
 
