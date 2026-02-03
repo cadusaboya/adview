@@ -32,7 +32,7 @@ import {
 
 interface DespesaCreateWithPayment extends DespesaCreate {
   marcar_como_pago?: boolean;
-  data_pagamento?: string;
+  data_pagamento?: string | null;
   conta_bancaria_id?: number;
   observacao_pagamento?: string;
 }
