@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select as AntdSelect } from 'antd';
 
 import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
@@ -27,6 +28,14 @@ import {
   ReceitaCreate,
   ReceitaUpdate,
 } from '@/types/receitas';
+
+// Extended interface for creating receita with payment
+interface ReceitaCreateWithPayment extends ReceitaCreate {
+  marcar_como_pago?: boolean;
+  data_pagamento?: string;
+  conta_bancaria_id?: number;
+  observacao_pagamento?: string;
+}
 
 interface Props {
   open: boolean;
@@ -56,6 +65,12 @@ export default function ReceitaDialog({
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+
+  // Payment fields state
+  const [marcarComoPago, setMarcarComoPago] = useState(false);
+  const [dataPagamento, setDataPagamento] = useState('');
+  const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
+  const [observacaoPagamento, setObservacaoPagamento] = useState('');
 
   // ======================
   // 🔄 LOAD EDIT
@@ -108,9 +123,25 @@ export default function ReceitaDialog({
   // 💾 SUBMIT
   // ======================
   const handleSubmit = async () => {
-    const payload = receita
-      ? ({ ...formData } as ReceitaUpdate)
-      : ({ ...formData } as ReceitaCreate);
+    let payload: ReceitaUpdate | ReceitaCreate | ReceitaCreateWithPayment;
+
+    if (receita) {
+      // Editing existing receita
+      payload = { ...formData } as ReceitaUpdate;
+    } else {
+      // Creating new receita
+      payload = { ...formData } as ReceitaCreate;
+
+      // Add payment data if checkbox is checked
+      if (marcarComoPago) {
+        const paymentPayload = payload as ReceitaCreateWithPayment;
+        paymentPayload.marcar_como_pago = true;
+        paymentPayload.data_pagamento = dataPagamento;
+        paymentPayload.conta_bancaria_id = contaBancariaId;
+        paymentPayload.observacao_pagamento = observacaoPagamento;
+        payload = paymentPayload;
+      }
+    }
 
     await onSubmit(payload);
     onClose();
@@ -227,6 +258,69 @@ export default function ReceitaDialog({
             style={{ width: '100%' }}
           />
         </div>
+
+        {/* Marcar como pago - only when creating */}
+        {!receita && (
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="marcar-pago"
+                checked={marcarComoPago}
+                onCheckedChange={(checked) =>
+                  setMarcarComoPago(checked === true)
+                }
+              />
+              <label
+                htmlFor="marcar-pago"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Marcar como pago
+              </label>
+            </div>
+
+            {marcarComoPago && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
+                <div>
+                  <label className="text-sm text-muted-foreground">
+                    Data Pagamento
+                  </label>
+                  <Input
+                    type="date"
+                    value={dataPagamento}
+                    onChange={(e) => setDataPagamento(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-muted-foreground">
+                    Conta Bancária
+                  </label>
+                  <AntdSelect
+                    placeholder="Selecione"
+                    value={contaBancariaId}
+                    options={bancos.map((b) => ({
+                      value: b.id,
+                      label: b.nome,
+                    }))}
+                    onChange={(val) => setContaBancariaId(val)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-muted-foreground">
+                    Observação (opcional)
+                  </label>
+                  <Input
+                    placeholder="Observação"
+                    value={observacaoPagamento}
+                    onChange={(e) => setObservacaoPagamento(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {receita && (
           <PaymentsTabs

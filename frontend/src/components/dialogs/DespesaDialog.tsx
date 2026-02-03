@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectTrigger,
@@ -28,6 +29,13 @@ import {
   DespesaCreate,
   DespesaUpdate,
 } from '@/types/despesas';
+
+interface DespesaCreateWithPayment extends DespesaCreate {
+  marcar_como_pago?: boolean;
+  data_pagamento?: string;
+  conta_bancaria_id?: number;
+  observacao_pagamento?: string;
+}
 
 interface Props {
   open: boolean;
@@ -56,6 +64,12 @@ export default function DespesaDialog({
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
 
+  // Estado para marcar como pago
+  const [marcarComoPago, setMarcarComoPago] = useState(false);
+  const [dataPagamento, setDataPagamento] = useState('');
+  const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
+  const [observacaoPagamento, setObservacaoPagamento] = useState('');
+
   // ======================
   // 🔄 Preencher ao editar
   // ======================
@@ -83,6 +97,10 @@ export default function DespesaDialog({
         tipo: 'F',
       });
       setValorDisplay('');
+      setMarcarComoPago(false);
+      setDataPagamento('');
+      setContaBancariaId(undefined);
+      setObservacaoPagamento('');
     }
   }, [despesa, open]);
 
@@ -116,8 +134,17 @@ export default function DespesaDialog({
       const payload: DespesaUpdate = { ...formData };
       await onSubmit(payload);
     } else {
-      const payload: DespesaCreate = { ...formData };
-      await onSubmit(payload);
+      const payload: DespesaCreateWithPayment = { ...formData };
+
+      // Se marcar como pago, incluir dados do pagamento
+      if (marcarComoPago) {
+        payload.marcar_como_pago = true;
+        payload.data_pagamento = dataPagamento;
+        payload.conta_bancaria_id = contaBancariaId;
+        payload.observacao_pagamento = observacaoPagamento;
+      }
+
+      await onSubmit(payload as DespesaCreate);
     }
 
     onClose();
@@ -234,7 +261,66 @@ export default function DespesaDialog({
           </div>
         </div>
 
-        {/* Pagamentos */}
+        {/* Marcar como pago (apenas na criação) */}
+        {!despesa && (
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="marcar-pago"
+                checked={marcarComoPago}
+                onCheckedChange={(checked) =>
+                  setMarcarComoPago(checked === true)
+                }
+              />
+              <label
+                htmlFor="marcar-pago"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Marcar como pago
+              </label>
+            </div>
+
+            {marcarComoPago && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
+                <div>
+                  <label className="text-sm">Data de Pagamento</label>
+                  <Input
+                    type="date"
+                    value={dataPagamento}
+                    onChange={(e) => setDataPagamento(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm">Conta Bancária</label>
+                  <AntdSelect
+                    showSearch
+                    allowClear
+                    placeholder="Selecione uma conta"
+                    value={contaBancariaId}
+                    options={bancos.map((b) => ({
+                      value: b.id,
+                      label: b.nome,
+                    }))}
+                    onChange={(val) => setContaBancariaId(val)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm">Observação (opcional)</label>
+                  <Input
+                    placeholder="Observação do pagamento"
+                    value={observacaoPagamento}
+                    onChange={(e) => setObservacaoPagamento(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pagamentos (apenas na edição) */}
         {despesa && (
           <PaymentsTabs
             tipo="despesa"

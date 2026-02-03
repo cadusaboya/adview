@@ -248,6 +248,34 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         receita = serializer.save(company=self.request.user.company)
 
+        # 💰 Handle payment creation if marked as paid
+        marcar_como_pago = self.request.data.get('marcar_como_pago', False)
+        if marcar_como_pago:
+            data_pagamento = self.request.data.get('data_pagamento')
+            conta_bancaria_id = self.request.data.get('conta_bancaria_id')
+            observacao_pagamento = self.request.data.get('observacao_pagamento', '')
+
+            if data_pagamento and conta_bancaria_id:
+                from core.models import Payment, ContaBancaria
+
+                try:
+                    conta_bancaria = ContaBancaria.objects.get(
+                        id=conta_bancaria_id,
+                        company=self.request.user.company
+                    )
+
+                    Payment.objects.create(
+                        company=self.request.user.company,
+                        receita=receita,
+                        conta_bancaria=conta_bancaria,
+                        valor=receita.valor,
+                        data_pagamento=data_pagamento,
+                        observacao=observacao_pagamento
+                    )
+                except ContaBancaria.DoesNotExist:
+                    pass  # Silently ignore if bank account doesn't exist
+
+        # 💼 Handle commission creation
         comissionado = receita.comissionado
         if not comissionado:
             return
@@ -679,6 +707,36 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.order_by("data_vencimento")
 
         return queryset
+
+    def perform_create(self, serializer):
+        despesa = serializer.save(company=self.request.user.company)
+
+        # 💰 Handle payment creation if marked as paid
+        marcar_como_pago = self.request.data.get('marcar_como_pago', False)
+        if marcar_como_pago:
+            data_pagamento = self.request.data.get('data_pagamento')
+            conta_bancaria_id = self.request.data.get('conta_bancaria_id')
+            observacao_pagamento = self.request.data.get('observacao_pagamento', '')
+
+            if data_pagamento and conta_bancaria_id:
+                from core.models import Payment, ContaBancaria
+
+                try:
+                    conta_bancaria = ContaBancaria.objects.get(
+                        id=conta_bancaria_id,
+                        company=self.request.user.company
+                    )
+
+                    Payment.objects.create(
+                        company=self.request.user.company,
+                        despesa=despesa,
+                        conta_bancaria=conta_bancaria,
+                        valor=despesa.valor,
+                        data_pagamento=data_pagamento,
+                        observacao=observacao_pagamento
+                    )
+                except ContaBancaria.DoesNotExist:
+                    pass  # Silently ignore if bank account doesn't exist
 
 
 class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
