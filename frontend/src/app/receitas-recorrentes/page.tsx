@@ -35,7 +35,7 @@ import {
   ReceitaRecorrenteUpdate,
 } from '@/types/receitasRecorrentes';
 
-import { formatCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyBR, formatDateBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
@@ -291,7 +291,7 @@ export default function ReceitasRecorrentesPage() {
       dataIndex: 'data_inicio',
       width: '10%',
       render: (data: string) =>
-        new Date(data).toLocaleDateString('pt-BR'),
+        formatDateBR(data),
     },
     {
       title: 'Status',

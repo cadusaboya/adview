@@ -7,6 +7,7 @@ import { Button } from "antd";
 import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import { Input } from "@/components/ui/input";
+import { formatDateBR } from "@/lib/formatters";
 
 export default function EmpresaPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
@@ -262,7 +263,7 @@ export default function EmpresaPage() {
               <div className="pt-4 border-t">
                 <p className="text-xs text-gray-500">
                   Cadastrado em:{" "}
-                  {new Date(empresa.criado_em).toLocaleDateString("pt-BR")}
+                  {formatDateBR(empresa.criado_em.split('T')[0])}
                 </p>
               </div>
             </div>

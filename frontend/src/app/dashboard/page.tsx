@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { getDashboardData } from "@/services/relatorios";
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
+import { formatDateBR } from '@/lib/formatters';
 
 // ============================================================================
 // TYPES
@@ -614,7 +615,7 @@ export default function DashboardPage() {
                         minimumFractionDigits: 2,
                     })}
                     </span>,
-                    new Date(receita.dataVencimento).toLocaleDateString('pt-BR'),
+                    formatDateBR(receita.dataVencimento),
                 ])}
               />
             </Card>
@@ -638,7 +639,7 @@ export default function DashboardPage() {
                         minimumFractionDigits: 2,
                     })}
                     </span>,
-                    new Date(despesa.dataVencimento).toLocaleDateString('pt-BR'),
+                    formatDateBR(despesa.dataVencimento),
                 ])}
               />
             </Card>

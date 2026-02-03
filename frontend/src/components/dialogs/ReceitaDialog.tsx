@@ -157,106 +157,127 @@ export default function ReceitaDialog({
       <div className="grid grid-cols-1 gap-4">
         {/* Cliente + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <AntdSelect
-            showSearch
-            placeholder="Cliente"
-            value={formData.cliente_id || undefined}
-            options={clientes.map((c) => ({
-              value: c.id,
-              label: c.nome,
-            }))}
-            onChange={(val) =>
-              setFormData({ ...formData, cliente_id: val })
-            }
-            style={{ width: '100%' }}
-          />
+          <div>
+            <label className="text-sm">Cliente</label>
+            <AntdSelect
+              showSearch
+              placeholder="Selecione um cliente"
+              value={formData.cliente_id || undefined}
+              options={clientes.map((c) => ({
+                value: c.id,
+                label: c.nome,
+              }))}
+              onChange={(val) =>
+                setFormData({ ...formData, cliente_id: val })
+              }
+              style={{ width: '100%' }}
+            />
+          </div>
 
-          <Input
-            placeholder="Nome"
-            value={formData.nome}
-            onChange={(e) =>
-              setFormData({ ...formData, nome: e.target.value })
-            }
-          />
+          <div>
+            <label className="text-sm">Nome</label>
+            <Input
+              placeholder="Nome da receita"
+              value={formData.nome}
+              onChange={(e) =>
+                setFormData({ ...formData, nome: e.target.value })
+              }
+            />
+          </div>
         </div>
 
         {/* Valor / Data / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input
-            placeholder="0,00"
-            value={valorDisplay}
-            onChange={(e) => setValorDisplay(e.target.value)}
-            onBlur={() => {
-              const parsed = parseCurrencyBR(valorDisplay);
-              setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
-              setFormData((prev) => ({ ...prev, valor: parsed }));
-            }}
-          />
+          <div>
+            <label className="text-sm">Valor (R$)</label>
+            <Input
+              placeholder="0,00"
+              value={valorDisplay}
+              onChange={(e) => setValorDisplay(e.target.value)}
+              onBlur={() => {
+                const parsed = parseCurrencyBR(valorDisplay);
+                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+                setFormData((prev) => ({ ...prev, valor: parsed }));
+              }}
+            />
+          </div>
 
-          <Input
-            type="date"
-            value={formData.data_vencimento}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                data_vencimento: e.target.value,
-              })
-            }
-          />
+          <div>
+            <label className="text-sm">Data de Vencimento</label>
+            <Input
+              type="date"
+              value={formData.data_vencimento}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  data_vencimento: e.target.value,
+                })
+              }
+            />
+          </div>
 
-          <Select
-            value={formData.tipo}
-            onValueChange={(val) =>
-              setFormData({ ...formData, tipo: val as ReceitaCreate['tipo'] })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="F">Fixa</SelectItem>
-              <SelectItem value="V">Variável</SelectItem>
-              <SelectItem value="E">Estorno</SelectItem>
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="text-sm">Tipo</label>
+            <Select
+              value={formData.tipo}
+              onValueChange={(val) =>
+                setFormData({ ...formData, tipo: val as ReceitaCreate['tipo'] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="F">Fixa</SelectItem>
+                <SelectItem value="V">Variável</SelectItem>
+                <SelectItem value="E">Estorno</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Forma / Comissionado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Select
-            value={formData.forma_pagamento}
-            onValueChange={(val) =>
-              setFormData({
-                ...formData,
-                forma_pagamento: val as ReceitaCreate['forma_pagamento'],
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="P">Pix</SelectItem>
-              <SelectItem value="B">Boleto</SelectItem>
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="text-sm">Forma de Pagamento</label>
+            <Select
+              value={formData.forma_pagamento}
+              onValueChange={(val) =>
+                setFormData({
+                  ...formData,
+                  forma_pagamento: val as ReceitaCreate['forma_pagamento'],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="P">Pix</SelectItem>
+                <SelectItem value="B">Boleto</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <AntdSelect
-            allowClear
-            placeholder="Comissionado"
-            value={formData.comissionado_id ?? undefined}
-            options={funcionarios.map((f) => ({
-              value: f.id,
-              label: f.nome,
-            }))}
-            onChange={(val) =>
-              setFormData({
-                ...formData,
-                comissionado_id: val ?? null,
-              })
-            }
-            style={{ width: '100%' }}
-          />
+          <div>
+            <label className="text-sm">Comissionado</label>
+            <AntdSelect
+              allowClear
+              placeholder="Selecione um comissionado"
+              value={formData.comissionado_id ?? undefined}
+              options={funcionarios.map((f) => ({
+                value: f.id,
+                label: f.nome,
+              }))}
+              onChange={(val) =>
+                setFormData({
+                  ...formData,
+                  comissionado_id: val ?? null,
+                })
+              }
+              style={{ width: '100%' }}
+            />
+          </div>
         </div>
 
         {/* Marcar como pago - only when creating */}
