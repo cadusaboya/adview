@@ -106,8 +106,8 @@ class Funcionario(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     nome = models.CharField(max_length=255)
-    cpf = models.CharField(max_length=14, unique=True, blank=True, null=True) # Consider using a validator
-    email = models.EmailField(unique=True, blank=True, null=True)
+    cpf = models.CharField(max_length=14, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
     telefone = models.CharField(max_length=20, blank=True, null=True)
     aniversario = models.DateField(blank=True, null=True)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)

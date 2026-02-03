@@ -95,6 +95,11 @@ class FuncionarioSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
 
+    cpf = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
+    telefone = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    aniversario = serializers.DateField(required=False, allow_null=True)
+
     class Meta:
         model = Funcionario
         fields = '__all__'
@@ -102,10 +107,8 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         tipo = data.get('tipo')
-        salario_mensal = data.get('salario_mensal')
 
-        if tipo == 'F' and not salario_mensal:
-            raise serializers.ValidationError("Salário Mensal é obrigatório para Funcionário.")
+        # Limpa salário mensal para Parceiros e Fornecedores
         if tipo != 'F':
             data['salario_mensal'] = None
 
