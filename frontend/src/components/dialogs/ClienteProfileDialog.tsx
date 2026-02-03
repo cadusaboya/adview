@@ -137,23 +137,24 @@ export function ClienteProfileDialog({
       <DialogTrigger asChild>{children}</DialogTrigger>
 
       <DialogContent className="max-w-5xl p-0 overflow-hidden">
-        <VisuallyHidden>
-          <DialogTitle>Financeiro do Cliente</DialogTitle>
-        </VisuallyHidden>
+        <div className="flex flex-col max-h-[85vh]">
+          <VisuallyHidden>
+            <DialogTitle>Financeiro do Cliente</DialogTitle>
+          </VisuallyHidden>
 
-        {/* LOADING / ERROR */}
-        {loading && (
-          <div className="p-10 text-center text-muted-foreground">
-            Carregando dados...
-          </div>
-        )}
+          {/* LOADING / ERROR */}
+          {loading && (
+            <div className="p-10 text-center text-muted-foreground">
+              Carregando dados...
+            </div>
+          )}
 
-        {error && !loading && (
-          <div className="p-10 text-center text-destructive">{error}</div>
-        )}
+          {error && !loading && (
+            <div className="p-10 text-center text-destructive">{error}</div>
+          )}
 
-        {!loading && !error && client && (
-          <>
+          {!loading && !error && client && (
+            <>
             {/* HEADER */}
             <DialogHeader className="p-6 border-b bg-muted/30">
               <DialogTitle className="text-xl font-bold">
@@ -218,17 +219,17 @@ export function ClienteProfileDialog({
             )}
 
             {/* GRID FINANCEIRO */}
-            <div className="grid md:grid-cols-2 h-[500px] divide-x">
+            <div className="grid md:grid-cols-2 divide-x flex-1 min-h-0">
               {/* Contas em Aberto */}
-              <div className="flex flex-col">
-                <div className="p-4 border-b font-semibold text-destructive flex gap-2">
+              <div className="flex flex-col min-h-0">
+                <div className="p-4 border-b font-semibold text-destructive flex gap-2 flex-shrink-0">
                   <ArrowDownCircle className="w-5 h-5" />
                   Contas em Aberto
                 </div>
 
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1 min-h-0">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-xs">
+                    <thead className="bg-muted/40 text-xs sticky top-0">
                       <tr>
                         <th className="px-4 py-2 text-left">Nome</th>
                         <th className="px-4 py-2 text-right">Vencimento</th>
@@ -252,22 +253,22 @@ export function ClienteProfileDialog({
                 </ScrollArea>
 
                 {totals && (
-                  <div className="p-4 border-t text-right font-semibold text-destructive">
+                  <div className="p-4 border-t text-right font-semibold text-destructive flex-shrink-0">
                     Total em aberto: {formatCurrencyBR(totals.open)}
                   </div>
                 )}
               </div>
 
               {/* Pagamentos */}
-              <div className="flex flex-col">
-                <div className="p-4 border-b font-semibold text-emerald-600 flex gap-2">
+              <div className="flex flex-col min-h-0">
+                <div className="p-4 border-b font-semibold text-emerald-600 flex gap-2 flex-shrink-0">
                   <ArrowUpCircle className="w-5 h-5" />
                   Pagamentos Realizados
                 </div>
 
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1 min-h-0">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-xs">
+                    <thead className="bg-muted/40 text-xs sticky top-0">
                       <tr>
                         <th className="px-4 py-2 text-left">Nome</th>
                         <th className="px-4 py-2 text-right">Pagamento</th>
@@ -293,14 +294,15 @@ export function ClienteProfileDialog({
                 </ScrollArea>
 
                 {totals && (
-                  <div className="p-4 border-t text-right font-semibold text-emerald-600">
+                  <div className="p-4 border-t text-right font-semibold text-emerald-600 flex-shrink-0">
                     Total pago: {formatCurrencyBR(totals.paid)}
                   </div>
                 )}
               </div>
             </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
