@@ -151,7 +151,7 @@ export default function ReceitasPage() {
   // ======================
   // 🔘 ROW SELECTION
   // ======================
-  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Receita[]) => {
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
     setSelectedRowKeys(selectedKeys);
   };
 

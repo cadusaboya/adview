@@ -101,7 +101,7 @@ export default function BancosPage() {
   // ======================
   // 🔘 ROW SELECTION
   // ======================
-  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Banco[]) => {
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
     setSelectedRowKeys(selectedKeys);
   };
 

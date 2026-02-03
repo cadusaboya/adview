@@ -141,7 +141,7 @@ export default function ReceitasRecorrentesPage() {
   // ======================
   // 🔘 ROW SELECTION
   // ======================
-  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: ReceitaRecorrente[]) => {
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
     setSelectedRowKeys(selectedKeys);
   };
 

@@ -123,7 +123,7 @@ export default function FornecedorPage() {
   // ======================
   // 🔘 ROW SELECTION
   // ======================
-  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Fornecedor[]) => {
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
     setSelectedRowKeys(selectedKeys);
   };
 

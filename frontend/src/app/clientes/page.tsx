@@ -123,7 +123,7 @@ export default function ClientePage() {
   // ======================
   // 🔘 ROW SELECTION
   // ======================
-  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: Cliente[]) => {
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
     setSelectedRowKeys(selectedKeys);
   };
 
