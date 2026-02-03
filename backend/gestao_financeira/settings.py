@@ -201,6 +201,7 @@ if ENV == "production":
         "https://*.railway.app",
         "https://*.up.railway.app",
         "https://jurisfinance-bice.vercel.app"
+        "https://app.vincorapp.com.br"
     ]
     # Adicionar domínios customizados via env (separados por vírgula)
     if custom_origins := os.getenv("CSRF_TRUSTED_ORIGINS"):
