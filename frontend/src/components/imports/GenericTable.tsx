@@ -1,6 +1,7 @@
 import { Table } from 'antd';
 import type { TableColumnsType, TablePaginationConfig } from 'antd';
 import React from 'react';
+import './GenericTable.css';
 
 type GenericTableProps<T> = {
   columns: TableColumnsType<T>;
@@ -9,6 +10,9 @@ type GenericTableProps<T> = {
   loading?: boolean;
   pagination?: false | TablePaginationConfig;
   onChange?: (pagination: TablePaginationConfig) => void;
+  // Row selection props
+  selectedRowKeys?: React.Key[];
+  onSelectionChange?: (selectedRowKeys: React.Key[], selectedRows: T[]) => void;
 };
 
 export default function GenericTable<T extends object>({
@@ -18,6 +22,8 @@ export default function GenericTable<T extends object>({
   loading = false,
   pagination,
   onChange,
+  selectedRowKeys,
+  onSelectionChange,
 }: GenericTableProps<T>) {
   // Aplica ellipsis em todas as colunas que não têm configuração explícita
   const columnsWithEllipsis = columns.map((col) => ({
@@ -26,6 +32,15 @@ export default function GenericTable<T extends object>({
       showTitle: true,
     },
   }));
+
+  // Row selection configuration
+  const rowSelection = onSelectionChange
+    ? {
+        selectedRowKeys,
+        onChange: onSelectionChange,
+        preserveSelectedRowKeys: true,
+      }
+    : undefined;
 
   return (
     <Table<T>
@@ -40,6 +55,7 @@ export default function GenericTable<T extends object>({
           onChange(pagination);
         }
       }}
+      rowSelection={rowSelection}
       className='shadow-soft bg-white rounded border border-border'
       style={{ width: '100%' }}
     />
