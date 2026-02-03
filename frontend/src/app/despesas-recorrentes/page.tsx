@@ -59,6 +59,9 @@ export default function DespesasRecorrentesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD DATA
   // ======================
@@ -103,6 +106,43 @@ export default function DespesasRecorrentesPage() {
       console.error(error);
       toast.error('Erro ao excluir despesa recorrente');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma despesa recorrente');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} despesa(s) recorrente(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteDespesaRecorrente(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} despesa(s) recorrente(s) excluída(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadDespesas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir despesas recorrentes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: DespesaRecorrente[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -226,7 +266,7 @@ export default function DespesasRecorrentesPage() {
     {
       title: 'Favorecido',
       dataIndex: 'responsavel',
-      width: '20%',
+      width: '16%',
       render: (r: { nome: string }) => r?.nome || '—',
     },
     {
@@ -331,6 +371,17 @@ export default function DespesasRecorrentesPage() {
               className="w-80"
             />
 
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
             <Button
               icon={<CalendarPlus className="w-4 h-4" />}
               onClick={() => setShowGerarMesAlert(true)}
@@ -361,6 +412,8 @@ export default function DespesasRecorrentesPage() {
             total,
             onChange: (p) => setPage(p),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <DespesaRecorrenteDialog

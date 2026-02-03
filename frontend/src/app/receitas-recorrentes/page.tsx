@@ -59,6 +59,9 @@ export default function ReceitasRecorrentesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // ======================
   // 🔄 LOAD DATA
   // ======================
@@ -103,6 +106,43 @@ export default function ReceitasRecorrentesPage() {
       console.error(error);
       toast.error('Erro ao excluir receita recorrente');
     }
+  };
+
+  // ======================
+  // ❌ BULK DELETE
+  // ======================
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma receita recorrente');
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} receita(s) recorrente(s)?`)) return;
+
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteReceitaRecorrente(Number(id)))
+      );
+
+      toast.success(`${selectedRowKeys.length} receita(s) recorrente(s) excluída(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadReceitas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir receitas recorrentes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[], _selectedRows: ReceitaRecorrente[]) => {
+    setSelectedRowKeys(selectedKeys);
   };
 
   // ======================
@@ -226,7 +266,7 @@ export default function ReceitasRecorrentesPage() {
     {
       title: 'Cliente',
       dataIndex: 'cliente',
-      width: '20%',
+      width: '16%',
       render: (c: { nome: string }) => c?.nome || '—',
     },
     {
@@ -331,6 +371,17 @@ export default function ReceitasRecorrentesPage() {
               className="w-80"
             />
 
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
             <Button
               icon={<CalendarPlus className="w-4 h-4" />}
               onClick={() => setShowGerarMesAlert(true)}
@@ -361,6 +412,8 @@ export default function ReceitasRecorrentesPage() {
             total,
             onChange: (p) => setPage(p),
           }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
         />
 
         <ReceitaRecorrenteDialog
