@@ -4,9 +4,9 @@
 export interface Funcionario {
     id: number;
     nome: string;
-    cpf: string;
-    email: string;
-    telefone: string;
+    cpf?: string;
+    email?: string;
+    telefone?: string;
     aniversario: string | null;
     tipo: 'F' | 'P' | 'O'; // F = Funcionário, P = Parceiro, O = Fornecedor
     tipo_display: string;
@@ -18,9 +18,9 @@ export interface Funcionario {
   // =======================
   export type FuncionarioCreate = {
     nome: string;
-    cpf: string;
-    email: string;
-    telefone: string;
+    cpf?: string;
+    email?: string;
+    telefone?: string;
     aniversario: string | null;
     tipo: 'F' | 'P' | 'O';
     salario_mensal: number | null;

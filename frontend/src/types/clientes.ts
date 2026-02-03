@@ -10,12 +10,12 @@ export interface FormaCobranca {
   export interface Cliente {
     id: number;
     nome: string;
-    cpf: string;
-    email: string;
+    cpf?: string;
+    email?: string;
     telefone?: string;
     aniversario?: string;
     tipo: string;
-  
+
     // 🔥 ADICIONAR ISTO
     formas_cobranca?: FormaCobranca[];
   }
@@ -31,8 +31,8 @@ export interface FormaCobranca {
   // 🔹 Payload de criação (o que o usuário envia)
   export type ClienteCreate = {
     nome: string;
-    cpf: string;
-    email: string;
+    cpf?: string;
+    email?: string;
     telefone?: string;
     aniversario?: string | null;
     tipo: string;

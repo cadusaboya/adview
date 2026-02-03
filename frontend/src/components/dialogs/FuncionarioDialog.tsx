@@ -119,7 +119,7 @@ export default function FuncionarioDialog({
         {/* Nome / CPF */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm">Nome</label>
+            <label className="text-sm">Nome *</label>
             <Input
               placeholder="Nome completo"
               value={formData.nome}
@@ -200,7 +200,7 @@ export default function FuncionarioDialog({
             </div>
 
             <div>
-              <label className="text-sm">Tipo</label>
+              <label className="text-sm">Tipo *</label>
               <Select
                 value={formData.tipo}
                 onValueChange={(val) =>

@@ -153,7 +153,7 @@ export default function ClienteDialog({
           </div>
 
           <div className="md:col-span-2">
-            <label className="text-sm font-medium">Nome</label>
+            <label className="text-sm font-medium">Nome *</label>
             <Input
               placeholder="Nome do cliente"
               value={formData.nome}
@@ -189,7 +189,7 @@ export default function ClienteDialog({
           </div>
 
           <div>
-            <label className="text-sm font-medium">Tipo de Cliente</label>
+            <label className="text-sm font-medium">Tipo de Cliente *</label>
             <Select
               value={formData.tipo}
               onValueChange={(val) =>
