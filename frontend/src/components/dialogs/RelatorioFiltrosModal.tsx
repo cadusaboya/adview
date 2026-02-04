@@ -51,8 +51,8 @@ interface RelatorioFormValues {
   cliente_id?: number;
   conta_bancaria_id?: number;
   tipo?: string;
-  percentual_multa?: number;
-  percentual_juros?: number;
+  percentual_multa?: string | number;
+  percentual_juros?: string | number;
   visualizacao?: 'ambas' | 'recebidas' | 'a_receber';
 }
 
