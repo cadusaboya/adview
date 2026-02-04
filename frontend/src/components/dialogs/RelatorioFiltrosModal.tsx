@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal, Form, DatePicker, Select, Button, InputNumber } from 'antd';
+import { Modal, Form, DatePicker, Select, Button, Input } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
@@ -108,11 +108,17 @@ export default function RelatorioFiltrosModal({
       }
 
       if (values.percentual_multa !== undefined && values.percentual_multa !== null) {
-        filtros.percentual_multa = values.percentual_multa;
+        const multa = typeof values.percentual_multa === 'string'
+          ? parseFloat(values.percentual_multa.replace(',', '.'))
+          : values.percentual_multa;
+        filtros.percentual_multa = multa;
       }
 
       if (values.percentual_juros !== undefined && values.percentual_juros !== null) {
-        filtros.percentual_juros = values.percentual_juros;
+        const juros = typeof values.percentual_juros === 'string'
+          ? parseFloat(values.percentual_juros.replace(',', '.'))
+          : values.percentual_juros;
+        filtros.percentual_juros = juros;
       }
 
       if (values.visualizacao) {
@@ -303,14 +309,10 @@ export default function RelatorioFiltrosModal({
               tooltip="Percentual de multa para contas em atraso"
               initialValue={0}
             >
-              <InputNumber
-                min={0}
-                max={100}
-                step={0.1}
-                precision={2}
-                style={{ width: '100%' }}
-                placeholder="Ex: 2 (para 2%)"
+              <Input
+                placeholder="Ex: 2,00 (para 2%)"
                 suffix="%"
+                style={{ width: '100%' }}
               />
             </Form.Item>
 
@@ -320,14 +322,10 @@ export default function RelatorioFiltrosModal({
               tooltip="Percentual de juros mensal para contas em atraso"
               initialValue={0}
             >
-              <InputNumber
-                min={0}
-                max={100}
-                step={0.1}
-                precision={2}
-                style={{ width: '100%' }}
-                placeholder="Ex: 1 (para 1% ao mês)"
+              <Input
+                placeholder="Ex: 1,00 (para 1% ao mês)"
                 suffix="%"
+                style={{ width: '100%' }}
               />
             </Form.Item>
           </>

@@ -478,11 +478,13 @@ export default function ReceitasRecorrentesPage() {
                   Quantidade de meses (1-24)
                 </label>
                 <Input
-                  type="number"
-                  min="1"
-                  max="24"
+                  placeholder="1"
                   value={quantidadeMeses}
-                  onChange={(e) => setQuantidadeMeses(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^\d]/g, '');
+                    const num = parseInt(val) || 1;
+                    setQuantidadeMeses(Math.max(1, Math.min(24, num)));
+                  }}
                 />
               </div>
               <p className="text-sm text-muted-foreground">

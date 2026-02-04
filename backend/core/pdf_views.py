@@ -1092,6 +1092,7 @@ from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 from reportlab.lib.units import inch
 from decimal import Decimal
 from datetime import datetime
@@ -1314,20 +1315,32 @@ def recibo_pagamento(request):
     # Determinar forma de pagamento
     forma_pagamento = payment.observacao if payment.observacao else "transferência bancária"
 
-    # Texto formal
-    texto_linha1 = "Honrado em cumprimentá-lo/a, informamos que recebemos nesta data os seguintes"
-    texto_linha2 = f"valores, por meio de {forma_pagamento}, referentes ao contrato de prestação"
-    texto_linha3 = "dos seguintes serviços:"
+    # Texto formal com parágrafo justificado
+    texto_formal = (
+        f"Honrado em cumprimentá-lo/a, informamos que recebemos nesta data os seguintes "
+        f"valores, por meio de {forma_pagamento}, referentes ao contrato de prestação "
+        f"dos seguintes serviços:"
+    )
 
-    pdf.setFont("Helvetica", 10)
-    linha_altura = 18  # Aumentar espaçamento entre linhas
+    # Criar estilo de parágrafo justificado
+    styles = getSampleStyleSheet()
+    style_justify = ParagraphStyle(
+        'Justify',
+        parent=styles['Normal'],
+        alignment=TA_JUSTIFY,
+        fontSize=10,
+        leading=18,  # Espaçamento entre linhas
+        fontName='Helvetica'
+    )
 
-    pdf.drawString(margin, y, texto_linha1)
-    y -= linha_altura
-    pdf.drawString(margin, y, texto_linha2)
-    y -= linha_altura
-    pdf.drawString(margin, y, texto_linha3)
-    y -= 40  # Mais espaço antes da tabela
+    # Criar parágrafo e calcular altura
+    paragrafo = Paragraph(texto_formal, style_justify)
+    paragrafo_width = width - 2 * margin
+    paragrafo_height = paragrafo.wrap(paragrafo_width, height)[1]
+
+    # Desenhar parágrafo
+    paragrafo.drawOn(pdf, margin, y - paragrafo_height)
+    y -= (paragrafo_height + 30)  # Espaço após o parágrafo
 
     # ========== TABELA DE VALORES ==========
     # Desenhar tabela com bordas completas (mesma largura do título)

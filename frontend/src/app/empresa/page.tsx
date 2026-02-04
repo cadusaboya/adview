@@ -27,6 +27,8 @@ export default function EmpresaPage() {
     percentual_comissao: 20,
   });
 
+  const [percentualDisplay, setPercentualDisplay] = useState("20");
+
   // ======================
   // 🔄 LOAD
   // ======================
@@ -48,6 +50,7 @@ export default function EmpresaPage() {
         email: data.email || "",
         percentual_comissao: data.percentual_comissao || 20,
       });
+      setPercentualDisplay(String(data.percentual_comissao || 20).replace('.', ','));
     } catch (error: unknown) {
       console.error("Erro ao buscar empresa:", error);
       toast.error("Erro ao buscar dados da empresa");
@@ -240,18 +243,25 @@ export default function EmpresaPage() {
                   Percentual de Comissão (%)
                 </label>
                 <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  placeholder="20.00"
-                  value={formData.percentual_comissao}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      percentual_comissao: parseFloat(e.target.value) || 0,
-                    })
-                  }
+                  placeholder="20,00"
+                  value={percentualDisplay}
+                  onChange={(e) => setPercentualDisplay(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parseFloat(percentualDisplay.replace(',', '.'));
+                    if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+                      setFormData({
+                        ...formData,
+                        percentual_comissao: parsed,
+                      });
+                      setPercentualDisplay(String(parsed).replace('.', ','));
+                    } else {
+                      setFormData({
+                        ...formData,
+                        percentual_comissao: 0,
+                      });
+                      setPercentualDisplay('0');
+                    }
+                  }}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Este percentual será aplicado automaticamente ao criar
