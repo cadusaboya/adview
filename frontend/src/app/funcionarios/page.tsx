@@ -49,7 +49,7 @@ export default function FuncionarioPage() {
   // Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   // Search state
   const [search, setSearch] = useState('');
@@ -77,7 +77,7 @@ export default function FuncionarioPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadFuncionarios();
@@ -303,6 +303,12 @@ export default function FuncionarioPage() {
             pageSize,
             total,
             onChange: setPage,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onShowSizeChange: (_, size) => {
+              setPageSize(size);
+              setPage(1);
+            },
           }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}

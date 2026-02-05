@@ -124,8 +124,9 @@ export default function FluxoCaixaPage() {
       let impactoFuturo = 0;
       futurePayments.results.forEach((p) => {
         const valor = parseMoney(p.valor);
-        if (p.receita) impactoFuturo += valor;
-        else impactoFuturo -= valor;
+        // Usar p.tipo em vez de p.receita
+        if (p.tipo === 'E') impactoFuturo += valor;  // Entrada
+        else impactoFuturo -= valor;  // Saída
       });
 
       const saldoFinalPeriodo = saldoHoje - impactoFuturo;
@@ -148,8 +149,9 @@ export default function FluxoCaixaPage() {
         if (!byDate[date]) byDate[date] = [];
         byDate[date].push(p);
 
-        if (p.receita) totalEntradas += valor;
-        else totalSaidas += valor;
+        // Usar p.tipo em vez de p.receita
+        if (p.tipo === 'E') totalEntradas += valor;  // Entrada
+        else totalSaidas += valor;  // Saída
       });
 
       const saldoInicialPeriodo =
@@ -168,8 +170,9 @@ export default function FluxoCaixaPage() {
 
         payments.forEach((p) => {
           const valor = parseMoney(p.valor);
-          if (p.receita) entradas += valor;
-          else saidas += valor;
+          // Usar p.tipo em vez de p.receita
+          if (p.tipo === 'E') entradas += valor;  // Entrada
+          else saidas += valor;  // Saída
         });
 
         saldoCorrente = saldoCorrente + entradas - saidas;
@@ -337,13 +340,21 @@ export default function FluxoCaixaPage() {
                                 className={`flex justify-between px-2 py-1 rounded ${zebraPayment}`}
                               >
                                 <span>
-                                  {p.receita
-                                    ? p.receita_nome || "Receita"
-                                    : p.despesa_nome || "Despesa"}
+                                  {/* Usar allocations_info para obter o nome */}
+                                  {p.allocations_info && p.allocations_info.length > 0 ? (
+                                    p.allocations_info.map((alloc) =>
+                                      alloc.receita?.nome ||
+                                      alloc.despesa?.nome ||
+                                      alloc.custodia?.nome ||
+                                      'Movimentação'
+                                    ).join(', ')
+                                  ) : (
+                                    p.tipo === 'E' ? 'Entrada' : 'Saída'
+                                  )}
                                 </span>
                                 <span
                                   className={
-                                    p.receita
+                                    p.tipo === 'E'
                                       ? "text-green-600"
                                       : "text-red-600"
                                   }
