@@ -13,10 +13,11 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
-import { createPayment } from '@/services/payments';
+import { formatCurrencyInput, parseCurrencyBR, formatCurrencyBR } from '@/lib/formatters';
+import { createPayment, getPayments } from '@/services/payments';
 import { createAllocation, deleteAllocation, getAllocations } from '@/services/allocations';
 import PaymentsTable from './PaymentsTable';
+import { Payment } from '@/types/payments';
 
 export interface PaymentUI {
   id: number; // Payment ID
@@ -32,9 +33,10 @@ interface Props {
   entityId: number;
   contasBancarias: { id: number; nome: string }[];
   custodiaTipo?: 'P' | 'A'; // P = Passivo, A = Ativo (apenas para custódia)
+  valorAberto?: number; // Valor em aberto da entidade para filtrar pagamentos
 }
 
-export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo }: Props) {
+export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo, valorAberto }: Props) {
   const [payments, setPayments] = useState<PaymentUI[]>([]);
   const [valorDisplay, setValorDisplay] = useState('');
 
@@ -44,6 +46,12 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     valor: 0,
     observacao: '',
   });
+
+  // Estado para a tab "Vincular"
+  const [availablePayments, setAvailablePayments] = useState<Payment[]>([]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
+  const [vincularValorDisplay, setVincularValorDisplay] = useState('');
+  const [vincularValor, setVincularValor] = useState(0);
 
   const loadPayments = useCallback(async () => {
     try {
@@ -181,14 +189,108 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     }
   };
 
+  // Carregar pagamentos disponíveis para vincular
+  const loadAvailablePayments = useCallback(async () => {
+    try {
+      // Determina o tipo de payment baseado na entidade
+      let paymentTipo: 'E' | 'S' | undefined = undefined;
+      if (tipo === 'receita') {
+        paymentTipo = 'E';
+      } else if (tipo === 'despesa') {
+        paymentTipo = 'S';
+      } else if (tipo === 'custodia') {
+        paymentTipo = custodiaTipo === 'A' ? 'E' : 'S';
+      }
+
+      const res = await getPayments({
+        tipo: paymentTipo,
+        page_size: 9999
+      });
+
+      // Filtrar pagamentos com o mesmo valor (tolerância para comparação de floats)
+      const filtered = valorAberto
+        ? res.results.filter((p) => Math.abs(p.valor - valorAberto) < 0.01)
+        : res.results;
+
+      setAvailablePayments(filtered);
+    } catch {
+      toast.error('Erro ao carregar pagamentos disponíveis');
+    }
+  }, [tipo, custodiaTipo, valorAberto]);
+
+  // Vincular um payment existente
+  const handleVincular = async () => {
+    if (!selectedPaymentId || !vincularValor) {
+      toast.error('Selecione um pagamento e informe o valor');
+      return;
+    }
+
+    try {
+      const allocationPayload: {
+        payment_id: number;
+        valor: number;
+        receita_id?: number;
+        despesa_id?: number;
+        custodia_id?: number;
+      } = {
+        payment_id: selectedPaymentId,
+        valor: vincularValor,
+      };
+
+      if (tipo === 'receita') {
+        allocationPayload.receita_id = entityId;
+      } else if (tipo === 'despesa') {
+        allocationPayload.despesa_id = entityId;
+      } else {
+        allocationPayload.custodia_id = entityId;
+      }
+
+      const novaAllocation = await createAllocation(allocationPayload);
+
+      // Buscar o payment selecionado para adicionar à lista
+      const selectedPayment = availablePayments.find((p) => p.id === selectedPaymentId);
+
+      if (selectedPayment) {
+        setPayments((prev) => [
+          ...prev,
+          {
+            id: selectedPayment.id,
+            allocation_id: novaAllocation.id,
+            data_pagamento: selectedPayment.data_pagamento,
+            conta_bancaria: selectedPayment.conta_bancaria,
+            valor: vincularValor,
+            observacao: selectedPayment.observacao,
+          },
+        ]);
+      }
+
+      toast.success('Pagamento vinculado com sucesso');
+
+      // Limpar formulário
+      setSelectedPaymentId(null);
+      setVincularValorDisplay('');
+      setVincularValor(0);
+
+      // Recarregar pagamentos disponíveis
+      loadAvailablePayments();
+    } catch {
+      toast.error('Erro ao vincular pagamento');
+    }
+  };
+
   return (
-    <Tabs defaultValue="pagamentos" className="w-full">
+    <Tabs defaultValue="pagamentos" className="w-full" onValueChange={(value) => {
+      if (value === 'vincular') {
+        loadAvailablePayments();
+      }
+    }}>
       <TabsList>
         <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
         <TabsTrigger value="baixa">Baixa</TabsTrigger>
+        <TabsTrigger value="vincular">Vincular</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="pagamentos">
+      <TabsContent value="pagamentos" className="min-h-[400px]">
         <PaymentsTable
           payments={payments}
           contasBancarias={contasBancarias}
@@ -196,7 +298,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
         />
       </TabsContent>
 
-      <TabsContent value="baixa">
+      <TabsContent value="baixa" className="min-h-[400px]">
         <div className="border rounded-md p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -260,6 +362,113 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
           <div className="flex justify-end">
             <Button onClick={handleAdd}>Adicionar Pagamento</Button>
           </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="vincular" className="min-h-[400px]">
+        <div className="border rounded-md p-4 space-y-4">
+          <div className="text-sm text-muted-foreground mb-4">
+            Selecione um pagamento já existente para vincular a esta {tipo === 'receita' ? 'receita' : tipo === 'despesa' ? 'despesa' : 'custódia'}
+          </div>
+
+          {/* Lista de pagamentos disponíveis */}
+          <div className="border rounded-md overflow-y-auto">
+            <table className="w-full">
+              <thead className="bg-muted sticky top-0">
+                <tr>
+                  <th className="text-left p-2 text-xs">Selecionar</th>
+                  <th className="text-left p-2 text-xs">Data</th>
+                  <th className="text-left p-2 text-xs">Conta</th>
+                  <th className="text-right p-2 text-xs">Valor</th>
+                  <th className="text-left p-2 text-xs">Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {availablePayments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center p-4 text-sm text-muted-foreground">
+                      Nenhum pagamento disponível
+                    </td>
+                  </tr>
+                ) : (
+                  availablePayments.map((payment) => (
+                    <tr
+                      key={payment.id}
+                      className={`hover:bg-muted/50 cursor-pointer ${
+                        selectedPaymentId === payment.id ? 'bg-primary/10' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedPaymentId(payment.id);
+                        setVincularValorDisplay(formatCurrencyInput(payment.valor));
+                        setVincularValor(payment.valor);
+                      }}
+                    >
+                      <td className="p-2">
+                        <input
+                          type="radio"
+                          checked={selectedPaymentId === payment.id}
+                          onChange={() => {
+                            setSelectedPaymentId(payment.id);
+                            setVincularValorDisplay(formatCurrencyInput(payment.valor));
+                            setVincularValor(payment.valor);
+                          }}
+                          className="cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-2 text-sm">
+                        {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="p-2 text-sm">
+                        {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}
+                      </td>
+                      <td className="p-2 text-sm text-right font-medium">
+                        {formatCurrencyBR(payment.valor)}
+                      </td>
+                      <td className="p-2 text-sm text-muted-foreground">
+                        {payment.observacao || '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Formulário de vinculação */}
+          {selectedPaymentId && (
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <label className="text-sm font-medium">Valor a vincular (R$)</label>
+                <Input
+                  placeholder="0,00"
+                  value={vincularValorDisplay}
+                  onChange={(e) => setVincularValorDisplay(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parseCurrencyBR(vincularValorDisplay);
+                    setVincularValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+                    setVincularValor(parsed);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Você pode vincular um valor parcial do pagamento
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedPaymentId(null);
+                    setVincularValorDisplay('');
+                    setVincularValor(0);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={handleVincular}>Vincular Pagamento</Button>
+              </div>
+            </div>
+          )}
         </div>
       </TabsContent>
     </Tabs>
