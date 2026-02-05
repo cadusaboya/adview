@@ -348,6 +348,7 @@ export default function ReceitaDialog({
             tipo="receita"
             entityId={receita.id}
             contasBancarias={bancos}
+            valorAberto={receita.valor_aberto ?? receita.valor}
           />
         )}
       </div>

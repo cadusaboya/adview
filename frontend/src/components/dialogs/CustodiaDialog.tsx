@@ -251,6 +251,7 @@ export default function CustodiaDialog({
             entityId={custodia.id}
             contasBancarias={bancos}
             custodiaTipo={custodia.tipo}
+            valorAberto={custodia.valor_total - custodia.valor_liquidado}
           />
         )}
       </div>

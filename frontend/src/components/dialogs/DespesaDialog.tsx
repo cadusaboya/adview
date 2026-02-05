@@ -326,6 +326,7 @@ export default function DespesaDialog({
             tipo="despesa"
             entityId={despesa.id}
             contasBancarias={bancos}
+            valorAberto={despesa.valor_aberto ?? despesa.valor}
           />
         )}
       </div>
