@@ -9,6 +9,7 @@ import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import CustodiaDialog from '@/components/dialogs/CustodiaDialog';
 import { Input } from '@/components/ui/input';
+import { Select } from 'antd';
 
 import {
   getCustodias,
@@ -23,7 +24,7 @@ import {
   CustodiaUpdate,
 } from '@/types/custodias';
 
-import { formatCurrencyBR, formatDateBR } from '@/lib/formatters';
+import { formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
@@ -36,6 +37,7 @@ export default function PassivosPage() {
   const [editingCustodia, setEditingCustodia] = useState<Custodia | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -50,12 +52,19 @@ export default function PassivosPage() {
   const loadCustodias = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getCustodias({
+      const params: any = {
         page,
         page_size: pageSize,
         search: debouncedSearch,
         tipo: 'P',
-      });
+      };
+
+      // Aplicar filtro de status
+      if (statusFilter !== 'todos') {
+        params.status = statusFilter;
+      }
+
+      const res = await getCustodias(params);
       setCustodias(res.results);
       setTotal(res.count);
     } catch (error) {
@@ -64,16 +73,16 @@ export default function PassivosPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     loadCustodias();
   }, [loadCustodias]);
 
-  // Reset page when search changes
+  // Reset page when search or status filter changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, statusFilter]);
 
   // ======================
   // ❌ DELETE
@@ -177,80 +186,43 @@ export default function PassivosPage() {
 
   const columns: TableColumnsType<Custodia> = [
     {
-      title: 'Nome',
-      dataIndex: 'nome',
-      width: '18%',
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'tipo_display',
-      width: '10%',
-    },
-    {
-      title: 'Pessoa',
-      key: 'pessoa',
-      width: '16%',
+      title: 'Contraparte',
+      key: 'contraparte',
+      width: '25%',
       render: (_: unknown, record: Custodia) => {
         if (record.cliente) {
-          return (
-            <div>
-              <div className="font-medium">{record.cliente.nome}</div>
-              <div className="text-xs text-gray-500">Cliente</div>
-            </div>
-          );
+          return record.cliente.nome;
         }
         if (record.funcionario) {
-          return (
-            <div>
-              <div className="font-medium">{record.funcionario.nome}</div>
-              <div className="text-xs text-gray-500">Funcionário/Fornecedor</div>
-            </div>
-          );
+          return record.funcionario.nome;
         }
         return '—';
       },
     },
     {
-      title: 'Valor Total',
-      dataIndex: 'valor_total',
-      width: '12%',
-      render: (v: number) => formatCurrencyBR(v),
-    },
-    {
-      title: 'Valor Liquidado',
-      dataIndex: 'valor_liquidado',
-      width: '12%',
-      render: (v: number) => formatCurrencyBR(v),
+      title: 'Nome',
+      dataIndex: 'nome',
+      width: '30%',
     },
     {
       title: 'Saldo',
       key: 'saldo',
-      width: '10%',
+      width: '15%',
       render: (_: unknown, record: Custodia) => {
         const saldo = record.valor_total - record.valor_liquidado;
-        return (
-          <span className={saldo > 0 ? 'text-red-600 font-medium' : 'text-gray-600'}>
-            {formatCurrencyBR(saldo)}
-          </span>
-        );
+        return formatCurrencyBR(saldo);
       },
     },
     {
       title: 'Status',
       dataIndex: 'status_display',
-      width: '10%',
+      width: '15%',
       render: (status: string) => getStatusBadge(status),
-    },
-    {
-      title: 'Criado em',
-      dataIndex: 'criado_em',
-      width: '10%',
-      render: (data: string) => formatDateBR(data),
     },
     {
       title: 'Ações',
       key: 'actions',
-      width: '6%',
+      width: '15%',
       render: (_: unknown, record: Custodia) => (
         <ActionsDropdown
           actions={[
@@ -293,6 +265,18 @@ export default function PassivosPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-80"
+            />
+
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              className="w-48"
+              options={[
+                { value: 'todos', label: 'Todos' },
+                { value: 'A', label: 'Aberto' },
+                { value: 'P', label: 'Parcial' },
+                { value: 'L', label: 'Liquidado' },
+              ]}
             />
 
             {selectedRowKeys.length > 0 && (
