@@ -8,11 +8,11 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Allocation
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer,
     FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer, DespesaSerializer, DespesaAbertaSerializer,
-    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer
+    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, AllocationSerializer
 )
 
 # --- Base ViewSet for Company context ---
@@ -243,7 +243,7 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         queryset = super().get_queryset().select_related(
             "cliente", "company"
         ).prefetch_related(
-            "payments"
+            "allocations"
         )
 
         params = self.request.query_params
@@ -295,7 +295,7 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             observacao_pagamento = self.request.data.get('observacao_pagamento', '')
 
             if data_pagamento and conta_bancaria_id:
-                from core.models import Payment, ContaBancaria
+                from core.models import Payment, ContaBancaria, Allocation
 
                 try:
                     conta_bancaria = ContaBancaria.objects.get(
@@ -303,13 +303,22 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         company=self.request.user.company
                     )
 
+                    # Cria o payment neutro (entrada)
                     payment = Payment.objects.create(
                         company=self.request.user.company,
-                        receita=receita,
+                        tipo='E',  # Entrada
                         conta_bancaria=conta_bancaria,
                         valor=receita.valor,
                         data_pagamento=data_pagamento,
                         observacao=observacao_pagamento
+                    )
+
+                    # Cria a alocação para a receita
+                    Allocation.objects.create(
+                        company=self.request.user.company,
+                        payment=payment,
+                        receita=receita,
+                        valor=receita.valor
                     )
 
                     # Atualiza saldo da conta bancária (entrada de dinheiro)
@@ -715,7 +724,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         queryset = super().get_queryset().select_related(
             "responsavel", "company"
         ).prefetch_related(
-            "payments"
+            "allocations"
         )
 
         params = self.request.query_params
@@ -767,7 +776,7 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             observacao_pagamento = self.request.data.get('observacao_pagamento', '')
 
             if data_pagamento and conta_bancaria_id:
-                from core.models import Payment, ContaBancaria
+                from core.models import Payment, ContaBancaria, Allocation
 
                 try:
                     conta_bancaria = ContaBancaria.objects.get(
@@ -775,13 +784,22 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         company=self.request.user.company
                     )
 
+                    # Cria o payment neutro (saída)
                     payment = Payment.objects.create(
                         company=self.request.user.company,
-                        despesa=despesa,
+                        tipo='S',  # Saída
                         conta_bancaria=conta_bancaria,
                         valor=despesa.valor,
                         data_pagamento=data_pagamento,
                         observacao=observacao_pagamento
+                    )
+
+                    # Cria a alocação para a despesa
+                    Allocation.objects.create(
+                        company=self.request.user.company,
+                        payment=payment,
+                        despesa=despesa,
+                        valor=despesa.valor
                     )
 
                     # Atualiza saldo da conta bancária (saída de dinheiro)
@@ -1092,132 +1110,561 @@ from django.db.models import Q
 from rest_framework import viewsets
 
 class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
-    """API endpoint para registrar pagamentos de receitas ou despesas."""
+    """
+    API endpoint para registrar pagamentos neutros (entrada/saída de caixa).
+    As alocações para Receitas/Despesas/Passivos são feitas via Allocation.
+    """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().prefetch_related('allocations')
         params = self.request.query_params
 
-        receita_id = params.get('receita')
-        despesa_id = params.get('despesa')
+        # Filtros por data
         start_date = params.get('start_date')
         end_date = params.get('end_date')
-        search = params.get('search')
-
-        # 🔥 FILTRO EXPLÍCITO DE TIPO (ESSENCIAL)
-        tipo = params.get('tipo')  # 'receita' | 'despesa'
-        if tipo == 'despesa':
-            queryset = queryset.filter(despesa__isnull=False)
-        elif tipo == 'receita':
-            queryset = queryset.filter(receita__isnull=False)
-
-        # 🔹 Filtros diretos
-        if receita_id:
-            queryset = queryset.filter(receita_id=receita_id)
-
-        if despesa_id:
-            queryset = queryset.filter(despesa_id=despesa_id)
 
         if start_date:
             queryset = queryset.filter(data_pagamento__gte=start_date)
-
         if end_date:
             queryset = queryset.filter(data_pagamento__lte=end_date)
 
-        # 🔍 SEARCH GLOBAL
+        # Filtro por tipo (Entrada/Saída)
+        tipo = params.get('tipo')  # 'E' | 'S'
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        # Filtro por conta bancária
+        conta_bancaria_id = params.get('conta_bancaria_id')
+        if conta_bancaria_id:
+            queryset = queryset.filter(conta_bancaria_id=conta_bancaria_id)
+
+        # Filtro por situação da receita/despesa
+        situacao = params.get('situacao')  # 'P' | 'A' | 'V'
+        if situacao:
+            # Filtra payments que têm allocations com receitas ou despesas na situação especificada
+            queryset = queryset.filter(
+                Q(allocations__receita__situacao=situacao) |
+                Q(allocations__despesa__situacao=situacao)
+            ).distinct()
+
+        # Busca global
+        search = params.get('search')
         if search:
             queryset = queryset.filter(
                 Q(valor__icontains=search) |
                 Q(observacao__icontains=search) |
-                Q(data_pagamento__icontains=search) |
-                Q(receita__nome__icontains=search) |
-                Q(receita__cliente__nome__icontains=search) |
-                Q(despesa__nome__icontains=search) |
-                Q(despesa__responsavel__nome__icontains=search)
+                Q(data_pagamento__icontains=search)
             )
 
-        # 📌 Ordenação estável (ESSENCIAL para paginação)
         return queryset.order_by('-data_pagamento', '-id')
 
     def perform_create(self, serializer):
-        instance = serializer.save(company=self.request.user.company)
+        from django.db.models import F
 
-        # Atualiza saldo da conta incrementalmente
-        if instance.receita:
+        payment = serializer.save(company=self.request.user.company)
+
+        # Atualiza saldo da conta bancária usando F() para operação atômica
+        if payment.tipo == 'E':
             # Entrada de dinheiro (+)
-            instance.conta_bancaria.saldo_atual += instance.valor
-            instance.receita.atualizar_status()
+            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
+                saldo_atual=F('saldo_atual') + payment.valor
+            )
         else:
             # Saída de dinheiro (-)
-            instance.conta_bancaria.saldo_atual -= instance.valor
-            instance.despesa.atualizar_status()
-
-        instance.conta_bancaria.save()
+            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
+                saldo_atual=F('saldo_atual') - payment.valor
+            )
 
     def perform_update(self, serializer):
-        # Guarda valor antigo antes de atualizar
-        old_instance = Payment.objects.get(pk=serializer.instance.pk)
-        old_valor = old_instance.valor
-        old_conta = old_instance.conta_bancaria
+        from django.db.models import F
 
-        instance = serializer.save()
+        # Guarda informações antigas antes de atualizar
+        old_payment = Payment.objects.get(pk=serializer.instance.pk)
+        old_valor = old_payment.valor
+        old_tipo = old_payment.tipo
+        old_conta = old_payment.conta_bancaria
 
-        # Se mudou de conta bancária, reverte na antiga e aplica na nova
-        if old_conta.pk != instance.conta_bancaria.pk:
-            # Reverte na conta antiga
-            if old_instance.receita:
-                old_conta.saldo_atual -= old_valor
-            else:
-                old_conta.saldo_atual += old_valor
-            old_conta.save()
+        payment = serializer.save()
 
-            # Aplica na conta nova
-            if instance.receita:
-                instance.conta_bancaria.saldo_atual += instance.valor
-            else:
-                instance.conta_bancaria.saldo_atual -= instance.valor
+        # Reverte a operação antiga usando F() para operação atômica
+        if old_tipo == 'E':
+            ContaBancaria.objects.filter(pk=old_conta.pk).update(
+                saldo_atual=F('saldo_atual') - old_valor
+            )
         else:
-            # Mesma conta: reverte valor antigo e aplica novo
-            if instance.receita:
-                instance.conta_bancaria.saldo_atual = instance.conta_bancaria.saldo_atual - old_valor + instance.valor
-            else:
-                instance.conta_bancaria.saldo_atual = instance.conta_bancaria.saldo_atual + old_valor - instance.valor
+            ContaBancaria.objects.filter(pk=old_conta.pk).update(
+                saldo_atual=F('saldo_atual') + old_valor
+            )
 
-        instance.conta_bancaria.save()
-
-        if instance.receita:
-            instance.receita.atualizar_status()
+        # Aplica a operação nova usando F() para operação atômica
+        if payment.tipo == 'E':
+            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
+                saldo_atual=F('saldo_atual') + payment.valor
+            )
         else:
-            instance.despesa.atualizar_status()
+            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
+                saldo_atual=F('saldo_atual') - payment.valor
+            )
+
+        # Atualiza status de todas as contas alocadas
+        for allocation in payment.allocations.all():
+            if allocation.receita:
+                allocation.receita.atualizar_status()
+            elif allocation.despesa:
+                allocation.despesa.atualizar_status()
+            elif allocation.custodia:
+                allocation.custodia.atualizar_status()
+
+    @action(detail=False, methods=['post'], url_path='import-extrato')
+    def import_extrato(self, request):
+        """
+        Importa pagamentos a partir de um arquivo XLSX de extrato bancário do BTG.
+        Espera:
+        - file: arquivo XLSX
+        - conta_bancaria_id: ID da conta bancária
+        """
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'Arquivo não fornecido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if 'conta_bancaria_id' not in request.data:
+            return Response(
+                {'error': 'conta_bancaria_id não fornecido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        file = request.FILES['file']
+        conta_bancaria_id = request.data['conta_bancaria_id']
+
+        # Verifica se a conta bancária existe e pertence ao usuário
+        try:
+            conta_bancaria = ContaBancaria.objects.get(
+                id=conta_bancaria_id,
+                company=request.user.company
+            )
+        except ContaBancaria.DoesNotExist:
+            return Response(
+                {'error': 'Conta bancária não encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            from openpyxl import load_workbook
+            from openpyxl.utils.exceptions import InvalidFileException
+            from django.db.models import F
+
+            # Carrega o workbook
+            try:
+                wb = load_workbook(file, data_only=True)
+            except InvalidFileException:
+                return Response(
+                    {'error': 'Arquivo inválido. Por favor, envie um arquivo XLSX válido.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            ws = wb.active
+
+            # Procura a linha de cabeçalho
+            # Formato BTG: "Data de lançamento | Descrição do lançamento | Entradas / Saídas (R$) | Saldo (R$)"
+            header_row = None
+            date_col = None
+            value_col = None
+            desc_col = None
+
+            for idx, row in enumerate(ws.iter_rows(min_row=1, max_row=30, values_only=True), start=1):
+                if row and any(row):
+                    # Procura por palavras-chave nas células
+                    for col_idx, cell_value in enumerate(row):
+                        if cell_value and isinstance(cell_value, str):
+                            cell_lower = cell_value.lower().strip()
+                            # Remove acentos para comparação
+                            import unicodedata
+                            cell_normalized = ''.join(
+                                c for c in unicodedata.normalize('NFD', cell_lower)
+                                if unicodedata.category(c) != 'Mn'
+                            )
+
+                            # Procura coluna de data (Data de lançamento, Data, etc.)
+                            if date_col is None and 'data' in cell_normalized:
+                                date_col = col_idx
+
+                            # Procura coluna de valor (Entradas/Saídas, Valor, etc.)
+                            # Ignora coluna "Saldo"
+                            if value_col is None and 'saldo' not in cell_normalized:
+                                if any(kw in cell_normalized for kw in ['entrada', 'saida', 'valor', 'movimentacao']):
+                                    value_col = col_idx
+
+                            # Procura coluna de descrição (mas não a coluna de data)
+                            # Procura por "Descrição do lançamento" ou "Histórico"
+                            if desc_col is None and 'data' not in cell_normalized:
+                                if any(kw in cell_normalized for kw in ['descri', 'historico']):
+                                    desc_col = col_idx
+
+                    # Se encontrou data E valor, considera essa linha como cabeçalho
+                    if date_col is not None and value_col is not None:
+                        header_row = idx
+                        break
+
+            if header_row is None or date_col is None:
+                return Response(
+                    {'error': 'Não foi possível identificar a coluna de data no extrato.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if value_col is None:
+                return Response(
+                    {'error': 'Não foi possível identificar a coluna de valor (Entradas/Saídas) no extrato.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Processa as linhas de dados
+            created_count = 0
+            errors = []
+            total_entradas = Decimal('0.00')
+            total_saidas = Decimal('0.00')
+
+            # Recarrega a conta para garantir que temos o saldo mais recente
+            conta_bancaria.refresh_from_db()
+            saldo_inicial = conta_bancaria.saldo_atual
+
+            for idx, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+                if not row or not any(row):
+                    continue
+
+                try:
+                    # Extrai data
+                    date_value = row[date_col] if date_col < len(row) else None
+                    if not date_value:
+                        continue
+
+                    # Converte data
+                    if isinstance(date_value, datetime):
+                        data_pagamento = date_value.date()
+                    elif isinstance(date_value, date):
+                        data_pagamento = date_value
+                    else:
+                        # Tenta parsear string
+                        from datetime import datetime as dt
+                        date_str = str(date_value).strip()
+
+                        # Tenta diferentes formatos
+                        for fmt in ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%d/%m/%y']:
+                            try:
+                                data_pagamento = dt.strptime(date_str, fmt).date()
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            errors.append(f'Linha {idx}: formato de data inválido: {date_value}')
+                            continue
+
+                    # Extrai valor
+                    value_raw = row[value_col] if value_col < len(row) else None
+                    if value_raw is None or value_raw == '' or value_raw == 0:
+                        continue
+
+                    # Converte valor
+                    if isinstance(value_raw, (int, float, Decimal)):
+                        # Converte para string primeiro para evitar problemas de precisão de float
+                        valor_num = Decimal(str(value_raw))
+                    else:
+                        # Remove caracteres não numéricos exceto vírgula, ponto e sinal
+                        valor_str = str(value_raw).strip()
+                        valor_str = valor_str.replace('R$', '').replace(' ', '').replace('\xa0', '')
+
+                        # Formato brasileiro: 1.234,56 ou 1234,56
+                        # Remove pontos (separador de milhar) e substitui vírgula por ponto
+                        if ',' in valor_str:
+                            valor_str = valor_str.replace('.', '').replace(',', '.')
+                        # Se não tem vírgula mas tem ponto, assume formato americano ou já está correto
+
+                        try:
+                            valor_num = Decimal(valor_str)
+                        except:
+                            errors.append(f'Linha {idx}: formato de valor inválido: {value_raw}')
+                            continue
+
+                    # Quantiza para 2 casas decimais para garantir precisão
+                    valor_num = valor_num.quantize(Decimal('0.01'))
+
+                    # Determina tipo (Entrada ou Saída) baseado no sinal
+                    if valor_num > 0:
+                        tipo = 'E'  # Entrada
+                        valor = valor_num  # Não precisa de abs() pois já é positivo
+                    else:
+                        tipo = 'S'  # Saída
+                        valor = abs(valor_num)
+
+                    # Extrai descrição/observação
+                    observacao = ''
+                    if desc_col is not None and desc_col < len(row):
+                        desc_value = row[desc_col]
+                        if desc_value:
+                            observacao = str(desc_value).strip()
+
+                    # Cria o pagamento
+                    payment = Payment.objects.create(
+                        company=request.user.company,
+                        conta_bancaria=conta_bancaria,
+                        tipo=tipo,
+                        valor=valor,
+                        data_pagamento=data_pagamento,
+                        observacao=observacao
+                    )
+
+                    # Atualiza saldo da conta usando F() para operação atômica
+                    if tipo == 'E':
+                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
+                            saldo_atual=F('saldo_atual') + valor
+                        )
+                        total_entradas += valor
+                    else:
+                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
+                            saldo_atual=F('saldo_atual') - valor
+                        )
+                        total_saidas += valor
+
+                    created_count += 1
+
+                except Exception as e:
+                    errors.append(f'Linha {idx}: {str(e)}')
+
+            # Recarrega a conta para obter o saldo final atualizado
+            conta_bancaria.refresh_from_db()
+            saldo_final = conta_bancaria.saldo_atual
+
+            # Calcula a diferença esperada vs real
+            saldo_esperado = saldo_inicial + total_entradas - total_saidas
+            diferenca = saldo_final - saldo_esperado
+
+            response_data = {
+                'success': True,
+                'created_count': created_count,
+                'conta_bancaria': conta_bancaria.nome,
+                'saldo_inicial': str(saldo_inicial),
+                'saldo_final': str(saldo_final),
+                'total_entradas': str(total_entradas),
+                'total_saidas': str(total_saidas),
+                'saldo_esperado': str(saldo_esperado),
+                'diferenca': str(diferenca)
+            }
+
+            if errors:
+                response_data['errors'] = errors[:10]  # Limita a 10 erros
+                response_data['total_errors'] = len(errors)
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {'error': f'Erro ao processar arquivo: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def perform_destroy(self, instance):
-        conta = instance.conta_bancaria
-        receita = instance.receita
-        despesa = instance.despesa
+        from django.db.models import F
+
+        conta_id = instance.conta_bancaria.pk
         valor = instance.valor
+        tipo = instance.tipo
 
-        # Reverte o pagamento do saldo
-        if receita:
-            conta.saldo_atual -= valor  # Remove entrada
-        else:
-            conta.saldo_atual += valor  # Remove saída
+        # Guarda as alocações antes de deletar
+        allocations = list(instance.allocations.all())
 
-        conta.save()
+        # Deleta o pagamento primeiro
         instance.delete()
 
-        if receita:
-            receita.atualizar_status()
-        if despesa:
-            despesa.atualizar_status()
+        # Reverte o pagamento do saldo usando F() para operação atômica
+        if tipo == 'E':
+            # Remove entrada
+            ContaBancaria.objects.filter(pk=conta_id).update(
+                saldo_atual=F('saldo_atual') - valor
+            )
+        else:
+            # Remove saída
+            ContaBancaria.objects.filter(pk=conta_id).update(
+                saldo_atual=F('saldo_atual') + valor
+            )
+
+        # Atualiza status de todas as contas que estavam alocadas
+        for allocation in allocations:
+            if allocation.receita:
+                allocation.receita.atualizar_status()
+            elif allocation.despesa:
+                allocation.despesa.atualizar_status()
+            elif allocation.custodia:
+                allocation.custodia.atualizar_status()
 
 class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para gerenciar contas bancárias."""
     queryset = ContaBancaria.objects.all()
     serializer_class = ContaBancariaSerializer
     pagination_class = DynamicPageSizePagination
+
+
+class CustodiaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """API endpoint para gerenciar custódias (valores de terceiros - ativos e passivos)."""
+    queryset = Custodia.objects.all()
+    serializer_class = CustodiaSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('cliente', 'funcionario')
+
+        params = self.request.query_params
+
+        # Filtro por tipo (Ativo ou Passivo)
+        tipo_filter = params.get('tipo')
+        if tipo_filter:
+            queryset = queryset.filter(tipo=tipo_filter)
+
+        # Filtro por status (aceita múltiplos valores)
+        status_filter = params.getlist('status')
+        if status_filter:
+            queryset = queryset.filter(status__in=status_filter)
+        elif params.get('status'):
+            # Fallback para single value
+            queryset = queryset.filter(status=params.get('status'))
+
+        # Filtro por cliente
+        cliente_id = params.get('cliente_id')
+        if cliente_id:
+            queryset = queryset.filter(cliente_id=cliente_id)
+
+        # Filtro por funcionário
+        funcionario_id = params.get('funcionario_id')
+        if funcionario_id:
+            queryset = queryset.filter(funcionario_id=funcionario_id)
+
+        # Busca global
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(nome__icontains=search) |
+                Q(descricao__icontains=search) |
+                Q(cliente__nome__icontains=search) |
+                Q(funcionario__nome__icontains=search)
+            )
+
+        return queryset.order_by('-criado_em')
+
+
+class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """API endpoint para gerenciar alocações de pagamentos."""
+    queryset = Allocation.objects.all()
+    serializer_class = AllocationSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related(
+            'payment', 'payment__conta_bancaria',
+            'receita', 'receita__cliente',
+            'despesa', 'despesa__responsavel',
+            'custodia', 'custodia__cliente', 'custodia__funcionario'
+        )
+
+        params = self.request.query_params
+
+        # Filtro por payment
+        payment_id = params.get('payment_id')
+        if payment_id:
+            queryset = queryset.filter(payment_id=payment_id)
+
+        # Filtro por receita
+        receita_id = params.get('receita_id')
+        if receita_id:
+            queryset = queryset.filter(receita_id=receita_id)
+
+        # Filtro por despesa
+        despesa_id = params.get('despesa_id')
+        if despesa_id:
+            queryset = queryset.filter(despesa_id=despesa_id)
+
+        # Filtro por custódia
+        custodia_id = params.get('custodia_id')
+        if custodia_id:
+            queryset = queryset.filter(custodia_id=custodia_id)
+
+        # Filtro por tipo de conta
+        tipo_conta = params.get('tipo_conta')  # 'receita', 'despesa', 'custodia'
+        if tipo_conta == 'receita':
+            queryset = queryset.filter(receita__isnull=False)
+        elif tipo_conta == 'despesa':
+            queryset = queryset.filter(despesa__isnull=False)
+        elif tipo_conta == 'custodia':
+            queryset = queryset.filter(custodia__isnull=False)
+
+        # Busca global
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(observacao__icontains=search) |
+                Q(valor__icontains=search) |
+                Q(payment__observacao__icontains=search) |
+                Q(receita__nome__icontains=search) |
+                Q(despesa__nome__icontains=search) |
+                Q(custodia__nome__icontains=search)
+            )
+
+        return queryset.order_by('-criado_em')
+
+    def perform_create(self, serializer):
+        allocation = serializer.save(company=self.request.user.company)
+
+        # Atualizar status da conta após criar alocação
+        if allocation.receita:
+            allocation.receita.atualizar_status()
+        elif allocation.despesa:
+            allocation.despesa.atualizar_status()
+        elif allocation.custodia:
+            allocation.custodia.atualizar_status()
+
+    def perform_update(self, serializer):
+        # Guarda referências antigas antes de atualizar
+        old_allocation = Allocation.objects.get(pk=serializer.instance.pk)
+        old_receita = old_allocation.receita
+        old_despesa = old_allocation.despesa
+        old_custodia = old_allocation.custodia
+
+        # Salva a nova alocação
+        allocation = serializer.save()
+
+        # Atualiza status da conta antiga (se mudou)
+        if old_receita and old_receita != allocation.receita:
+            old_receita.atualizar_status()
+        if old_despesa and old_despesa != allocation.despesa:
+            old_despesa.atualizar_status()
+        if old_custodia and old_custodia != allocation.custodia:
+            old_custodia.atualizar_status()
+
+        # Atualiza status da conta nova
+        if allocation.receita:
+            allocation.receita.atualizar_status()
+        elif allocation.despesa:
+            allocation.despesa.atualizar_status()
+        elif allocation.custodia:
+            allocation.custodia.atualizar_status()
+
+    def perform_destroy(self, instance):
+        receita = instance.receita
+        despesa = instance.despesa
+        custodia = instance.custodia
+
+        # Deleta a alocação
+        instance.delete()
+
+        # Atualiza status da conta após deletar alocação
+        if receita:
+            receita.atualizar_status()
+        if despesa:
+            despesa.atualizar_status()
+        if custodia:
+            custodia.atualizar_status()
 
 
 # --- Report Views (Placeholder - Step 7 will detail these) ---
@@ -1275,31 +1722,31 @@ def dashboard_view(request):
     # ======================================================
     # 💰 FLUXO DE CAIXA REALIZADO (ÚLTIMOS 30 DIAS)
     # ======================================================
-    
-    # Receitas dos últimos 30 dias (dinheiro que entrou)
+
+    # Receitas dos últimos 30 dias (dinheiro que entrou via alocações)
     receitas_30_dias = (
-        Payment.objects.filter(
+        Allocation.objects.filter(
             company=company,
             receita__isnull=False,
-            data_pagamento__gte=data_30_dias_atras,
-            data_pagamento__lte=hoje
+            payment__data_pagamento__gte=data_30_dias_atras,
+            payment__data_pagamento__lte=hoje
         )
         .aggregate(total=Sum('valor'))['total']
         or Decimal('0.00')
     )
-    
-    # Despesas dos últimos 30 dias (dinheiro que saiu)
+
+    # Despesas dos últimos 30 dias (dinheiro que saiu via alocações)
     despesas_30_dias = (
-        Payment.objects.filter(
+        Allocation.objects.filter(
             company=company,
             despesa__isnull=False,
-            data_pagamento__gte=data_30_dias_atras,
-            data_pagamento__lte=hoje
+            payment__data_pagamento__gte=data_30_dias_atras,
+            payment__data_pagamento__lte=hoje
         )
         .aggregate(total=Sum('valor'))['total']
         or Decimal('0.00')
     )
-    
+
     # Fluxo de caixa realizado (o que entrou - o que saiu)
     fluxo_caixa_realizado = receitas_30_dias - despesas_30_dias
 
@@ -1441,22 +1888,22 @@ def dashboard_view(request):
         ) - timedelta(days=1)
 
         receita = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 receita__isnull=False,
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                payment__data_pagamento__gte=mes_inicio,
+                payment__data_pagamento__lte=mes_fim
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
 
         despesa = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 despesa__isnull=False,
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                payment__data_pagamento__gte=mes_inicio,
+                payment__data_pagamento__lte=mes_fim
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
@@ -1482,22 +1929,22 @@ def dashboard_view(request):
         ) - timedelta(days=1)
 
         receita_mes = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 receita__isnull=False,
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                payment__data_pagamento__gte=mes_inicio,
+                payment__data_pagamento__lte=mes_fim
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
 
         despesa_mes = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 despesa__isnull=False,
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                payment__data_pagamento__gte=mes_inicio,
+                payment__data_pagamento__lte=mes_fim
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
@@ -1519,7 +1966,7 @@ def dashboard_view(request):
     receita_por_tipo = []
     for tipo, label in Receita.TIPO_CHOICES:
         total = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 receita__tipo=tipo
             )
@@ -1536,7 +1983,7 @@ def dashboard_view(request):
     despesa_por_tipo = []
     for tipo, label in Despesa.TIPO_CHOICES:
         total = (
-            Payment.objects.filter(
+            Allocation.objects.filter(
                 company=company,
                 despesa__tipo=tipo
             )
@@ -1661,7 +2108,7 @@ class BaseReportView(APIView):
 
 class RelatorioClienteView(BaseReportView):
     """
-    Resumo financeiro do cliente baseado em PAYMENTS (fonte da verdade)
+    Resumo financeiro do cliente baseado em ALLOCATIONS (fonte da verdade)
     """
 
     def get(self, request, cliente_id):
@@ -1674,27 +2121,35 @@ class RelatorioClienteView(BaseReportView):
             cliente=cliente
         )
 
-        # 🔹 Payments ligados às receitas do cliente
-        payments_qs = self.get_company_queryset(Payment).filter(
+        # 🔹 Allocations ligadas às receitas do cliente
+        allocations_qs = self.get_company_queryset(Allocation).filter(
             receita__cliente=cliente
-        )
+        ).select_related('payment')
 
         # 🔹 Filtros comuns (data inicial / final, etc)
         filters = self.get_common_filters()
         if filters:
             receitas_qs = receitas_qs.filter(**filters)
-            payments_qs = payments_qs.filter(**filters)
+            # Para filtros de data em allocations, usar payment__data_pagamento
+            if 'data_vencimento__gte' in filters:
+                allocations_qs = allocations_qs.filter(
+                    payment__data_pagamento__gte=filters['data_vencimento__gte']
+                )
+            if 'data_vencimento__lte' in filters:
+                allocations_qs = allocations_qs.filter(
+                    payment__data_pagamento__lte=filters['data_vencimento__lte']
+                )
 
-        # 🔹 Soma dos payments por receita
-        payments_por_receita = (
-            payments_qs
+        # 🔹 Soma das allocations por receita
+        allocations_por_receita = (
+            allocations_qs
             .values("receita_id")
             .annotate(total_pago=Sum("valor"))
         )
 
-        payments_map = {
+        allocations_map = {
             item["receita_id"]: item["total_pago"] or 0
-            for item in payments_por_receita
+            for item in allocations_por_receita
         }
 
         # 🔹 Pendências reais (saldo > 0)
@@ -1702,7 +2157,7 @@ class RelatorioClienteView(BaseReportView):
         total_open = 0
 
         for receita in receitas_qs:
-            total_pago = payments_map.get(receita.id, 0)
+            total_pago = allocations_map.get(receita.id, 0)
             saldo = receita.valor - total_pago
 
             if saldo > 0:
@@ -1717,21 +2172,21 @@ class RelatorioClienteView(BaseReportView):
                 })
                 total_open += saldo
 
-        # 🔹 Payments realizados (histórico)
-        payments = PaymentSerializer(
-            payments_qs.order_by("-data_pagamento"),
+        # 🔹 Allocations realizadas (histórico)
+        allocations = AllocationSerializer(
+            allocations_qs.order_by("-payment__data_pagamento"),
             many=True
         ).data
 
         # 🔹 Total pago
-        total_paid = payments_qs.aggregate(
+        total_paid = allocations_qs.aggregate(
             total=Sum("valor")
         )["total"] or 0
 
         return Response({
             "client": ClienteSerializer(cliente).data,
             "pendings": pendings,
-            "payments": payments,
+            "allocations": allocations,
             "totals": {
                 "open": total_open,
                 "paid": total_paid,
@@ -1747,7 +2202,7 @@ from rest_framework import status
 
 class RelatorioFuncionarioView(BaseReportView):
     """
-    Resumo financeiro do funcionário baseado em PAYMENTS (fonte da verdade)
+    Resumo financeiro do funcionário baseado em ALLOCATIONS (fonte da verdade)
     """
 
     def get(self, request, funcionario_id):
@@ -1760,27 +2215,35 @@ class RelatorioFuncionarioView(BaseReportView):
             responsavel=funcionario
         )
 
-        # 🔹 Payments ligados às despesas do funcionário
-        payments_qs = self.get_company_queryset(Payment).filter(
+        # 🔹 Allocations ligadas às despesas do funcionário
+        allocations_qs = self.get_company_queryset(Allocation).filter(
             despesa__responsavel=funcionario
-        )
+        ).select_related('payment')
 
         # 🔹 Filtros comuns (data inicial / final, etc)
         filters = self.get_common_filters()
         if filters:
             despesas_qs = despesas_qs.filter(**filters)
-            payments_qs = payments_qs.filter(**filters)
+            # Para filtros de data em allocations, usar payment__data_pagamento
+            if 'data_vencimento__gte' in filters:
+                allocations_qs = allocations_qs.filter(
+                    payment__data_pagamento__gte=filters['data_vencimento__gte']
+                )
+            if 'data_vencimento__lte' in filters:
+                allocations_qs = allocations_qs.filter(
+                    payment__data_pagamento__lte=filters['data_vencimento__lte']
+                )
 
-        # 🔹 Soma dos payments por despesa
-        payments_por_despesa = (
-            payments_qs
+        # 🔹 Soma das allocations por despesa
+        allocations_por_despesa = (
+            allocations_qs
             .values("despesa_id")
             .annotate(total_pago=Sum("valor"))
         )
 
-        payments_map = {
+        allocations_map = {
             item["despesa_id"]: item["total_pago"] or 0
-            for item in payments_por_despesa
+            for item in allocations_por_despesa
         }
 
         # 🔹 Pendências reais (saldo > 0)
@@ -1788,7 +2251,7 @@ class RelatorioFuncionarioView(BaseReportView):
         total_open = 0
 
         for despesa in despesas_qs:
-            total_pago = payments_map.get(despesa.id, 0)
+            total_pago = allocations_map.get(despesa.id, 0)
             saldo = despesa.valor - total_pago
 
             if saldo > 0:
@@ -1803,21 +2266,21 @@ class RelatorioFuncionarioView(BaseReportView):
                 })
                 total_open += saldo
 
-        # 🔹 Payments realizados (histórico)
-        payments = PaymentSerializer(
-            payments_qs.order_by("-data_pagamento"),
+        # 🔹 Allocations realizadas (histórico)
+        allocations = AllocationSerializer(
+            allocations_qs.order_by("-payment__data_pagamento"),
             many=True
         ).data
 
         # 🔹 Total pago
-        total_paid = payments_qs.aggregate(
+        total_paid = allocations_qs.aggregate(
             total=Sum("valor")
         )["total"] or 0
 
         return Response({
             "funcionario": FuncionarioSerializer(funcionario).data,
             "pendings": pendings,
-            "payments": payments,
+            "allocations": allocations,
             "totals": {
                 "open": total_open,
                 "paid": total_paid,
