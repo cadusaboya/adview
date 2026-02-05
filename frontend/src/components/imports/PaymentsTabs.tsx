@@ -14,11 +14,13 @@ import {
 import { toast } from 'sonner';
 
 import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
-import { createPayment, deletePayment, getPayments } from '@/services/payments';
+import { createPayment } from '@/services/payments';
+import { createAllocation, deleteAllocation, getAllocations } from '@/services/allocations';
 import PaymentsTable from './PaymentsTable';
 
 export interface PaymentUI {
-  id: number;
+  id: number; // Payment ID
+  allocation_id?: number; // Allocation ID (para deletar)
   data_pagamento: string;
   conta_bancaria: number;
   valor: number;
@@ -26,12 +28,13 @@ export interface PaymentUI {
 }
 
 interface Props {
-  tipo: 'receita' | 'despesa';
+  tipo: 'receita' | 'despesa' | 'custodia';
   entityId: number;
   contasBancarias: { id: number; nome: string }[];
+  custodiaTipo?: 'P' | 'A'; // P = Passivo, A = Ativo (apenas para custódia)
 }
 
-export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props) {
+export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo }: Props) {
   const [payments, setPayments] = useState<PaymentUI[]>([]);
   const [valorDisplay, setValorDisplay] = useState('');
 
@@ -44,20 +47,25 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
 
   const loadPayments = useCallback(async () => {
     try {
+      // Buscar allocations ao invés de payments diretos
       const query =
         tipo === 'receita'
-          ? { receita: entityId, page_size: 9999 }
-          : { despesa: entityId, page_size: 9999 };
+          ? { receita_id: entityId, page_size: 9999 }
+          : tipo === 'despesa'
+          ? { despesa_id: entityId, page_size: 9999 }
+          : { custodia_id: entityId, page_size: 9999 };
 
-      const res = await getPayments(query);
+      const res = await getAllocations(query);
 
+      // Mapear allocations para o formato esperado (usando dados do payment)
       setPayments(
-        res.results.map((p) => ({
-          id: p.id,
-          data_pagamento: p.data_pagamento,
-          conta_bancaria: p.conta_bancaria,
-          valor: p.valor,
-          observacao: p.observacao || '',
+        res.results.map((alloc) => ({
+          id: alloc.payment, // ID do payment (para gerar recibo)
+          allocation_id: alloc.id, // Guardar o ID da allocation para deletar
+          data_pagamento: alloc.payment_info?.data_pagamento || '',
+          conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0, // ID da conta bancária
+          valor: alloc.valor, // Valor da alocação (pode ser diferente do payment total)
+          observacao: alloc.observacao || '',
         }))
       );
     } catch {
@@ -76,17 +84,69 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
     }
 
     try {
-      const novo = await createPayment({
-        [tipo]: entityId,
+      // 1. Criar Payment (neutro)
+      // Determina o tipo de payment baseado na entidade:
+      // - Receita: Entrada (recebimento)
+      // - Despesa: Saída (pagamento)
+      // - Custódia Passivo (P): Saída (repasse - dá baixa)
+      // - Custódia Ativo (A): Entrada (reembolso - dá baixa)
+      let paymentTipo: 'E' | 'S' = 'S';
+      if (tipo === 'receita') {
+        paymentTipo = 'E';
+      } else if (tipo === 'despesa') {
+        paymentTipo = 'S';
+      } else if (tipo === 'custodia') {
+        paymentTipo = custodiaTipo === 'A' ? 'E' : 'S';
+      }
+
+      const novoPayment = await createPayment({
+        tipo: paymentTipo,
         conta_bancaria: Number(form.conta_bancaria),
         valor: form.valor,
         data_pagamento: form.data_pagamento,
         observacao: form.observacao,
       });
 
-      setPayments((prev) => [...prev, novo]);
+      // 2. Criar Allocation vinculando Payment à Receita/Despesa/Custódia
+      const allocationPayload: {
+        payment_id: number;
+        valor: number;
+        observacao?: string;
+        receita_id?: number;
+        despesa_id?: number;
+        custodia_id?: number;
+      } = {
+        payment_id: novoPayment.id,
+        valor: form.valor,
+        observacao: form.observacao,
+      };
+
+      if (tipo === 'receita') {
+        allocationPayload.receita_id = entityId;
+      } else if (tipo === 'despesa') {
+        allocationPayload.despesa_id = entityId;
+      } else {
+        allocationPayload.custodia_id = entityId;
+      }
+
+      const novaAllocation = await createAllocation(allocationPayload);
+
+      // 3. Adicionar à lista local
+      setPayments((prev) => [
+        ...prev,
+        {
+          id: novoPayment.id,
+          allocation_id: novaAllocation.id,
+          data_pagamento: novoPayment.data_pagamento,
+          conta_bancaria: novoPayment.conta_bancaria,
+          valor: novaAllocation.valor,
+          observacao: form.observacao,
+        },
+      ]);
+
       toast.success('Pagamento adicionado');
 
+      // Limpar formulário
       setForm({
         data_pagamento: '',
         conta_bancaria: '',
@@ -101,11 +161,23 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias }: Props)
 
   const handleDelete = async (id: number) => {
     try {
-      await deletePayment(id);
+      // Encontrar a allocation_id correspondente ao payment_id
+      const payment = payments.find((p) => p.id === id);
+      if (!payment?.allocation_id) {
+        toast.error('Allocation ID não encontrado');
+        return;
+      }
+
+      // Deletar apenas a allocation (desvincula o payment)
+      // O backend irá:
+      // 1. Deletar a allocation
+      // 2. Atualizar o status da receita/despesa/custódia
+      // 3. O Payment continua existindo (pode ter outras allocations)
+      await deleteAllocation(payment.allocation_id);
       setPayments((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Pagamento removido');
+      toast.success('Vínculo removido com sucesso');
     } catch {
-      toast.error('Erro ao remover pagamento');
+      toast.error('Erro ao remover vínculo');
     }
   };
 

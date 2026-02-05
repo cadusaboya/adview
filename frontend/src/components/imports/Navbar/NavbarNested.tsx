@@ -11,6 +11,8 @@ import {
   IconFileAnalytics,
   IconBuilding,
   IconLogout,
+  IconAlertTriangle,
+  IconReceipt,
 } from '@tabler/icons-react';
 import { Group, ScrollArea } from '@mantine/core';
 import Image from 'next/image';
@@ -44,10 +46,20 @@ const menuItems = [
     ],
   },
 
+  {
+    label: 'Custódias',
+    icon: IconAlertTriangle,
+    initiallyOpened: true,
+    links: [
+      { label: 'A Receber', link: '/ativos' },
+      { label: 'A Repassar', link: '/passivos' },
+    ],
+  },
   { label: 'Clientes', icon: IconUsers, link: '/clientes' },
   { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
   { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
   { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
+  { label: 'Extrato', icon: IconReceipt, link: '/extrato' },
   { label: 'Empresa', icon: IconBuilding, link: '/empresa' },
   {
     label: 'Relatórios',
