@@ -91,3 +91,77 @@ export async function importExtrato(
 
   return res.data;
 }
+
+/* =========================
+   CONCILIAÇÃO BANCÁRIA
+========================= */
+
+export interface SugestaoOpcao {
+  tipo: 'receita' | 'despesa' | 'custodia';
+  entidade_id: number;
+  entidade_nome: string;
+  entidade_cliente?: string;
+  entidade_responsavel?: string;
+  entidade_contraparte?: string;
+  entidade_valor: string;
+  entidade_vencimento?: string;
+  entidade_tipo?: string;
+}
+
+export interface SugestaoMatch {
+  payment_id: number;
+  payment_tipo: string;
+  payment_valor: string;
+  payment_data: string;
+  payment_observacao: string;
+  payment_conta: string;
+  opcoes: SugestaoOpcao[];
+}
+
+export interface ConciliacaoBancariaResponse {
+  success: boolean;
+  mes: number;
+  ano: number;
+  total_payments_processados: number;
+  matches: {
+    receitas: number;
+    despesas: number;
+    custodias: number;
+    total: number;
+  };
+  sugestoes: SugestaoMatch[];
+  total_sugestoes: number;
+  debug?: {
+    total_receitas_abertas: number;
+    total_despesas_abertas: number;
+    total_custodias_abertas: number;
+    payments_entrada: number;
+    payments_saida: number;
+  };
+  erros: string[];
+}
+
+export async function conciliarBancario(
+  mes: number,
+  ano: number
+): Promise<ConciliacaoBancariaResponse> {
+  const res = await api.post<ConciliacaoBancariaResponse>(
+    "/api/pagamentos/conciliar-bancario/",
+    { mes, ano }
+  );
+
+  return res.data;
+}
+
+export async function confirmarSugestao(
+  payment_id: number,
+  tipo: 'receita' | 'despesa' | 'custodia',
+  entidade_id: number
+): Promise<{ success: boolean; message: string }> {
+  const res = await api.post(
+    "/api/pagamentos/confirmar-sugestao/",
+    { payment_id, tipo, entidade_id }
+  );
+
+  return res.data;
+}
