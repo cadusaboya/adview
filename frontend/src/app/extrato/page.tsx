@@ -9,6 +9,7 @@ import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import PaymentDialog from '@/components/dialogs/PaymentDialog';
 import ImportExtratoDialog from '@/components/dialogs/ImportExtratoDialog';
+import ConciliacaoBancariaDialog from '@/components/dialogs/ConciliacaoBancariaDialog';
 import { Input } from '@/components/ui/input';
 
 import { getPayments, createPayment, updatePayment, deletePayment } from '@/services/payments';
@@ -28,7 +29,7 @@ import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Trash, Upload, Pencil } from 'lucide-react';
+import { Trash, Upload, Pencil, GitMerge } from 'lucide-react';
 
 export default function ExtratoPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -37,6 +38,7 @@ export default function ExtratoPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [openImportDialog, setOpenImportDialog] = useState(false);
+  const [openConciliacaoDialog, setOpenConciliacaoDialog] = useState(false);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -141,6 +143,36 @@ export default function ExtratoPage() {
     data: PaymentCreate & { allocations?: AllocationForm[] }
   ) => {
     try {
+      // Filtrar e validar alocações
+      if (data.allocations && data.allocations.length > 0) {
+        // Separar alocações válidas das inválidas
+        const validAllocations = data.allocations.filter(
+          (alloc) => alloc.entidade_id && alloc.entidade_id > 0 && alloc.valor && alloc.valor > 0
+        );
+
+        const incompleteAllocs = data.allocations.filter(
+          (alloc) => !alloc.entidade_id || alloc.entidade_id === 0 || !alloc.valor || alloc.valor <= 0
+        );
+
+        // Se houver alocações incompletas, avisar mas continuar apenas com as válidas
+        if (incompleteAllocs.length > 0) {
+          toast.warning(`${incompleteAllocs.length} alocação(ões) incompleta(s) foi(ram) ignorada(s)`);
+        }
+
+        // Substituir allocations com apenas as válidas
+        data.allocations = validAllocations;
+
+        // Validar que o total alocado não excede o valor do payment
+        if (validAllocations.length > 0) {
+          const totalAlocado = validAllocations.reduce((sum, alloc) => sum + alloc.valor, 0);
+
+          if (totalAlocado > data.valor) {
+            toast.error(`Total alocado (R$ ${totalAlocado.toFixed(2)}) excede o valor do pagamento (R$ ${data.valor.toFixed(2)})`);
+            return;
+          }
+        }
+      }
+
       if (editingPayment) {
         // EDIÇÃO: Atualiza o pagamento existente
         await updatePayment(editingPayment.id, {
@@ -160,17 +192,19 @@ export default function ExtratoPage() {
           );
         }
 
-        // Cria as novas alocações
+        // Cria as novas alocações (apenas as válidas)
         if (data.allocations && data.allocations.length > 0) {
           await Promise.all(
-            data.allocations.map((alloc) =>
-              createAllocation({
-                payment_id: editingPayment.id,
-                [`${alloc.tipo}_id`]: alloc.entidade_id,
-                valor: alloc.valor,
-                observacao: data.observacao,
-              })
-            )
+            data.allocations
+              .filter((alloc) => alloc.entidade_id && alloc.entidade_id > 0)
+              .map((alloc) =>
+                createAllocation({
+                  payment_id: editingPayment.id,
+                  [`${alloc.tipo}_id`]: alloc.entidade_id,
+                  valor: alloc.valor,
+                  observacao: data.observacao,
+                })
+              )
           );
         }
 
@@ -185,17 +219,19 @@ export default function ExtratoPage() {
           observacao: data.observacao,
         });
 
-        // Se há alocações, criar cada uma
+        // Se há alocações, criar cada uma (apenas as válidas)
         if (data.allocations && data.allocations.length > 0) {
           await Promise.all(
-            data.allocations.map((alloc) =>
-              createAllocation({
-                payment_id: novoPayment.id,
-                [`${alloc.tipo}_id`]: alloc.entidade_id,
-                valor: alloc.valor,
-                observacao: data.observacao,
-              })
-            )
+            data.allocations
+              .filter((alloc) => alloc.entidade_id && alloc.entidade_id > 0)
+              .map((alloc) =>
+                createAllocation({
+                  payment_id: novoPayment.id,
+                  [`${alloc.tipo}_id`]: alloc.entidade_id,
+                  valor: alloc.valor,
+                  observacao: data.observacao,
+                })
+              )
           );
         }
 
@@ -231,16 +267,6 @@ export default function ExtratoPage() {
       render: (value) => formatDateBR(value),
     },
     {
-      title: 'Tipo',
-      dataIndex: 'tipo',
-      width: '10%',
-      render: (tipo: 'E' | 'S') => (
-        <Tag color={tipo === 'E' ? 'green' : 'red'}>
-          {tipo === 'E' ? 'Entrada' : 'Saída'}
-        </Tag>
-      ),
-    },
-    {
       title: 'Conta Bancária',
       dataIndex: 'conta_bancaria_nome',
       width: '18%',
@@ -249,28 +275,28 @@ export default function ExtratoPage() {
     {
       title: 'Vinculado a',
       key: 'vinculo',
-      width: '25%',
+      width: '20%',
       render: (_: unknown, record: Payment) => {
         if (record.allocations_info && record.allocations_info.length > 0) {
           return record.allocations_info.map((alloc, idx) => {
             if (alloc.receita) {
               return (
                 <div key={idx} className="text-sm">
-                  <span className="font-medium">Receita:</span> {alloc.receita.nome}
+                  {alloc.receita.nome}
                 </div>
               );
             }
             if (alloc.despesa) {
               return (
                 <div key={idx} className="text-sm">
-                  <span className="font-medium">Despesa:</span> {alloc.despesa.nome}
+                  {alloc.despesa.nome}
                 </div>
               );
             }
             if (alloc.custodia) {
               return (
                 <div key={idx} className="text-sm">
-                  <span className="font-medium">Custódia:</span> {alloc.custodia.nome}
+                  {alloc.custodia.nome}
                 </div>
               );
             }
@@ -283,10 +309,20 @@ export default function ExtratoPage() {
     {
       title: 'Valor',
       dataIndex: 'valor',
-      width: '15%',
+      width: '12%',
       render: (v: number, record: Payment) => (
         <span className={record.tipo === 'E' ? 'text-green-600' : 'text-red-600'}>
           {formatCurrencyBR(v)}
+        </span>
+      ),
+    },
+    {
+      title: 'Observação',
+      dataIndex: 'observacao',
+      width: '30%',
+      render: (obs: string) => (
+        <span className="text-sm truncate block" title={obs}>
+          {obs || '—'}
         </span>
       ),
     },
@@ -348,6 +384,14 @@ export default function ExtratoPage() {
 
             <Button
               className="shadow-md"
+              onClick={() => setOpenConciliacaoDialog(true)}
+              icon={<GitMerge className="w-4 h-4" />}
+            >
+              Fazer Conciliação Bancária
+            </Button>
+
+            <Button
+              className="shadow-md"
               onClick={() => setOpenImportDialog(true)}
               icon={<Upload className="w-4 h-4" />}
             >
@@ -402,6 +446,13 @@ export default function ExtratoPage() {
         <ImportExtratoDialog
           open={openImportDialog}
           onClose={() => setOpenImportDialog(false)}
+          onSuccess={loadData}
+        />
+
+        {/* DIALOG CONCILIAÇÃO BANCÁRIA */}
+        <ConciliacaoBancariaDialog
+          open={openConciliacaoDialog}
+          onClose={() => setOpenConciliacaoDialog(false)}
           onSuccess={loadData}
         />
       </main>
