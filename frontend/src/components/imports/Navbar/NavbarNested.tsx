@@ -3,11 +3,9 @@
 import { useState, useEffect } from 'react';
 import {
   IconGauge,
-  IconCurrencyDollar,
   IconTrendingDown,
   IconTrendingUp,
   IconUsers,
-  IconUserCog,
   IconFileAnalytics,
   IconBuilding,
   IconLogout,
@@ -55,12 +53,30 @@ const menuItems = [
       { label: 'A Repassar', link: '/passivos' },
     ],
   },
-  { label: 'Clientes', icon: IconUsers, link: '/clientes' },
-  { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
-  { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
-  { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
+
   { label: 'Extrato', icon: IconReceipt, link: '/extrato' },
-  { label: 'Empresa', icon: IconBuilding, link: '/empresa' },
+
+  {
+    label: 'Empresa',
+    icon: IconBuilding,
+    initiallyOpened: true,
+    links: [
+      { label: 'Bancos', link: '/bancos' },
+      { label: 'Configurações', link: '/empresa' },
+    ],
+  },
+
+  {
+    label: 'Pessoas',
+    icon: IconUsers,
+    initiallyOpened: true,
+    links: [
+      { label: 'Clientes', link: '/clientes' },
+      { label: 'Fornecedores', link: '/fornecedores' },
+      { label: 'Funcionários', link: '/funcionarios' },
+    ],
+  },
+
   {
     label: 'Relatórios',
     icon: IconFileAnalytics,
