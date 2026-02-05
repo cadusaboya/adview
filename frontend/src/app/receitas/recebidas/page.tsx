@@ -14,25 +14,19 @@ import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
-import {
-  getPayments,
-  deletePayment,
-} from '@/services/payments';
-
-import { Payment } from '@/types/payments';
 import { Cliente } from '@/types/clientes';
 import { Receita, ReceitaUpdate } from '@/types/receitas';
-import { getReceitaById, updateReceita } from '@/services/receitas';
+import { getReceitaById, updateReceita, getReceitas, deleteReceita } from '@/services/receitas';
 
 import { getClientes } from '@/services/clientes';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
-import { Pencil, Trash, FileText } from 'lucide-react';
+import { Pencil, Trash } from 'lucide-react';
 
 export default function ReceitaRecebidasPage() {
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [openDialog, setOpenDialog] = useState(false);
@@ -46,7 +40,7 @@ export default function ReceitaRecebidasPage() {
   // Paginação
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   // 🔎 Busca
   const [search, setSearch] = useState('');
@@ -77,46 +71,46 @@ export default function ReceitaRecebidasPage() {
   }, [loadClientes]);
 
   // ======================
-  // 🔄 LOAD PAGAMENTOS
+  // 🔄 LOAD RECEITAS PAGAS
   // ======================
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await getPayments({
+      const res = await getReceitas({
         page,
         page_size: pageSize,
         search: debouncedSearch,
-        tipo: 'receita',
+        situacao: 'P', // Apenas receitas pagas
       });
 
-      setPayments(res.results);
+      setReceitas(res.results);
       setTotal(res.count);
     } catch (error) {
       console.error(error);
-      message.error('Erro ao buscar recebimentos');
+      message.error('Erro ao buscar receitas pagas');
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   // ======================
-  // ❌ DELETE RECEBIMENTO
+  // ❌ DELETE RECEITA
   // ======================
-  const handleDeletePayment = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este recebimento?')) return;
+  const handleDeleteReceita = async (id: number) => {
+    if (!confirm('Deseja realmente excluir esta receita?')) return;
 
     try {
-      await deletePayment(id);
-      toast.success('Recebimento excluído com sucesso!');
+      await deleteReceita(id);
+      toast.success('Receita excluída com sucesso!');
       loadData();
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao excluir recebimento');
+      toast.error('Erro ao excluir receita');
     }
   };
 
@@ -125,26 +119,26 @@ export default function ReceitaRecebidasPage() {
   // ======================
   const handleBulkDelete = async () => {
     if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos um recebimento');
+      toast.error('Selecione pelo menos uma receita');
       return;
     }
 
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} recebimento(s)?`)) return;
+    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} receita(s)?`)) return;
 
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deletePayment(Number(id)))
+        selectedRowKeys.map((id) => deleteReceita(Number(id)))
       );
 
-      toast.success(`${selectedRowKeys.length} recebimento(s) excluído(s) com sucesso`);
+      toast.success(`${selectedRowKeys.length} receita(s) excluída(s) com sucesso`);
       setSelectedRowKeys([]);
       loadData();
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao excluir recebimentos');
+      toast.error('Erro ao excluir receitas');
     } finally {
       setLoading(false);
     }
@@ -160,9 +154,7 @@ export default function ReceitaRecebidasPage() {
   // ======================
   // ✏️ EDITAR RECEITA
   // ======================
-  const handleEditReceita = async (receitaId?: number | null) => {
-    if (!receitaId) return;
-
+  const handleEditReceita = async (receitaId: number) => {
     try {
       setLoading(true);
       const receita = await getReceitaById(receitaId);
@@ -195,23 +187,6 @@ export default function ReceitaRecebidasPage() {
   };
 
   // ======================
-  // 📄 GERAR RECIBO
-  // ======================
-  const handleGerarRecibo = async (paymentId: number) => {
-    try {
-      await gerarRelatorioPDF('recibo-pagamento', {
-        payment_id: paymentId,
-      });
-      toast.success('Recibo gerado com sucesso!');
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Erro ao gerar recibo';
-      console.error(error);
-      toast.error(errorMessage);
-    }
-  };
-
-  // ======================
   // 📊 RELATÓRIO
   // ======================
   const handleGerarRelatorio = async (filtros: RelatorioFiltros) => {
@@ -232,27 +207,27 @@ export default function ReceitaRecebidasPage() {
   // ======================
   // 📊 TABELA
   // ======================
-  const columns: TableColumnsType<Payment> = [
+  const columns: TableColumnsType<Receita> = [
     {
-      title: 'Data de Recebimento',
-      dataIndex: 'data_pagamento',
+      title: 'Data de Vencimento',
+      dataIndex: 'data_vencimento',
       width: '15%',
       render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
-      dataIndex: 'cliente_nome',
+      dataIndex: ['cliente', 'nome'],
       width: '25%',
       render: (v?: string) => v ?? '—',
     },
     {
       title: 'Descrição',
-      dataIndex: 'receita_nome',
+      dataIndex: 'nome',
       width: '30%',
       render: (v?: string) => v ?? '—',
     },
     {
-      title: 'Valor Recebido',
+      title: 'Valor',
       dataIndex: 'valor',
       width: '15%',
       render: (v: number) => formatCurrencyBR(v),
@@ -261,24 +236,19 @@ export default function ReceitaRecebidasPage() {
       title: 'Ações',
       key: 'actions',
       width: '6%',
-      render: (_: unknown, record: Payment) => (
+      render: (_: unknown, record: Receita) => (
         <ActionsDropdown
           actions={[
             {
               label: 'Editar Receita',
               icon: Pencil,
-              onClick: () => handleEditReceita(record.receita),
+              onClick: () => handleEditReceita(record.id),
             },
             {
-              label: 'Gerar Recibo',
-              icon: FileText,
-              onClick: () => handleGerarRecibo(record.id),
-            },
-            {
-              label: 'Excluir Recebimento',
+              label: 'Excluir Receita',
               icon: Trash,
               danger: true,
-              onClick: () => handleDeletePayment(record.id),
+              onClick: () => handleDeleteReceita(record.id),
             },
           ]}
         />
@@ -333,15 +303,21 @@ export default function ReceitaRecebidasPage() {
           </div>
         </div>
 
-        <GenericTable<Payment>
+        <GenericTable<Receita>
           columns={columns}
-          data={payments}
+          data={receitas}
           loading={loading}
           pagination={{
             total,
             current: page,
             pageSize,
             onChange: (p) => setPage(p),
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onShowSizeChange: (_, size) => {
+              setPageSize(size);
+              setPage(1);
+            },
           }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
