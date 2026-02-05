@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status, generics, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.db.models import Sum, Q, F, Case, When, IntegerField
+from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
 from django.utils import timezone
 from django.utils.timezone import now
 from datetime import date, datetime, timedelta
@@ -1300,9 +1300,13 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                     value_col = col_idx
 
                             # Procura coluna de descrição (mas não a coluna de data)
-                            # Procura por "Descrição do lançamento" ou "Histórico"
+                            # Prioriza "Descrição do lançamento" (formato BTG) ou "Histórico"
                             if desc_col is None and 'data' not in cell_normalized:
-                                if any(kw in cell_normalized for kw in ['descri', 'historico']):
+                                # Verifica primeiro se é exatamente "descrição do lançamento" ou similar
+                                if 'lancamento' in cell_normalized and 'descri' in cell_normalized:
+                                    desc_col = col_idx
+                                # Caso contrário, aceita qualquer coluna com descrição ou histórico
+                                elif any(kw in cell_normalized for kw in ['descri', 'historico']):
                                     desc_col = col_idx
 
                     # Se encontrou data E valor, considera essa linha como cabeçalho
@@ -1463,6 +1467,541 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         except Exception as e:
             return Response(
                 {'error': f'Erro ao processar arquivo: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'], url_path='conciliar-bancario')
+    def conciliar_bancario(self, request):
+        """
+        Concilia pagamentos sem alocação com receitas/despesas/custódias em aberto
+        do mês especificado, fazendo match por valor e nome da contraparte na observação.
+
+        Espera:
+        - mes: int (1-12)
+        - ano: int (ex: 2026)
+        """
+        import unicodedata
+        import re
+
+        def normalizar_string(texto):
+            """Remove acentos e converte para lowercase para comparação"""
+            if not texto:
+                return ''
+            # Normaliza unicode e remove acentos
+            texto_nfd = unicodedata.normalize('NFD', str(texto))
+            texto_sem_acentos = ''.join(
+                char for char in texto_nfd
+                if unicodedata.category(char) != 'Mn'
+            )
+            return texto_sem_acentos.lower().strip()
+
+        def extrair_palavras_significativas(texto):
+            """
+            Extrai palavras significativas de um texto, removendo:
+            - Preposições comuns (de, da, do, dos, das, para, pra, em, no, na, etc.)
+            - Palavras muito curtas (< 3 caracteres)
+            - Palavras bancárias comuns (pix, ted, transferencia, recebido, enviado, etc.)
+            """
+            if not texto:
+                return set()
+
+            # Normaliza o texto
+            texto_norm = normalizar_string(texto)
+
+            # Remove pontuação e divide em palavras
+            palavras = re.findall(r'\b\w+\b', texto_norm)
+
+            # Stop words - palavras a ignorar
+            stop_words = {
+                'de', 'da', 'do', 'dos', 'das', 'para', 'pra', 'em', 'no', 'na', 'nos', 'nas',
+                'com', 'por', 'a', 'o', 'e', 'ou', 'um', 'uma', 'ao', 'aos', 'as',
+                'pix', 'ted', 'transferencia', 'recebido', 'enviado', 'pagamento', 'recebimento',
+                'valor', 'ref', 'referente', 'ltda', 'me', 'sa', 'eireli'
+            }
+
+            # Filtra palavras significativas
+            palavras_significativas = {
+                palavra for palavra in palavras
+                if len(palavra) >= 3 and palavra not in stop_words
+            }
+
+            return palavras_significativas
+
+        def match_por_palavras_comuns(observacao, *textos_para_comparar):
+            """
+            Verifica se há pelo menos 2 palavras significativas em comum entre
+            a observação e qualquer um dos textos fornecidos (nome cliente, nome despesa, etc.)
+
+            Retorna True se encontrar 2+ palavras em comum com qualquer texto.
+            """
+            if not observacao:
+                return False
+
+            palavras_obs = extrair_palavras_significativas(observacao)
+
+            if len(palavras_obs) < 2:
+                return False
+
+            for texto in textos_para_comparar:
+                if not texto:
+                    continue
+
+                palavras_texto = extrair_palavras_significativas(texto)
+                palavras_em_comum = palavras_obs.intersection(palavras_texto)
+
+                # Match válido se há 2 ou mais palavras significativas em comum
+                if len(palavras_em_comum) >= 2:
+                    return True
+
+            return False
+
+        def nome_em_observacao(observacao, *nomes):
+            """
+            Verifica se algum dos nomes está contido na observação.
+            Agora usa duas estratégias:
+            1. Match exato (nome completo na observação) - mais confiável
+            2. Match por palavras comuns (2+ palavras) - mais flexível
+            """
+            if not observacao:
+                return False
+
+            # Estratégia 1: Match exato (nome completo aparece na observação)
+            obs_norm = normalizar_string(observacao)
+            for nome in nomes:
+                if nome:
+                    nome_norm = normalizar_string(nome)
+                    if nome_norm and nome_norm in obs_norm:
+                        return True
+
+            # Estratégia 2: Match por palavras comuns (pelo menos 2 palavras)
+            if match_por_palavras_comuns(observacao, *nomes):
+                return True
+
+            return False
+
+        mes = request.data.get('mes')
+        ano = request.data.get('ano')
+
+        if not mes or not ano:
+            return Response(
+                {'error': 'Parâmetros mes e ano são obrigatórios'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            mes = int(mes)
+            ano = int(ano)
+
+            if mes < 1 or mes > 12:
+                return Response(
+                    {'error': 'Mês deve estar entre 1 e 12'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except ValueError:
+            return Response(
+                {'error': 'Mes e ano devem ser números inteiros'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        company = request.user.company
+
+        # Busca payments sem alocação no mês especificado
+        payments_sem_alocacao = Payment.objects.filter(
+            company=company,
+            data_pagamento__year=ano,
+            data_pagamento__month=mes
+        ).annotate(
+            num_allocations=Count('allocations')
+        ).filter(
+            num_allocations=0
+        ).order_by('data_pagamento')
+
+        # Busca receitas em aberto ou vencidas no mês (não pagas)
+        receitas_abertas = Receita.objects.filter(
+            company=company,
+            data_vencimento__year=ano,
+            data_vencimento__month=mes,
+            situacao__in=['A', 'V']  # Em Aberto ou Vencida
+        ).order_by('data_vencimento')
+
+        # Debug: total de receitas no mês (qualquer situação)
+        total_receitas_mes = Receita.objects.filter(
+            company=company,
+            data_vencimento__year=ano,
+            data_vencimento__month=mes
+        ).count()
+
+        # Busca despesas em aberto ou vencidas no mês (não pagas)
+        despesas_abertas = Despesa.objects.filter(
+            company=company,
+            data_vencimento__year=ano,
+            data_vencimento__month=mes,
+            situacao__in=['A', 'V']  # Em Aberto ou Vencida
+        ).order_by('data_vencimento')
+
+        # Debug: total de despesas no mês (qualquer situação)
+        total_despesas_mes = Despesa.objects.filter(
+            company=company,
+            data_vencimento__year=ano,
+            data_vencimento__month=mes
+        ).count()
+
+        # Busca custódias em aberto
+        custodias_abertas = Custodia.objects.filter(
+            company=company,
+            status='A'
+        ).annotate(
+            valor_restante=F('valor_total') - F('valor_liquidado')
+        ).filter(
+            valor_restante__gt=0
+        )
+
+        # Estatísticas
+        matches_receitas = 0
+        matches_despesas = 0
+        matches_custodias = 0
+        erros = []
+
+        # Lista para armazenar sugestões de matches (apenas por valor, sem nome)
+        sugestoes = []
+
+        # Processa cada payment sem alocação
+        for payment in payments_sem_alocacao:
+            match_found = False
+
+            if payment.tipo == 'E':
+                # Entrada: busca receitas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
+                for receita in receitas_abertas:
+                    if receita.valor == payment.valor:
+                        # Verifica se o nome do cliente ou nome da receita está na observação
+                        nome_encontrado = nome_em_observacao(
+                            payment.observacao,
+                            receita.cliente.nome if receita.cliente else None,
+                            receita.nome
+                        )
+
+                        # APENAS faz match se AMBAS as condições forem verdadeiras
+                        if nome_encontrado:
+                            try:
+                                Allocation.objects.create(
+                                    company=company,
+                                    payment=payment,
+                                    receita=receita,
+                                    valor=payment.valor
+                                )
+                                receita.atualizar_status()
+                                matches_receitas += 1
+                                match_found = True
+                                break  # Encontrou match válido, para de procurar
+                            except Exception as e:
+                                erros.append(f'Erro ao alocar payment {payment.id} para receita {receita.id}: {str(e)}')
+
+                # Se não encontrou receita, tenta custodia tipo Ativo (VALOR E NOME obrigatórios)
+                if not match_found:
+                    for custodia in custodias_abertas:
+                        if custodia.tipo == 'A':  # Ativo - a receber
+                            valor_restante = custodia.valor_total - custodia.valor_liquidado
+                            if valor_restante == payment.valor:
+                                # Verifica se nome do cliente/funcionário ou nome da custódia está na observação
+                                nome_encontrado = nome_em_observacao(
+                                    payment.observacao,
+                                    custodia.cliente.nome if custodia.cliente else None,
+                                    custodia.funcionario.nome if custodia.funcionario else None,
+                                    custodia.nome
+                                )
+
+                                # APENAS faz match se AMBAS as condições forem verdadeiras
+                                if nome_encontrado:
+                                    try:
+                                        Allocation.objects.create(
+                                            company=company,
+                                            payment=payment,
+                                            custodia=custodia,
+                                            valor=payment.valor
+                                        )
+                                        custodia.atualizar_status()
+                                        matches_custodias += 1
+                                        match_found = True
+                                        break  # Encontrou match válido, para de procurar
+                                    except Exception as e:
+                                        erros.append(f'Erro ao alocar payment {payment.id} para custódia {custodia.id}: {str(e)}')
+
+            elif payment.tipo == 'S':
+                # Saída: busca despesas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
+                for despesa in despesas_abertas:
+                    if despesa.valor == payment.valor:
+                        # Verifica se o nome do responsável ou nome da despesa está na observação
+                        nome_encontrado = nome_em_observacao(
+                            payment.observacao,
+                            despesa.responsavel.nome if despesa.responsavel else None,
+                            despesa.nome
+                        )
+
+                        # APENAS faz match se AMBAS as condições forem verdadeiras
+                        if nome_encontrado:
+                            try:
+                                Allocation.objects.create(
+                                    company=company,
+                                    payment=payment,
+                                    despesa=despesa,
+                                    valor=payment.valor
+                                )
+                                despesa.atualizar_status()
+                                matches_despesas += 1
+                                match_found = True
+                                break  # Encontrou match válido, para de procurar
+                            except Exception as e:
+                                erros.append(f'Erro ao alocar payment {payment.id} para despesa {despesa.id}: {str(e)}')
+
+                # Se não encontrou despesa, tenta custodia tipo Passivo (VALOR E NOME obrigatórios)
+                if not match_found:
+                    for custodia in custodias_abertas:
+                        if custodia.tipo == 'P':  # Passivo - a pagar
+                            valor_restante = custodia.valor_total - custodia.valor_liquidado
+                            if valor_restante == payment.valor:
+                                # Verifica se nome do cliente/funcionário ou nome da custódia está na observação
+                                nome_encontrado = nome_em_observacao(
+                                    payment.observacao,
+                                    custodia.cliente.nome if custodia.cliente else None,
+                                    custodia.funcionario.nome if custodia.funcionario else None,
+                                    custodia.nome
+                                )
+
+                                # APENAS faz match se AMBAS as condições forem verdadeiras
+                                if nome_encontrado:
+                                    try:
+                                        Allocation.objects.create(
+                                            company=company,
+                                            payment=payment,
+                                            custodia=custodia,
+                                            valor=payment.valor
+                                        )
+                                        custodia.atualizar_status()
+                                        matches_custodias += 1
+                                        match_found = True
+                                        break  # Encontrou match válido, para de procurar
+                                    except Exception as e:
+                                        erros.append(f'Erro ao alocar payment {payment.id} para custódia {custodia.id}: {str(e)}')
+
+            # Se não houve match automático, coleta sugestões apenas por valor
+            if not match_found:
+                sugestoes_payment = []
+
+                if payment.tipo == 'E':
+                    # Sugestões de receitas com mesmo valor
+                    for receita in receitas_abertas:
+                        if receita.valor == payment.valor:
+                            sugestoes_payment.append({
+                                'tipo': 'receita',
+                                'entidade_id': receita.id,
+                                'entidade_nome': receita.nome,
+                                'entidade_cliente': receita.cliente.nome if receita.cliente else None,
+                                'entidade_valor': str(receita.valor),
+                                'entidade_vencimento': receita.data_vencimento.isoformat()
+                            })
+
+                    # Sugestões de custódias Ativo com mesmo valor
+                    for custodia in custodias_abertas:
+                        if custodia.tipo == 'A':
+                            valor_restante = custodia.valor_total - custodia.valor_liquidado
+                            if valor_restante == payment.valor:
+                                contraparte = None
+                                if custodia.cliente:
+                                    contraparte = custodia.cliente.nome
+                                elif custodia.funcionario:
+                                    contraparte = custodia.funcionario.nome
+
+                                sugestoes_payment.append({
+                                    'tipo': 'custodia',
+                                    'entidade_id': custodia.id,
+                                    'entidade_nome': custodia.nome,
+                                    'entidade_contraparte': contraparte,
+                                    'entidade_valor': str(valor_restante),
+                                    'entidade_tipo': 'Ativo'
+                                })
+
+                elif payment.tipo == 'S':
+                    # Sugestões de despesas com mesmo valor
+                    for despesa in despesas_abertas:
+                        if despesa.valor == payment.valor:
+                            sugestoes_payment.append({
+                                'tipo': 'despesa',
+                                'entidade_id': despesa.id,
+                                'entidade_nome': despesa.nome,
+                                'entidade_responsavel': despesa.responsavel.nome if despesa.responsavel else None,
+                                'entidade_valor': str(despesa.valor),
+                                'entidade_vencimento': despesa.data_vencimento.isoformat()
+                            })
+
+                    # Sugestões de custódias Passivo com mesmo valor
+                    for custodia in custodias_abertas:
+                        if custodia.tipo == 'P':
+                            valor_restante = custodia.valor_total - custodia.valor_liquidado
+                            if valor_restante == payment.valor:
+                                contraparte = None
+                                if custodia.cliente:
+                                    contraparte = custodia.cliente.nome
+                                elif custodia.funcionario:
+                                    contraparte = custodia.funcionario.nome
+
+                                sugestoes_payment.append({
+                                    'tipo': 'custodia',
+                                    'entidade_id': custodia.id,
+                                    'entidade_nome': custodia.nome,
+                                    'entidade_contraparte': contraparte,
+                                    'entidade_valor': str(valor_restante),
+                                    'entidade_tipo': 'Passivo'
+                                })
+
+                # Se há sugestões, adiciona à lista
+                if sugestoes_payment:
+                    sugestoes.append({
+                        'payment_id': payment.id,
+                        'payment_tipo': payment.get_tipo_display(),
+                        'payment_valor': str(payment.valor),
+                        'payment_data': payment.data_pagamento.isoformat(),
+                        'payment_observacao': payment.observacao or '',
+                        'payment_conta': payment.conta_bancaria.nome if payment.conta_bancaria else None,
+                        'opcoes': sugestoes_payment
+                    })
+
+        return Response({
+            'success': True,
+            'mes': mes,
+            'ano': ano,
+            'total_payments_processados': payments_sem_alocacao.count(),
+            'matches': {
+                'receitas': matches_receitas,
+                'despesas': matches_despesas,
+                'custodias': matches_custodias,
+                'total': matches_receitas + matches_despesas + matches_custodias
+            },
+            'sugestoes': sugestoes,
+            'total_sugestoes': len(sugestoes),
+            'debug': {
+                'total_receitas_abertas': receitas_abertas.count(),
+                'total_despesas_abertas': despesas_abertas.count(),
+                'total_custodias_abertas': custodias_abertas.count(),
+                'payments_entrada': payments_sem_alocacao.filter(tipo='E').count(),
+                'payments_saida': payments_sem_alocacao.filter(tipo='S').count(),
+            },
+            'erros': erros
+        })
+
+    @action(detail=False, methods=['post'], url_path='confirmar-sugestao')
+    def confirmar_sugestao(self, request):
+        """
+        Confirma uma sugestão de match manual, criando a alocação.
+
+        Espera:
+        - payment_id: ID do pagamento
+        - tipo: 'receita', 'despesa' ou 'custodia'
+        - entidade_id: ID da entidade (receita/despesa/custodia)
+        """
+        payment_id = request.data.get('payment_id')
+        tipo = request.data.get('tipo')
+        entidade_id = request.data.get('entidade_id')
+
+        if not all([payment_id, tipo, entidade_id]):
+            return Response(
+                {'error': 'Parâmetros payment_id, tipo e entidade_id são obrigatórios'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        company = request.user.company
+
+        # Busca o payment
+        try:
+            payment = Payment.objects.get(id=payment_id, company=company)
+        except Payment.DoesNotExist:
+            return Response(
+                {'error': 'Pagamento não encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verifica se o payment já tem alocação
+        if payment.allocations.exists():
+            return Response(
+                {'error': 'Este pagamento já possui alocação'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cria a alocação baseado no tipo
+        try:
+            if tipo == 'receita':
+                receita = Receita.objects.get(id=entidade_id, company=company)
+                if receita.valor != payment.valor:
+                    return Response(
+                        {'error': 'Valor da receita não corresponde ao valor do pagamento'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                Allocation.objects.create(
+                    company=company,
+                    payment=payment,
+                    receita=receita,
+                    valor=payment.valor
+                )
+                receita.atualizar_status()
+                entidade_nome = receita.nome
+
+            elif tipo == 'despesa':
+                despesa = Despesa.objects.get(id=entidade_id, company=company)
+                if despesa.valor != payment.valor:
+                    return Response(
+                        {'error': 'Valor da despesa não corresponde ao valor do pagamento'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                Allocation.objects.create(
+                    company=company,
+                    payment=payment,
+                    despesa=despesa,
+                    valor=payment.valor
+                )
+                despesa.atualizar_status()
+                entidade_nome = despesa.nome
+
+            elif tipo == 'custodia':
+                custodia = Custodia.objects.get(id=entidade_id, company=company)
+                valor_restante = custodia.valor_total - custodia.valor_liquidado
+                if valor_restante != payment.valor:
+                    return Response(
+                        {'error': 'Valor restante da custódia não corresponde ao valor do pagamento'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                Allocation.objects.create(
+                    company=company,
+                    payment=payment,
+                    custodia=custodia,
+                    valor=payment.valor
+                )
+                custodia.atualizar_status()
+                entidade_nome = custodia.nome
+
+            else:
+                return Response(
+                    {'error': 'Tipo inválido. Use: receita, despesa ou custodia'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            return Response({
+                'success': True,
+                'message': f'Pagamento vinculado com sucesso a {tipo}: {entidade_nome}',
+                'payment_id': payment.id,
+                'tipo': tipo,
+                'entidade_id': entidade_id
+            })
+
+        except (Receita.DoesNotExist, Despesa.DoesNotExist, Custodia.DoesNotExist):
+            return Response(
+                {'error': f'{tipo.capitalize()} não encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Erro ao criar alocação: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
