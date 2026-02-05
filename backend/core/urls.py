@@ -3,8 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CompanyViewSet, CustomUserViewSet, ClienteViewSet,
     FuncionarioViewSet, ReceitaViewSet, ReceitaRecorrenteViewSet, DespesaViewSet, DespesaRecorrenteViewSet,
-    FornecedorViewSet, ContaBancariaViewSet, PaymentViewSet,
-    FavorecidoViewSet, dashboard_view,  # 👈 adiciona aqui
+    FornecedorViewSet, ContaBancariaViewSet, CustodiaViewSet, PaymentViewSet, AllocationViewSet,
+    FavorecidoViewSet, dashboard_view,
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
@@ -34,9 +34,11 @@ router.register(r'receitas-recorrentes', ReceitaRecorrenteViewSet, basename='rec
 router.register(r'despesas', DespesaViewSet, basename='despesa')
 router.register(r'despesas-recorrentes', DespesaRecorrenteViewSet, basename='despesa-recorrente')
 router.register(r'fornecedores', FornecedorViewSet, basename='Fornecedor')
-router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')  # 👈 novo
-router.register(r'pagamentos', PaymentViewSet, basename='payment')  # 👈 novo
-router.register(r'favorecidos', FavorecidoViewSet, basename='favorecido')  # 👈 novo
+router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')
+router.register(r'custodias', CustodiaViewSet, basename='custodia')
+router.register(r'pagamentos', PaymentViewSet, basename='payment')
+router.register(r'alocacoes', AllocationViewSet, basename='allocation')
+router.register(r'favorecidos', FavorecidoViewSet, basename='favorecido')
 
 urlpatterns = [
     path('', include(router.urls)),

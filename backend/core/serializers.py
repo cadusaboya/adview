@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment
+from django.db.models import Sum
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment, Custodia, Allocation
 from decimal import Decimal
 
 
@@ -158,7 +159,7 @@ class ReceitaAbertaSerializer(ReceitaSerializer):
         from decimal import Decimal
 
         total_pago = sum(
-            (p.valor for p in obj.payments.all()),
+            (alloc.valor for alloc in obj.allocations.all()),
             Decimal("0.00")
         )
         return obj.valor - total_pago
@@ -281,7 +282,7 @@ class DespesaAbertaSerializer(DespesaSerializer):
         from decimal import Decimal
 
         total_pago = sum(
-            (p.valor for p in obj.payments.all()),
+            (alloc.valor for alloc in obj.allocations.all()),
             Decimal("0.00")
         )
         return obj.valor - total_pago
@@ -342,57 +343,301 @@ class DespesaRecorrenteSerializer(serializers.ModelSerializer):
 
 # 🔹 Payment
 class PaymentSerializer(serializers.ModelSerializer):
-    receita_nome = serializers.CharField(
-        source='receita.nome', read_only=True
-    )
-    despesa_nome = serializers.CharField(
-        source='despesa.nome', read_only=True
-    )
+    """
+    Serializer para pagamentos neutros (entrada/saída de caixa).
+    As alocações para Receitas/Despesas/Custódias são feitas via Allocation.
+    """
     conta_bancaria_nome = serializers.CharField(
         source='conta_bancaria.nome', read_only=True
     )
-    favorecido_nome = serializers.CharField(
-        source='despesa.responsavel.nome', read_only=True
+    tipo_display = serializers.CharField(
+        source='get_tipo_display', read_only=True
     )
-    cliente_nome = serializers.CharField(
-        source='receita.cliente.nome', read_only=True
-    )
+
+    # Informações das alocações vinculadas
+    allocations_info = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Payment
         fields = (
             'id',
             'company',
-            'receita',
-            'receita_nome',
-            'despesa',
-            'despesa_nome',
-            'favorecido_nome',
-            'cliente_nome',
+            'tipo',
+            'tipo_display',
             'conta_bancaria',
             'conta_bancaria_nome',
             'valor',
             'data_pagamento',
             'observacao',
+            'allocations_info',
             'criado_em'
         )
         read_only_fields = (
             'id',
             'company',
-            'receita_nome',
-            'despesa_nome',
             'conta_bancaria_nome',
+            'tipo_display',
             'criado_em'
         )
 
+    def get_allocations_info(self, obj):
+        """Retorna informações sobre as alocações deste payment"""
+        allocations = obj.allocations.all()
+        return [{
+            'id': alloc.id,
+            'valor': alloc.valor,
+            'receita': {
+                'id': alloc.receita.id,
+                'nome': alloc.receita.nome,
+                'cliente': alloc.receita.cliente.nome
+            } if alloc.receita else None,
+            'despesa': {
+                'id': alloc.despesa.id,
+                'nome': alloc.despesa.nome,
+                'responsavel': alloc.despesa.responsavel.nome
+            } if alloc.despesa else None,
+            'custodia': {
+                'id': alloc.custodia.id,
+                'nome': alloc.custodia.nome,
+                'tipo': alloc.custodia.tipo,
+                'tipo_display': alloc.custodia.get_tipo_display()
+            } if alloc.custodia else None
+        } for alloc in allocations]
+
     def validate(self, data):
-        if not data.get('receita') and not data.get('despesa'):
+        # Validar que o valor é positivo
+        valor = data.get('valor')
+        if valor and valor <= 0:
+            raise serializers.ValidationError({
+                'valor': 'O valor do pagamento deve ser maior que zero.'
+            })
+
+        return data
+
+
+# 🔹 Passivo
+class CustodiaSerializer(serializers.ModelSerializer):
+    """Serializer para custódias (valores de terceiros - ativos e passivos)"""
+
+    # Read-only fields
+    company = CompanySerializer(read_only=True)
+    cliente = ClienteSerializer(read_only=True)
+    funcionario = FuncionarioSerializer(read_only=True)
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    # Write-only fields
+    cliente_id = serializers.PrimaryKeyRelatedField(
+        queryset=Cliente.objects.all(),
+        source='cliente',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    funcionario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.all(),
+        source='funcionario',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = Custodia
+        fields = '__all__'
+        read_only_fields = ('company', 'cliente', 'funcionario', 'tipo_display', 'status_display')
+
+    def validate(self, data):
+        """Validação: deve ter cliente OU funcionário, mas não ambos"""
+        cliente = data.get('cliente')
+        funcionario = data.get('funcionario')
+
+        if not cliente and not funcionario:
             raise serializers.ValidationError(
-                "O pagamento deve estar associado a uma Receita ou Despesa."
+                "A custódia deve estar associada a um Cliente ou Funcionário/Fornecedor/Parceiro."
             )
-        if data.get('receita') and data.get('despesa'):
+        if cliente and funcionario:
             raise serializers.ValidationError(
-                "O pagamento não pode estar vinculado a Receita e Despesa ao mesmo tempo."
+                "A custódia não pode estar vinculada a Cliente e Funcionário ao mesmo tempo."
             )
+
+        return data
+
+
+# 🔹 Allocation
+class AllocationSerializer(serializers.ModelSerializer):
+    """Serializer para alocações de pagamentos"""
+
+    # Read-only nested fields
+    payment_info = serializers.SerializerMethodField(read_only=True)
+    receita_info = serializers.SerializerMethodField(read_only=True)
+    despesa_info = serializers.SerializerMethodField(read_only=True)
+    custodia_info = serializers.SerializerMethodField(read_only=True)
+
+    # Write-only fields for IDs
+    payment_id = serializers.PrimaryKeyRelatedField(
+        queryset=Payment.objects.all(),
+        source='payment',
+        write_only=True
+    )
+    receita_id = serializers.PrimaryKeyRelatedField(
+        queryset=Receita.objects.all(),
+        source='receita',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    despesa_id = serializers.PrimaryKeyRelatedField(
+        queryset=Despesa.objects.all(),
+        source='despesa',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    custodia_id = serializers.PrimaryKeyRelatedField(
+        queryset=Custodia.objects.all(),
+        source='custodia',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = Allocation
+        fields = (
+            'id',
+            'company',
+            'payment',
+            'payment_id',
+            'payment_info',
+            'receita',
+            'receita_id',
+            'receita_info',
+            'despesa',
+            'despesa_id',
+            'despesa_info',
+            'custodia',
+            'custodia_id',
+            'custodia_info',
+            'valor',
+            'observacao',
+            'criado_em',
+            'atualizado_em'
+        )
+        read_only_fields = (
+            'id',
+            'company',
+            'payment',
+            'receita',
+            'despesa',
+            'custodia',
+            'criado_em',
+            'atualizado_em'
+        )
+
+    def get_payment_info(self, obj):
+        """Retorna informações básicas do payment"""
+        if obj.payment:
+            return {
+                'id': obj.payment.id,
+                'valor': obj.payment.valor,
+                'data_pagamento': obj.payment.data_pagamento,
+                'conta_bancaria': obj.payment.conta_bancaria.id if obj.payment.conta_bancaria else None,
+                'conta_bancaria_nome': obj.payment.conta_bancaria.nome if obj.payment.conta_bancaria else None
+            }
+        return None
+
+    def get_receita_info(self, obj):
+        """Retorna informações básicas da receita"""
+        if obj.receita:
+            return {
+                'id': obj.receita.id,
+                'nome': obj.receita.nome,
+                'cliente': obj.receita.cliente.nome if obj.receita.cliente else None,
+                'valor': obj.receita.valor
+            }
+        return None
+
+    def get_despesa_info(self, obj):
+        """Retorna informações básicas da despesa"""
+        if obj.despesa:
+            return {
+                'id': obj.despesa.id,
+                'nome': obj.despesa.nome,
+                'responsavel': obj.despesa.responsavel.nome if obj.despesa.responsavel else None,
+                'valor': obj.despesa.valor
+            }
+        return None
+
+    def get_custodia_info(self, obj):
+        """Retorna informações básicas da custódia"""
+        if obj.custodia:
+            pessoa = None
+            if obj.custodia.cliente:
+                pessoa = obj.custodia.cliente.nome
+            elif obj.custodia.funcionario:
+                pessoa = obj.custodia.funcionario.nome
+
+            return {
+                'id': obj.custodia.id,
+                'nome': obj.custodia.nome,
+                'tipo': obj.custodia.tipo,
+                'tipo_display': obj.custodia.get_tipo_display(),
+                'pessoa': pessoa,
+                'valor_total': obj.custodia.valor_total
+            }
+        return None
+
+    def validate(self, data):
+        """Validação: deve ter receita, despesa OU custódia, mas não mais de um"""
+        receita = data.get('receita')
+        despesa = data.get('despesa')
+        custodia = data.get('custodia')
+
+        # Contar quantas contas foram especificadas
+        contas_preenchidas = sum([
+            bool(receita),
+            bool(despesa),
+            bool(custodia)
+        ])
+
+        if contas_preenchidas == 0:
+            raise serializers.ValidationError(
+                "A alocação deve estar vinculada a uma Receita, Despesa ou Custódia."
+            )
+
+        if contas_preenchidas > 1:
+            raise serializers.ValidationError(
+                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa ou Custódia)."
+            )
+
+        # Validar que o valor é positivo
+        valor = data.get('valor')
+        if valor and valor <= 0:
+            raise serializers.ValidationError({
+                'valor': 'O valor da alocação deve ser maior que zero.'
+            })
+
+        # Validar que o valor não excede o valor do payment
+        payment = data.get('payment')
+        if payment and valor:
+            # Calcular total já alocado para este payment (excluindo esta alocação se for update)
+            total_alocado = Allocation.objects.filter(
+                payment=payment
+            )
+
+            # Se for update, excluir a alocação atual
+            if self.instance:
+                total_alocado = total_alocado.exclude(pk=self.instance.pk)
+
+            total_alocado = total_alocado.aggregate(
+                total=Sum('valor')
+            )['total'] or Decimal('0.00')
+
+            if total_alocado + valor > payment.valor:
+                raise serializers.ValidationError({
+                    'valor': f'O valor total alocado (R$ {total_alocado + valor}) excede o valor do pagamento (R$ {payment.valor}).'
+                })
+
         return data
 

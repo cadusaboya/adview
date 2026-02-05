@@ -149,7 +149,8 @@ class Receita(models.Model):
         return f'{self.nome} - {self.cliente.nome}'
 
     def atualizar_status(self):
-        total_pago = self.payments.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        # Calcula total pago através das alocações
+        total_pago = self.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
         if total_pago >= self.valor:
             self.situacao = 'P'  # Pago
@@ -282,7 +283,8 @@ class Despesa(models.Model):
         super().save(*args, **kwargs)
 
     def atualizar_status(self):
-        total_pago = self.payments.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        # Calcula total pago através das alocações
+        total_pago = self.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
         if total_pago >= self.valor:
             self.situacao = 'P'  # Pago
@@ -359,26 +361,37 @@ class DespesaRecorrente(models.Model):
 
 
 class Payment(models.Model):
+    """
+    Pagamento neutro que representa entrada ou saída de caixa.
+    A alocação para Receitas/Despesas/Passivos é feita via modelo Allocation.
+    """
+    TIPO_CHOICES = (
+        ('E', 'Entrada'),  # Recebimento
+        ('S', 'Saída'),    # Pagamento
+    )
+
     company = models.ForeignKey('Company', on_delete=models.CASCADE)
-
-    receita = models.ForeignKey('Receita', on_delete=models.CASCADE, null=True, blank=True, related_name='payments')
-    despesa = models.ForeignKey('Despesa', on_delete=models.CASCADE, null=True, blank=True, related_name='payments')
-
     conta_bancaria = models.ForeignKey('ContaBancaria', on_delete=models.PROTECT, related_name='payments')
 
+    tipo = models.CharField(
+        max_length=1,
+        choices=TIPO_CHOICES,
+        help_text="Tipo de movimentação: Entrada (recebimento) ou Saída (pagamento)"
+    )
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     data_pagamento = models.DateField()
-
     observacao = models.TextField(blank=True, null=True)
 
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        if self.receita:
-            return f"Recebimento de {self.receita.nome} - {self.valor}"
-        elif self.despesa:
-            return f"Pagamento de {self.despesa.nome} - {self.valor}"
-        return f"Pagamento {self.id} - {self.valor}"
+        tipo_display = "Entrada" if self.tipo == 'E' else "Saída"
+        return f"{tipo_display} de R$ {self.valor} em {self.data_pagamento}"
+
+    class Meta:
+        verbose_name = "Pagamento"
+        verbose_name_plural = "Pagamentos"
+        ordering = ['-data_pagamento', '-criado_em']
 
 class ContaBancaria(models.Model):
     company = models.ForeignKey('Company', on_delete=models.CASCADE)
@@ -397,6 +410,203 @@ class ContaBancaria(models.Model):
 
     def __str__(self):
         return self.nome
+
+
+class Custodia(models.Model):
+    """
+    Representa valores de terceiros (ativos e passivos de custódia).
+    - Passivo: valores que a empresa deve repassar a terceiros
+      Ex: Recebe R$ 14.000, mas apenas 10% é da empresa (R$ 1.400),
+      então há uma receita de R$ 1.400 e um passivo de custódia de R$ 12.600 a repassar.
+    - Ativo: valores que terceiros devem à empresa
+      Ex: Pagou R$ 10.000 em nome de um cliente, que deve reembolsar.
+    """
+    TIPO_CHOICES = (
+        ('P', 'Passivo'),  # Valores que devo a terceiros
+        ('A', 'Ativo'),    # Valores que terceiros me devem
+    )
+
+    STATUS_CHOICES = (
+        ('A', 'Aberto'),
+        ('P', 'Parcial'),
+        ('L', 'Liquidado'),
+    )
+
+    company = models.ForeignKey('Company', on_delete=models.CASCADE)
+
+    # Tipo de custódia
+    tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='P')
+
+    # Pessoa pode ser Cliente OU Funcionário/Fornecedor/Parceiro
+    cliente = models.ForeignKey(
+        'Cliente',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custodias',
+        help_text="Cliente relacionado à custódia"
+    )
+    funcionario = models.ForeignKey(
+        'Funcionario',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custodias',
+        help_text="Funcionário/Fornecedor/Parceiro relacionado à custódia"
+    )
+
+    nome = models.CharField(max_length=255)
+    descricao = models.TextField(blank=True, null=True)
+
+    valor_total = models.DecimalField(max_digits=10, decimal_places=2)
+    valor_liquidado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='A')
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Custódia"
+        verbose_name_plural = "Custódias"
+        ordering = ['-criado_em']
+        db_table = 'core_passivo'  # Manter nome da tabela existente
+
+    def __str__(self):
+        pessoa = self.cliente.nome if self.cliente else (self.funcionario.nome if self.funcionario else 'Sem pessoa')
+        tipo_display = 'Passivo' if self.tipo == 'P' else 'Ativo'
+        return f'{self.nome} ({tipo_display}) - {pessoa}'
+
+    def atualizar_status(self):
+        """
+        Atualiza o status baseado no valor liquidado.
+
+        Lógica de liquidação:
+        - Passivo (P): apenas pagamentos de Saída (S) liquidam (repasses)
+        - Ativo (A): apenas pagamentos de Entrada (E) liquidam (reembolsos)
+        """
+        # Determina qual tipo de payment liquida esta custódia
+        tipo_payment_liquidacao = 'S' if self.tipo == 'P' else 'E'
+
+        # Calcula total liquidado apenas com payments do tipo correto
+        self.valor_liquidado = self.allocations.filter(
+            payment__tipo=tipo_payment_liquidacao
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+        if self.valor_liquidado >= self.valor_total:
+            self.status = 'L'  # Liquidado
+        elif self.valor_liquidado > Decimal('0.00'):
+            self.status = 'P'  # Parcial
+        else:
+            self.status = 'A'  # Aberto
+        self.save()
+
+
+class Allocation(models.Model):
+    """
+    Alocação de um pagamento a uma conta (Receita, Despesa ou Passivo).
+    Permite dividir um único pagamento entre múltiplas contas.
+    """
+    company = models.ForeignKey('Company', on_delete=models.CASCADE)
+
+    # Relação com Payment
+    payment = models.ForeignKey('Payment', on_delete=models.CASCADE, related_name='allocations')
+
+    # Relação polimórfica com as contas (apenas uma deve ser preenchida)
+    receita = models.ForeignKey(
+        'Receita',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='allocations',
+        help_text="Receita para a qual este pagamento foi alocado"
+    )
+    despesa = models.ForeignKey(
+        'Despesa',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='allocations',
+        help_text="Despesa para a qual este pagamento foi alocado"
+    )
+    custodia = models.ForeignKey(
+        'Custodia',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='allocations',
+        help_text="Custódia para a qual este pagamento foi alocado"
+    )
+
+    # Valor alocado para essa conta
+    valor = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Quanto deste pagamento foi alocado para esta conta"
+    )
+
+    observacao = models.TextField(blank=True, null=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Alocação"
+        verbose_name_plural = "Alocações"
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        if self.receita:
+            return f"Alocação de R$ {self.valor} para Receita: {self.receita.nome}"
+        elif self.despesa:
+            return f"Alocação de R$ {self.valor} para Despesa: {self.despesa.nome}"
+        elif self.custodia:
+            return f"Alocação de R$ {self.valor} para Custódia: {self.custodia.nome}"
+        return f"Alocação {self.id} - R$ {self.valor}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validar que apenas uma conta foi preenchida
+        contas_preenchidas = sum([
+            bool(self.receita),
+            bool(self.despesa),
+            bool(self.custodia)
+        ])
+
+        if contas_preenchidas == 0:
+            raise ValidationError(
+                "A alocação deve estar vinculada a uma Receita, Despesa ou Custódia."
+            )
+
+        if contas_preenchidas > 1:
+            raise ValidationError(
+                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa ou Custódia)."
+            )
+
+        # Validar que o valor é positivo
+        if self.valor <= 0:
+            raise ValidationError("O valor da alocação deve ser maior que zero.")
+
+        # Validar que o valor não excede o valor do payment
+        if self.payment:
+            # Calcular total já alocado (excluindo esta alocação se estiver sendo editada)
+            total_alocado = Allocation.objects.filter(
+                payment=self.payment
+            ).exclude(pk=self.pk).aggregate(
+                total=Sum('valor')
+            )['total'] or Decimal('0.00')
+
+            if total_alocado + self.valor > self.payment.valor:
+                raise ValidationError(
+                    f"O valor total alocado (R$ {total_alocado + self.valor}) "
+                    f"excede o valor do pagamento (R$ {self.payment.valor})."
+                )
+
+    def save(self, *args, **kwargs):
+        # Executa validação antes de salvar
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 
