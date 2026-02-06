@@ -57,10 +57,33 @@ export async function deletePayment(id: number): Promise<void> {
    IMPORTAR EXTRATO
 ========================= */
 
+export interface PotentialDuplicate {
+  line_index: number;
+  new_payment: {
+    data: string;
+    valor: string;
+    tipo: string;
+    observacao: string;
+    banco: string;
+  };
+  existing_payment: {
+    id: number;
+    data: string;
+    valor: string;
+    tipo: string;
+    observacao: string;
+    banco: string;
+  };
+}
+
 export interface ImportExtratoResponse {
   success: boolean;
-  created_count: number;
-  conta_bancaria: string;
+  requires_confirmation?: boolean;  // Se true, há duplicatas que precisam de confirmação
+  potential_duplicates?: PotentialDuplicate[];  // Lista de duplicatas potenciais
+  message?: string;
+  created_count?: number;
+  skipped_count?: number;  // Pagamentos duplicados ignorados
+  conta_bancaria?: string;
   saldo_inicial?: string;
   saldo_final?: string;
   total_entradas?: string;
@@ -73,11 +96,20 @@ export interface ImportExtratoResponse {
 
 export async function importExtrato(
   file: File,
-  contaBancariaId: number
+  contaBancariaId: number,
+  forceImportLines?: number[],
+  confirmed?: boolean
 ): Promise<ImportExtratoResponse> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("conta_bancaria_id", String(contaBancariaId));
+
+  // Se confirmed=true, indica que é a segunda passagem (usuário já decidiu)
+  if (confirmed) {
+    formData.append("confirmed", "true");
+    // Envia as linhas confirmadas (pode ser array vazio se usuário não selecionou nenhuma)
+    formData.append("force_import_lines", JSON.stringify(forceImportLines || []));
+  }
 
   const res = await api.post<ImportExtratoResponse>(
     "/api/pagamentos/import-extrato/",
