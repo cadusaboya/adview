@@ -14,7 +14,7 @@ import {
 import { Select as AntdSelect } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 
-import { formatCurrencyInput, parseCurrencyBR, formatCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import { getBancos } from '@/services/bancos';
 import { getReceitasAbertas } from '@/services/receitas';
@@ -30,16 +30,22 @@ import { Payment, PaymentCreate } from '@/types/payments';
 // Tipo para uma alocação no formulário
 interface AllocationForm {
   id: string; // ID temporário para gerenciar a lista
+  allocation_id?: number; // ID da allocation no backend (se já existe)
   tipo: 'receita' | 'despesa' | 'custodia';
   entidade_id: number;
   valor: number;
   valorDisplay: string;
+  isExisting?: boolean; // Flag para indicar se é uma alocação existente
+  isDeleted?: boolean; // Flag para indicar que esta alocação existente deve ser deletada
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: PaymentCreate & { allocations?: AllocationForm[] }) => Promise<void>;
+  onSubmit: (data: PaymentCreate & {
+    allocations?: AllocationForm[];
+    allocationsToDelete?: number[]; // IDs das alocações a deletar
+  }) => Promise<void>;
   payment?: Payment | null;
 }
 
@@ -143,10 +149,12 @@ export default function PaymentDialog({
 
           return {
             id: `alloc-${index}-${Date.now()}`,
+            allocation_id: alloc.id, // Guardar o ID da alocação existente
             tipo,
             entidade_id,
             valor: alloc.valor,
             valorDisplay: formatCurrencyInput(alloc.valor),
+            isExisting: true, // Marcar como existente
           };
         });
         setAllocations(loadedAllocations);
@@ -181,8 +189,10 @@ export default function PaymentDialog({
   // ======================
   useEffect(() => {
     // Ajusta as alocações quando o tipo de pagamento muda
-    if (allocations.length > 0) {
-      const updatedAllocations = allocations.map((alloc) => {
+    setAllocations((prev) => {
+      if (prev.length === 0) return prev;
+
+      const updatedAllocations = prev.map((alloc) => {
         // Se for Recebimento (E) e a alocação é despesa, mudar para receita
         if (formData.tipo === 'E' && alloc.tipo === 'despesa') {
           return { ...alloc, tipo: 'receita' as const, entidade_id: 0 };
@@ -195,10 +205,11 @@ export default function PaymentDialog({
       });
 
       // Só atualiza se houve mudanças
-      if (JSON.stringify(updatedAllocations) !== JSON.stringify(allocations)) {
-        setAllocations(updatedAllocations);
+      if (JSON.stringify(updatedAllocations) !== JSON.stringify(prev)) {
+        return updatedAllocations;
       }
-    }
+      return prev;
+    });
   }, [formData.tipo]);
 
   const loadBancos = async () => {
@@ -257,7 +268,17 @@ export default function PaymentDialog({
   };
 
   const removeAllocation = (id: string) => {
-    setAllocations(allocations.filter((a) => a.id !== id));
+    const allocation = allocations.find((a) => a.id === id);
+
+    if (allocation?.isExisting && allocation.allocation_id) {
+      // Se é uma alocação existente, apenas marcar como deletada
+      setAllocations((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, isDeleted: true } : a))
+      );
+    } else {
+      // Se é uma nova alocação, remover da lista local
+      setAllocations(allocations.filter((a) => a.id !== id));
+    }
   };
 
   const updateAllocation = (id: string, field: keyof AllocationForm, value: string | number) => {
@@ -270,13 +291,29 @@ export default function PaymentDialog({
   // 💾 SUBMIT
   // ======================
   const handleSubmit = async () => {
-    const payload: PaymentCreate & { allocations?: AllocationForm[] } = {
+    // Filtrar alocações não deletadas
+    const activeAllocations = allocations.filter((a) => !a.isDeleted);
+
+    // Identificar alocações a deletar (existentes marcadas como deleted)
+    const allocationsToDelete = allocations
+      .filter((a) => a.isExisting && a.isDeleted && a.allocation_id)
+      .map((a) => a.allocation_id!);
+
+    const payload: PaymentCreate & {
+      allocations?: AllocationForm[];
+      allocationsToDelete?: number[];
+    } = {
       ...formData,
     };
 
-    // Adicionar allocations se houver
-    if (allocations.length > 0) {
-      payload.allocations = allocations;
+    // Adicionar apenas alocações ativas (novas ou existentes não deletadas)
+    if (activeAllocations.length > 0) {
+      payload.allocations = activeAllocations;
+    }
+
+    // Adicionar IDs de alocações a deletar
+    if (allocationsToDelete.length > 0) {
+      payload.allocationsToDelete = allocationsToDelete;
     }
 
     await onSubmit(payload);
@@ -335,6 +372,9 @@ export default function PaymentDialog({
               onChange={(val) =>
                 setFormData({ ...formData, conta_bancaria: val })
               }
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
               style={{ width: '100%' }}
             />
           </div>
@@ -389,17 +429,24 @@ export default function PaymentDialog({
 
           {/* Lista de Alocações */}
           <div className="space-y-2">
-            {allocations.map((alloc) => (
-                <div key={alloc.id} className="grid grid-cols-12 gap-2 items-end">
+            {allocations.filter((a) => !a.isDeleted).map((alloc) => (
+                <div key={alloc.id} className={`grid grid-cols-12 gap-2 items-end p-2 rounded ${
+                  alloc.isExisting ? 'bg-blue-50 border border-blue-200' : ''
+                }`}>
                   {/* Tipo */}
                   <div className="col-span-3">
-                    <label className="text-xs font-medium block mb-1">Tipo</label>
+                    <label className="text-xs font-medium block mb-1">
+                      Tipo
+                      {alloc.isExisting && (
+                        <span className="ml-1 text-blue-600 text-xs">(Existente)</span>
+                      )}
+                    </label>
                     <Select
                       key={`tipo-${alloc.id}`}
                       value={alloc.tipo}
                       onValueChange={(val) => {
-                        setAllocations(
-                          allocations.map((a) =>
+                        setAllocations((prev) =>
+                          prev.map((a) =>
                             a.id === alloc.id
                               ? { ...a, tipo: val as 'receita' | 'despesa' | 'custodia', entidade_id: 0 }
                               : a
@@ -434,16 +481,16 @@ export default function PaymentDialog({
                         alloc.tipo === 'receita'
                           ? receitas.map((r) => ({
                               value: r.id,
-                              label: `${r.nome} - ${r.cliente?.nome || 'Sem cliente'} - ${formatCurrencyBR(r.valor)}`,
+                              label: `${r.nome} - ${r.cliente?.nome || 'Sem cliente'}`,
                             }))
                           : alloc.tipo === 'despesa'
                           ? despesas.map((d) => ({
                               value: d.id,
-                              label: `${d.nome} - ${d.responsavel?.nome || 'Sem responsável'} - ${formatCurrencyBR(d.valor)}`,
+                              label: `${d.nome} - ${d.responsavel?.nome || 'Sem responsável'}`,
                             }))
                           : custodias.map((c) => ({
                               value: c.id,
-                              label: `${c.nome} - ${formatCurrencyBR(c.valor_total)}`,
+                              label: c.nome,
                             }))
                       }
                       onChange={(val) => {
@@ -496,12 +543,13 @@ export default function PaymentDialog({
                         updateAllocation(alloc.id, 'valorDisplay', e.target.value)
                       }
                       onBlur={() => {
-                        const isLastAllocation = allocations[allocations.length - 1].id === alloc.id;
+                        const activeAllocations = allocations.filter((a) => !a.isDeleted);
+                        const isLastAllocation = activeAllocations[activeAllocations.length - 1].id === alloc.id;
                         const isBlankValue = !alloc.valorDisplay || alloc.valorDisplay.trim() === '';
 
                         // Se for a última alocação e o valor estiver em branco, calcular o restante
-                        if (isLastAllocation && isBlankValue && allocations.length > 0) {
-                          const totalAllocated = allocations.reduce((sum, a) => {
+                        if (isLastAllocation && isBlankValue && activeAllocations.length > 0) {
+                          const totalAllocated = activeAllocations.reduce((sum, a) => {
                             if (a.id === alloc.id) return sum; // Ignora a última alocação
                             return sum + (a.valor || 0);
                           }, 0);

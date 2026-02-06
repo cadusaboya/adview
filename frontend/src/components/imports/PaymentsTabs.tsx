@@ -52,6 +52,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
   const [vincularValorDisplay, setVincularValorDisplay] = useState('');
   const [vincularValor, setVincularValor] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadPayments = useCallback(async () => {
     try {
@@ -207,16 +208,59 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
         page_size: 9999
       });
 
-      // Filtrar pagamentos com o mesmo valor (tolerância para comparação de floats)
-      const filtered = valorAberto
-        ? res.results.filter((p) => Math.abs(p.valor - valorAberto) < 0.01)
-        : res.results;
+      // Filtrar pagamentos que ainda têm valor disponível para vincular
+      const paymentsWithValueAvailable = res.results.filter((p) => {
+        // Calcular o valor já alocado
+        const valorAlocado = p.allocations_info?.reduce((sum, alloc) => sum + alloc.valor, 0) || 0;
+        // Calcular o valor remanescente
+        const valorRemanescente = p.valor - valorAlocado;
+        // Incluir apenas pagamentos com valor disponível (tolerância para floats)
+        return valorRemanescente > 0.01;
+      });
 
-      setAvailablePayments(filtered);
+      // Guardar TODOS os pagamentos com valor disponível (sem filtro de valor igual)
+      // O filtro por valor igual será aplicado no filteredAvailablePayments apenas quando não houver pesquisa
+      setAvailablePayments(paymentsWithValueAvailable);
     } catch {
       toast.error('Erro ao carregar pagamentos disponíveis');
     }
   }, [tipo, custodiaTipo, valorAberto]);
+
+  // Filtrar pagamentos disponíveis com base no termo de pesquisa
+  const filteredAvailablePayments = availablePayments.filter((payment) => {
+    const valorAlocado = payment.allocations_info?.reduce((sum, alloc) => sum + alloc.valor, 0) || 0;
+    const valorDisponivel = payment.valor - valorAlocado;
+
+    // Se não houver termo de pesquisa, filtrar por valor igual (comportamento padrão)
+    if (!searchTerm) {
+      // Se valorAberto existir, mostrar apenas pagamentos com valor igual
+      if (valorAberto) {
+        return Math.abs(valorDisponivel - valorAberto) < 0.01;
+      }
+      // Se não houver valorAberto, mostrar todos
+      return true;
+    }
+
+    // Se houver termo de pesquisa, buscar em todos os pagamentos disponíveis
+    const search = searchTerm.toLowerCase();
+
+    // Pesquisar por data (formato brasileiro)
+    const dataFormatada = new Date(payment.data_pagamento).toLocaleDateString('pt-BR');
+    if (dataFormatada.includes(search)) return true;
+
+    // Pesquisar por valor total
+    const valorTotalStr = formatCurrencyBR(payment.valor).toLowerCase();
+    if (valorTotalStr.includes(search)) return true;
+
+    // Pesquisar por valor disponível
+    const valorDisponivelStr = formatCurrencyBR(valorDisponivel).toLowerCase();
+    if (valorDisponivelStr.includes(search)) return true;
+
+    // Pesquisar por observação
+    if (payment.observacao?.toLowerCase().includes(search)) return true;
+
+    return false;
+  });
 
   // Vincular um payment existente
   const handleVincular = async () => {
@@ -300,7 +344,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
 
       <TabsContent value="baixa" className="min-h-[400px]">
         <div className="border rounded-md p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm">Data do Pagamento</label>
               <Input
@@ -332,20 +376,20 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <label className="text-sm">Valor</label>
-            <Input
-              placeholder="0,00"
-              value={valorDisplay}
-              onChange={(e) => setValorDisplay(e.target.value)}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
-                setForm((prev) => ({ ...prev, valor: parsed }));
-              }}
-            />
+            <div>
+              <label className="text-sm">Valor</label>
+              <Input
+                placeholder="0,00"
+                value={valorDisplay}
+                onChange={(e) => setValorDisplay(e.target.value)}
+                onBlur={() => {
+                  const parsed = parseCurrencyBR(valorDisplay);
+                  setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+                  setForm((prev) => ({ ...prev, valor: parsed }));
+                }}
+              />
+            </div>
           </div>
 
           <div>
@@ -371,6 +415,16 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
             Selecione um pagamento já existente para vincular a esta {tipo === 'receita' ? 'receita' : tipo === 'despesa' ? 'despesa' : 'custódia'}
           </div>
 
+          {/* Campo de pesquisa */}
+          <div>
+            <Input
+              placeholder="Pesquisar por data, valor ou observação..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-md"
+            />
+          </div>
+
           {/* Lista de pagamentos disponíveis */}
           <div className="border rounded-md overflow-y-auto">
             <table className="w-full">
@@ -379,56 +433,65 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                   <th className="text-left p-2 text-xs">Selecionar</th>
                   <th className="text-left p-2 text-xs">Data</th>
                   <th className="text-left p-2 text-xs">Conta</th>
-                  <th className="text-right p-2 text-xs">Valor</th>
+                  <th className="text-right p-2 text-xs">Valor Total</th>
+                  <th className="text-right p-2 text-xs">Valor Disponível</th>
                   <th className="text-left p-2 text-xs">Observação</th>
                 </tr>
               </thead>
               <tbody>
-                {availablePayments.length === 0 ? (
+                {filteredAvailablePayments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center p-4 text-sm text-muted-foreground">
-                      Nenhum pagamento disponível
+                    <td colSpan={6} className="text-center p-4 text-sm text-muted-foreground">
+                      {searchTerm ? 'Nenhum pagamento encontrado' : 'Nenhum pagamento disponível'}
                     </td>
                   </tr>
                 ) : (
-                  availablePayments.map((payment) => (
-                    <tr
-                      key={payment.id}
-                      className={`hover:bg-muted/50 cursor-pointer ${
-                        selectedPaymentId === payment.id ? 'bg-primary/10' : ''
-                      }`}
-                      onClick={() => {
-                        setSelectedPaymentId(payment.id);
-                        setVincularValorDisplay(formatCurrencyInput(payment.valor));
-                        setVincularValor(payment.valor);
-                      }}
-                    >
-                      <td className="p-2">
-                        <input
-                          type="radio"
-                          checked={selectedPaymentId === payment.id}
-                          onChange={() => {
-                            setSelectedPaymentId(payment.id);
-                            setVincularValorDisplay(formatCurrencyInput(payment.valor));
-                            setVincularValor(payment.valor);
-                          }}
-                          className="cursor-pointer"
-                        />
-                      </td>
-                      <td className="p-2 text-sm">
-                        {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="p-2 text-sm">
-                        {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}
-                      </td>
-                      <td className="p-2 text-sm text-right font-medium">
-                        {formatCurrencyBR(payment.valor)}
-                      </td>
-                      <td className="p-2 text-sm text-muted-foreground">
-                        {payment.observacao || '-'}
-                      </td>
-                    </tr>
-                  ))
+                  filteredAvailablePayments.map((payment) => {
+                    const valorAlocado = payment.allocations_info?.reduce((sum, alloc) => sum + alloc.valor, 0) || 0;
+                    const valorDisponivel = payment.valor - valorAlocado;
+
+                    return (
+                      <tr
+                        key={payment.id}
+                        className={`hover:bg-muted/50 cursor-pointer ${
+                          selectedPaymentId === payment.id ? 'bg-primary/10' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedPaymentId(payment.id);
+                          setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
+                          setVincularValor(valorDisponivel);
+                        }}
+                      >
+                        <td className="p-2">
+                          <input
+                            type="radio"
+                            checked={selectedPaymentId === payment.id}
+                            onChange={() => {
+                              setSelectedPaymentId(payment.id);
+                              setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
+                              setVincularValor(valorDisponivel);
+                            }}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-2 text-sm">
+                          {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="p-2 text-sm">
+                          {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}
+                        </td>
+                        <td className="p-2 text-sm text-right font-medium">
+                          {formatCurrencyBR(payment.valor)}
+                        </td>
+                        <td className="p-2 text-sm text-right font-semibold text-green-600">
+                          {formatCurrencyBR(valorDisponivel)}
+                        </td>
+                        <td className="p-2 text-sm text-muted-foreground">
+                          {payment.observacao || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
