@@ -481,24 +481,40 @@ class Custodia(models.Model):
         """
         Atualiza o status baseado no valor liquidado.
 
-        Lógica de liquidação:
-        - Passivo (P): apenas pagamentos de Saída (S) liquidam (repasses)
-        - Ativo (A): apenas pagamentos de Entrada (E) liquidam (reembolsos)
-        """
-        # Determina qual tipo de payment liquida esta custódia
-        tipo_payment_liquidacao = 'S' if self.tipo == 'P' else 'E'
+        Lógica de liquidação (considera ambas contrapartes):
+        - Passivo (P): precisa ter Entrada(E) que registra recebimento E Saída(S) que registra repasse
+          - valor_liquidado = mínimo entre total de entradas e total de saídas
+        - Ativo (A): precisa ter Saída(S) que registra pagamento E Entrada(E) que registra reembolso
+          - valor_liquidado = mínimo entre total de saídas e total de entradas
 
-        # Calcula total liquidado apenas com payments do tipo correto
-        self.valor_liquidado = self.allocations.filter(
-            payment__tipo=tipo_payment_liquidacao
+        Uma custódia só está liquidada quando ambas contrapartes estão registradas.
+        """
+        # Calcula totais de entradas e saídas
+        total_entradas = self.allocations.filter(
+            payment__tipo='E'
         ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
+        total_saidas = self.allocations.filter(
+            payment__tipo='S'
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+        if self.tipo == 'P':  # Passivo
+            # Liquidado = menor valor entre o que entrou e o que foi repassado
+            # (só considera liquidado o que tem ambas contrapartes)
+            self.valor_liquidado = min(total_entradas, total_saidas)
+        else:  # Ativo
+            # Liquidado = menor valor entre o que foi pago e o que foi reembolsado
+            # (só considera liquidado o que tem ambas contrapartes)
+            self.valor_liquidado = min(total_saidas, total_entradas)
+
+        # Atualiza status
         if self.valor_liquidado >= self.valor_total:
             self.status = 'L'  # Liquidado
         elif self.valor_liquidado > Decimal('0.00'):
             self.status = 'P'  # Parcial
         else:
             self.status = 'A'  # Aberto
+
         self.save()
 
 
