@@ -156,6 +156,9 @@ export default function DespesaDialog({
       onClose={onClose}
       title={despesa ? 'Editar Despesa' : 'Nova Despesa'}
       onSubmit={handleSubmit}
+      size="lg"
+      maxHeight="max-h-[75vh]"
+      compact
     >
       <div className="grid grid-cols-1 gap-4">
         {/* Favorecido + Nome */}
@@ -176,6 +179,9 @@ export default function DespesaDialog({
                   ...formData,
                   responsavel_id: val ?? 0,
                 })
+              }
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />
@@ -303,6 +309,9 @@ export default function DespesaDialog({
                       label: b.nome,
                     }))}
                     onChange={(val) => setContaBancariaId(val)}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                     style={{ width: '100%' }}
                   />
                 </div>

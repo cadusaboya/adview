@@ -153,6 +153,9 @@ export default function ReceitaDialog({
       onClose={onClose}
       title={receita ? 'Editar Receita' : 'Nova Receita'}
       onSubmit={handleSubmit}
+      size="lg"
+      maxHeight="max-h-[75vh]"
+      compact
     >
       <div className="grid grid-cols-1 gap-4">
         {/* Cliente + Nome */}
@@ -169,6 +172,9 @@ export default function ReceitaDialog({
               }))}
               onChange={(val) =>
                 setFormData({ ...formData, cliente_id: val })
+              }
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />
@@ -262,6 +268,7 @@ export default function ReceitaDialog({
           <div>
             <label className="text-sm">Comissionado</label>
             <AntdSelect
+              showSearch
               allowClear
               placeholder="Selecione um comissionado"
               value={formData.comissionado_id ?? undefined}
@@ -274,6 +281,9 @@ export default function ReceitaDialog({
                   ...formData,
                   comissionado_id: val ?? null,
                 })
+              }
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />
@@ -317,6 +327,7 @@ export default function ReceitaDialog({
                     Conta Bancária
                   </label>
                   <AntdSelect
+                    showSearch
                     placeholder="Selecione"
                     value={contaBancariaId}
                     options={bancos.map((b) => ({
@@ -324,6 +335,9 @@ export default function ReceitaDialog({
                       label: b.nome,
                     }))}
                     onChange={(val) => setContaBancariaId(val)}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                     style={{ width: '100%' }}
                   />
                 </div>
