@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
+import ConfirmDuplicatesDialog from '@/components/dialogs/ConfirmDuplicatesDialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -14,7 +15,7 @@ import {
 import { Upload, FileSpreadsheet } from 'lucide-react';
 
 import { getBancos } from '@/services/bancos';
-import { importExtrato, ImportExtratoResponse } from '@/services/payments';
+import { importExtrato, ImportExtratoResponse, PotentialDuplicate } from '@/services/payments';
 
 import { Banco } from '@/types/bancos';
 import { toast } from 'sonner';
@@ -34,6 +35,10 @@ export default function ImportExtratoDialog({
   const [selectedBanco, setSelectedBanco] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Estados para confirmação de duplicatas
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [potentialDuplicates, setPotentialDuplicates] = useState<PotentialDuplicate[]>([]);
 
   // ======================
   // 🔹 LOAD BANCOS
@@ -72,8 +77,8 @@ export default function ImportExtratoDialog({
   // ======================
   // 📤 SUBMIT
   // ======================
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent, forceImportLines?: number[]) => {
+    e?.preventDefault();
 
     if (!selectedFile) {
       toast.error('Por favor, selecione um arquivo');
@@ -90,34 +95,32 @@ export default function ImportExtratoDialog({
 
       const result: ImportExtratoResponse = await importExtrato(
         selectedFile,
-        selectedBanco
+        selectedBanco,
+        forceImportLines
       );
 
+      // Se requer confirmação, mostra diálogo de duplicatas
+      if (result.requires_confirmation && result.potential_duplicates) {
+        setPotentialDuplicates(result.potential_duplicates);
+        setShowConfirmDialog(true);
+        return;
+      }
+
       if (result.success) {
-        let message = `${result.created_count} pagamento(s) importado(s) com sucesso para ${result.conta_bancaria}!`;
+        let message = `${result.created_count} pagamento(s) importado(s) com sucesso!`;
 
-        if (result.saldo_inicial && result.saldo_final) {
-          message += `\n\n📊 Resumo Financeiro:`;
-          message += `\n• Saldo inicial: R$ ${result.saldo_inicial}`;
-          message += `\n• Total entradas: R$ ${result.total_entradas || '0.00'}`;
-          message += `\n• Total saídas: R$ ${result.total_saidas || '0.00'}`;
-          message += `\n• Saldo esperado: R$ ${result.saldo_esperado || result.saldo_final}`;
-          message += `\n• Saldo final: R$ ${result.saldo_final}`;
-
-          if (result.diferenca && result.diferenca !== '0.00') {
-            message += `\n\n⚠️ Diferença: R$ ${result.diferenca}`;
-          }
+        // Mostra informação sobre pagamentos ignorados (duplicatas)
+        if (result.skipped_count && result.skipped_count > 0) {
+          message += `\n${result.skipped_count} pagamento(s) ignorado(s) (duplicatas)`;
         }
 
+        // Mostra apenas avisos importantes
         if (result.errors && result.errors.length > 0) {
-          message += `\n\nAvisos (${result.total_errors || result.errors.length}):\n`;
-          message += result.errors.slice(0, 5).join('\n');
-          if ((result.total_errors || 0) > 5) {
-            message += `\n... e mais ${(result.total_errors || 0) - 5} avisos`;
-          }
+          const warningCount = result.total_errors || result.errors.length;
+          message += `\n\n⚠️ ${warningCount} aviso(s)`;
         }
 
-        toast.success(message, { duration: 10000 });
+        toast.success(message, { duration: 5000 });
         onSuccess();
         handleClose();
       }
@@ -136,21 +139,79 @@ export default function ImportExtratoDialog({
   };
 
   // ======================
+  // 🔄 CONFIRMAÇÃO DE DUPLICATAS
+  // ======================
+  const handleConfirmDuplicates = async (selectedLines: number[]) => {
+    setShowConfirmDialog(false);
+
+    if (!selectedFile || !selectedBanco) return;
+
+    try {
+      setLoading(true);
+
+      // Segunda passagem: envia com confirmed=true e as linhas selecionadas
+      const result: ImportExtratoResponse = await importExtrato(
+        selectedFile,
+        selectedBanco,
+        selectedLines,
+        true  // confirmed=true
+      );
+
+      if (result.success) {
+        let message = `${result.created_count} pagamento(s) importado(s) com sucesso!`;
+
+        if (result.skipped_count && result.skipped_count > 0) {
+          message += `\n${result.skipped_count} pagamento(s) ignorado(s) (duplicatas)`;
+        }
+
+        if (result.errors && result.errors.length > 0) {
+          const warningCount = result.total_errors || result.errors.length;
+          message += `\n\n⚠️ ${warningCount} aviso(s)`;
+        }
+
+        toast.success(message, { duration: 5000 });
+        onSuccess();
+        handleClose();
+      }
+    } catch (error: any) {
+      console.error('Erro ao importar extrato:', error);
+
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        'Erro ao importar extrato';
+
+      toast.error(errorMessage, { duration: 5000 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelDuplicates = () => {
+    setShowConfirmDialog(false);
+    setPotentialDuplicates([]);
+    toast.info('Importação cancelada');
+  };
+
+  // ======================
   // 🚪 CLOSE
   // ======================
   const handleClose = () => {
     setSelectedFile(null);
     setSelectedBanco(null);
+    setShowConfirmDialog(false);
+    setPotentialDuplicates([]);
     onClose();
   };
 
   return (
-    <DialogBase
-      open={open}
-      onClose={handleClose}
-      title="Importar Extrato Bancário"
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <DialogBase
+        open={open}
+        onClose={handleClose}
+        title="Importar Extrato Bancário"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
         {/* CONTA BANCÁRIA */}
         <div className="space-y-2">
           <Label htmlFor="banco">Conta Bancária *</Label>
@@ -224,5 +285,14 @@ export default function ImportExtratoDialog({
         </div>
       </form>
     </DialogBase>
+
+      {/* Diálogo de confirmação de duplicatas */}
+      <ConfirmDuplicatesDialog
+        open={showConfirmDialog}
+        duplicates={potentialDuplicates}
+        onConfirm={handleConfirmDuplicates}
+        onCancel={handleCancelDuplicates}
+      />
+    </>
   );
 }
