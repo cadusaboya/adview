@@ -9,7 +9,7 @@ from .views import (
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
     RelatorioComissionamentoView, RelatorioResultadoMensalView,
-    dre_consolidado
+    dre_consolidado, balanco_patrimonial, relatorio_conciliacao_bancaria
 )
 
 from .pdf_views import (
@@ -51,6 +51,8 @@ urlpatterns = [
     path('relatorios/comissionamento/', RelatorioComissionamentoView.as_view(), name='relatorio-comissionamento'),
     path('relatorios/resultado-mensal/', RelatorioResultadoMensalView.as_view(), name='relatorio-resultado-mensal'),
     path('relatorios/dre/', dre_consolidado, name='dre-consolidado'),
+    path('relatorios/balanco/', balanco_patrimonial, name='balanco-patrimonial'),
+    path('relatorios/conciliacao-bancaria/', relatorio_conciliacao_bancaria, name='relatorio-conciliacao-bancaria'),
     path('dashboard/', dashboard_view, name='dashboard'),
 
     # PDF Urls

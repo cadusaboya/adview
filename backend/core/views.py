@@ -1328,9 +1328,27 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
             # Processa as linhas de dados
             created_count = 0
+            skipped_count = 0  # Pagamentos duplicados ignorados
             errors = []
+            potential_duplicates = []  # Lista de duplicatas potenciais para confirmação do usuário
+            payments_to_create = []  # Lista de pagamentos a serem criados (apenas na segunda passagem)
             total_entradas = Decimal('0.00')
             total_saidas = Decimal('0.00')
+
+            # Verifica se há lista de linhas confirmadas para importar (segunda passagem)
+            force_import_lines = request.data.get('force_import_lines', [])
+            confirmed = request.data.get('confirmed', 'false').lower() == 'true'
+
+            if isinstance(force_import_lines, str):
+                import json
+                try:
+                    force_import_lines = json.loads(force_import_lines)
+                except:
+                    force_import_lines = []
+
+            # Se confirmed=true, significa que o usuário já viu o diálogo e escolheu
+            # Neste caso, apenas importar as linhas que estão em force_import_lines
+            # e pular as duplicatas potenciais que não foram selecionadas
 
             # Recarrega a conta para garantir que temos o saldo mais recente
             conta_bancaria.refresh_from_db()
@@ -1411,32 +1429,106 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         if desc_value:
                             observacao = str(desc_value).strip()
 
-                    # Cria o pagamento
-                    payment = Payment.objects.create(
+                    # ============================================
+                    # VERIFICAÇÃO DE DUPLICATAS
+                    # ============================================
+                    # Busca pagamentos existentes com mesma data e valor (em QUALQUER banco)
+                    existing_payments = Payment.objects.filter(
                         company=request.user.company,
-                        conta_bancaria=conta_bancaria,
-                        tipo=tipo,
-                        valor=valor,
                         data_pagamento=data_pagamento,
-                        observacao=observacao
+                        valor=valor,
+                        tipo=tipo
                     )
 
-                    # Atualiza saldo da conta usando F() para operação atômica
-                    if tipo == 'E':
-                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
-                            saldo_atual=F('saldo_atual') + valor
-                        )
-                        total_entradas += valor
-                    else:
-                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
-                            saldo_atual=F('saldo_atual') - valor
-                        )
-                        total_saidas += valor
+                    # Verifica se existe duplicata exata (incluindo observação)
+                    duplicata_exata = existing_payments.filter(observacao=observacao).exists()
 
-                    created_count += 1
+                    if duplicata_exata:
+                        # Duplicata exata encontrada - pular este pagamento
+                        skipped_count += 1
+                        continue
+
+                    # Verifica se existe duplicata potencial (data + valor, mas observação diferente)
+                    duplicata_potencial = existing_payments.exclude(observacao=observacao).first()
+
+                    if duplicata_potencial:
+                        # Se NÃO confirmado, apenas adiciona à lista (não importa nada ainda)
+                        if not confirmed:
+                            potential_duplicates.append({
+                                'line_index': idx,
+                                'new_payment': {
+                                    'data': data_pagamento.strftime('%Y-%m-%d'),
+                                    'valor': str(valor),
+                                    'tipo': tipo,
+                                    'observacao': observacao or '',
+                                    'banco': conta_bancaria.nome
+                                },
+                                'existing_payment': {
+                                    'id': duplicata_potencial.id,
+                                    'data': duplicata_potencial.data_pagamento.strftime('%Y-%m-%d'),
+                                    'valor': str(duplicata_potencial.valor),
+                                    'tipo': duplicata_potencial.tipo,
+                                    'observacao': duplicata_potencial.observacao or '',
+                                    'banco': duplicata_potencial.conta_bancaria.nome
+                                }
+                            })
+                            continue  # Pula e não adiciona à lista de criação
+
+                        # Se confirmed=true, verifica se usuário escolheu importar esta linha
+                        if idx not in force_import_lines:
+                            # Usuário escolheu não importar esta duplicata
+                            skipped_count += 1
+                            continue
+
+                    # Adiciona à lista de pagamentos a serem criados
+                    payments_to_create.append({
+                        'company': request.user.company,
+                        'conta_bancaria': conta_bancaria,
+                        'tipo': tipo,
+                        'valor': valor,
+                        'data_pagamento': data_pagamento,
+                        'observacao': observacao
+                    })
 
                 except Exception as e:
                     errors.append(f'Linha {idx}: {str(e)}')
+
+            # =====================================================
+            # VERIFICAÇÃO FINAL: Se houver duplicatas potenciais na primeira passagem,
+            # retorna SEM criar nenhum pagamento
+            # =====================================================
+            if potential_duplicates and not confirmed:
+                response_data = {
+                    'success': False,
+                    'requires_confirmation': True,
+                    'potential_duplicates': potential_duplicates,
+                    'message': f'Encontradas {len(potential_duplicates)} possível(is) duplicata(s) que requerem confirmação.'
+                }
+                return Response(response_data, status=status.HTTP_200_OK)
+
+            # =====================================================
+            # CRIAÇÃO DOS PAGAMENTOS
+            # Se chegou aqui, pode criar os pagamentos
+            # =====================================================
+            for payment_data in payments_to_create:
+                try:
+                    payment = Payment.objects.create(**payment_data)
+
+                    # Atualiza saldo da conta usando F() para operação atômica
+                    if payment_data['tipo'] == 'E':
+                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
+                            saldo_atual=F('saldo_atual') + payment_data['valor']
+                        )
+                        total_entradas += payment_data['valor']
+                    else:
+                        ContaBancaria.objects.filter(pk=conta_bancaria.pk).update(
+                            saldo_atual=F('saldo_atual') - payment_data['valor']
+                        )
+                        total_saidas += payment_data['valor']
+
+                    created_count += 1
+                except Exception as e:
+                    errors.append(f'Erro ao criar pagamento: {str(e)}')
 
             # Recarrega a conta para obter o saldo final atualizado
             conta_bancaria.refresh_from_db()
@@ -1446,9 +1538,21 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             saldo_esperado = saldo_inicial + total_entradas - total_saidas
             diferenca = saldo_final - saldo_esperado
 
+            # Se houver duplicatas potenciais (não deveria chegar aqui na primeira passagem)
+            if potential_duplicates:
+                response_data = {
+                    'success': False,
+                    'requires_confirmation': True,
+                    'potential_duplicates': potential_duplicates,
+                    'message': f'Encontradas {len(potential_duplicates)} possível(is) duplicata(s) que requerem confirmação.'
+                }
+                return Response(response_data, status=status.HTTP_200_OK)
+
+            # Caso contrário, retorna sucesso normal
             response_data = {
                 'success': True,
                 'created_count': created_count,
+                'skipped_count': skipped_count,  # Quantidade de pagamentos ignorados (duplicatas exatas)
                 'conta_bancaria': conta_bancaria.nome,
                 'saldo_inicial': str(saldo_inicial),
                 'saldo_final': str(saldo_final),
@@ -3110,5 +3214,361 @@ def dre_consolidado(request):
     except Exception as e:
         return Response({'error': 'Erro interno'}, status=500)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def balanco_patrimonial(request):
+    """
+    Retorna o Fluxo de Caixa Realizado (Regime de Caixa) com entradas e saídas por banco.
+
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+
+    Retorna:
+    {
+        "entradas": {
+            "por_banco": [
+                {"banco": "Itaú PJ", "valor": 50000.00},
+                {"banco": "Nubank", "valor": 20000.00}
+            ],
+            "total": 70000.00
+        },
+        "saidas": {
+            "por_banco": [
+                {"banco": "Itaú PJ", "valor": 30000.00},
+                {"banco": "Nubank", "valor": 10000.00}
+            ],
+            "total": 40000.00
+        },
+        "resultado": 30000.00
+    }
+    """
+
+    try:
+        # 🔹 Pegar parâmetros de mês e ano
+        mes = request.query_params.get('mes')
+        ano = request.query_params.get('ano')
+
+        # 🔹 Se não tiver mês/ano, usar mês atual
+        if not mes or not ano:
+            hoje = datetime.now()
+            mes = hoje.month
+            ano = hoje.year
+        else:
+            mes = int(mes)
+            ano = int(ano)
+
+        # 🔹 Calcular data de início e fim do mês
+        data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+        if mes == 12:
+            data_fim = f"{ano + 1}-01-01"
+        else:
+            data_fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
+        data_fim = (datetime.strptime(data_fim, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # 🔹 Buscar todos os pagamentos do mês
+        pagamentos = Payment.objects.filter(
+            company=request.user.company,
+            data_pagamento__gte=data_inicio,
+            data_pagamento__lte=data_fim
+        ).select_related('conta_bancaria')
+
+        # 🔹 Agrupar entradas e saídas por banco
+        entradas_por_banco = {}
+        saidas_por_banco = {}
+
+        for pagamento in pagamentos:
+            banco_nome = pagamento.conta_bancaria.nome
+            valor = float(pagamento.valor)
+
+            if pagamento.tipo == 'E':  # Entrada
+                if banco_nome not in entradas_por_banco:
+                    entradas_por_banco[banco_nome] = 0
+                entradas_por_banco[banco_nome] += valor
+            elif pagamento.tipo == 'S':  # Saída
+                if banco_nome not in saidas_por_banco:
+                    saidas_por_banco[banco_nome] = 0
+                saidas_por_banco[banco_nome] += valor
+
+        # 🔹 Converter dicionários em listas
+        entradas_list = [{"banco": banco, "valor": valor} for banco, valor in entradas_por_banco.items()]
+        saidas_list = [{"banco": banco, "valor": valor} for banco, valor in saidas_por_banco.items()]
+
+        # 🔹 Calcular totais
+        total_entradas = sum(entradas_por_banco.values())
+        total_saidas = sum(saidas_por_banco.values())
+        resultado = total_entradas - total_saidas
+
+        # 🔹 Retornar dados formatados
+        return Response({
+            'entradas': {
+                'por_banco': entradas_list,
+                'total': total_entradas
+            },
+            'saidas': {
+                'por_banco': saidas_list,
+                'total': total_saidas
+            },
+            'resultado': resultado
+        }, status=status.HTTP_200_OK)
+
+    except ValueError as e:
+        return Response({'error': str(e)}, status=400)
+    except Exception as e:
+        return Response({'error': 'Erro interno'}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def relatorio_conciliacao_bancaria(request):
+    """
+    Retorna relatório completo da conciliação bancária mensal.
+
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+    - conta_bancaria_id: (opcional) ID da conta bancária específica
+
+    Retorna informações detalhadas para o usuário finalizar a conciliação:
+    - Resumo geral (totais, percentuais)
+    - Lançamentos conciliados e não conciliados
+    - Receitas, despesas e custódias vinculadas
+    - Saldo inicial e final do mês
+    - Diferenças e discrepâncias
+    """
+
+    try:
+        from decimal import Decimal
+
+        # 🔹 Pegar parâmetros
+        mes = request.query_params.get('mes')
+        ano = request.query_params.get('ano')
+        conta_bancaria_id = request.query_params.get('conta_bancaria_id')
+
+        # 🔹 Se não tiver mês/ano, usar mês atual
+        if not mes or not ano:
+            hoje = datetime.now()
+            mes = hoje.month
+            ano = hoje.year
+        else:
+            mes = int(mes)
+            ano = int(ano)
+
+        # 🔹 Calcular data de início e fim do mês
+        data_inicio = datetime(ano, mes, 1).date()
+        if mes == 12:
+            data_fim = datetime(ano + 1, 1, 1).date() - timedelta(days=1)
+        else:
+            data_fim = datetime(ano, mes + 1, 1).date() - timedelta(days=1)
+
+        # 🔹 Query base de pagamentos do mês
+        pagamentos_query = Payment.objects.filter(
+            company=request.user.company,
+            data_pagamento__gte=data_inicio,
+            data_pagamento__lte=data_fim
+        ).select_related('conta_bancaria')
+
+        # Filtrar por conta bancária específica se fornecida
+        if conta_bancaria_id:
+            pagamentos_query = pagamentos_query.filter(conta_bancaria_id=conta_bancaria_id)
+
+        # 🔹 Anotar número de alocações e soma dos valores alocados
+        from django.db.models import Sum
+        pagamentos_query = pagamentos_query.annotate(
+            num_allocations=Count('allocations'),
+            total_alocado=Sum('allocations__valor')
+        )
+
+        pagamentos = list(pagamentos_query)
+
+        # 🔹 Separar conciliados vs não conciliados
+        # Um pagamento está completamente conciliado se a soma das alocações = valor do pagamento
+        conciliados = [p for p in pagamentos if p.total_alocado is not None and abs(float(p.total_alocado) - float(p.valor)) < 0.01]
+        nao_conciliados = [p for p in pagamentos if p.total_alocado is None or abs(float(p.total_alocado) - float(p.valor)) >= 0.01]
+
+        # 🔹 Calcular totais
+        total_lancamentos = len(pagamentos)
+        total_conciliados = len(conciliados)
+        total_nao_conciliados = len(nao_conciliados)
+        percentual_conciliado = (total_conciliados / total_lancamentos * 100) if total_lancamentos > 0 else 0
+
+        # 🔹 Valores por tipo
+        valor_entradas = sum([float(p.valor) for p in pagamentos if p.tipo == 'E'])
+        valor_saidas = sum([float(p.valor) for p in pagamentos if p.tipo == 'S'])
+        valor_entradas_conciliadas = sum([float(p.valor) for p in conciliados if p.tipo == 'E'])
+        valor_saidas_conciliadas = sum([float(p.valor) for p in conciliados if p.tipo == 'S'])
+        valor_entradas_pendentes = sum([float(p.valor) for p in nao_conciliados if p.tipo == 'E'])
+        valor_saidas_pendentes = sum([float(p.valor) for p in nao_conciliados if p.tipo == 'S'])
+
+        # 🔹 Buscar alocações do período para estatísticas detalhadas
+        # IMPORTANTE: Buscar alocações de TODOS os pagamentos, não só dos conciliados
+        # porque lançamentos pendentes podem ter alocações parciais
+        allocations = Allocation.objects.filter(
+            payment__in=pagamentos
+        ).select_related('payment', 'receita', 'despesa', 'custodia')
+
+        # Estatísticas por tipo de vinculação
+        receitas_vinculadas = [a for a in allocations if a.receita is not None]
+        despesas_vinculadas = [a for a in allocations if a.despesa is not None]
+        custodias_vinculadas = [a for a in allocations if a.custodia is not None]
+
+        total_receitas_vinculadas = sum([float(a.valor) for a in receitas_vinculadas])
+        total_despesas_vinculadas = sum([float(a.valor) for a in despesas_vinculadas])
+        total_custodias_vinculadas = sum([float(a.valor) for a in custodias_vinculadas])
+
+        # 🔹 Agrupar por conta bancária
+        contas_resumo = {}
+        for p in pagamentos:
+            banco_nome = p.conta_bancaria.nome
+            banco_id = p.conta_bancaria.id
+
+            if banco_id not in contas_resumo:
+                contas_resumo[banco_id] = {
+                    'id': banco_id,
+                    'nome': banco_nome,
+                    'total_lancamentos': 0,
+                    'conciliados': 0,
+                    'pendentes': 0,
+                    'entradas': 0,
+                    'saidas': 0
+                }
+
+            contas_resumo[banco_id]['total_lancamentos'] += 1
+            if p.num_allocations > 0:
+                contas_resumo[banco_id]['conciliados'] += 1
+            else:
+                contas_resumo[banco_id]['pendentes'] += 1
+
+            if p.tipo == 'E':
+                contas_resumo[banco_id]['entradas'] += float(p.valor)
+            else:
+                contas_resumo[banco_id]['saidas'] += float(p.valor)
+
+        # 🔹 Calcular saldo do período
+        saldo_periodo = valor_entradas - valor_saidas
+
+        # 🔹 Formatar lançamentos não conciliados para exibição
+        nao_conciliados_detalhes = []
+        for p in nao_conciliados[:50]:  # Limitar a 50 para não sobrecarregar
+            # Calcular valor já alocado deste pagamento
+            p_allocations = [a for a in allocations if a.payment_id == p.id]
+            valor_alocado = sum(float(a.valor) for a in p_allocations)
+            valor_nao_vinculado = float(p.valor) - valor_alocado
+
+            nao_conciliados_detalhes.append({
+                'id': p.id,
+                'tipo': 'Entrada' if p.tipo == 'E' else 'Saída',
+                'valor': float(p.valor),
+                'valor_alocado': round(valor_alocado, 2),
+                'valor_nao_vinculado': round(valor_nao_vinculado, 2),
+                'data': p.data_pagamento.strftime('%d/%m/%Y'),
+                'observacao': p.observacao or '',
+                'conta_bancaria': p.conta_bancaria.nome
+            })
+
+        # 🔹 Formatar lançamentos conciliados para exibição (últimos 20)
+        conciliados_detalhes = []
+        for p in conciliados[-20:]:
+            # Buscar alocações deste pagamento
+            p_allocations = [a for a in allocations if a.payment_id == p.id]
+            vinculos = []
+
+            for a in p_allocations:
+                if a.receita:
+                    vinculos.append({
+                        'tipo': 'Receita',
+                        'descricao': f"{a.receita.cliente.nome} - {a.receita.descricao}" if hasattr(a.receita, 'cliente') else a.receita.descricao,
+                        'valor': float(a.valor)
+                    })
+                elif a.despesa:
+                    vinculos.append({
+                        'tipo': 'Despesa',
+                        'descricao': a.despesa.descricao,
+                        'valor': float(a.valor)
+                    })
+                elif a.custodia:
+                    vinculos.append({
+                        'tipo': 'Custódia',
+                        'descricao': a.custodia.descricao,
+                        'valor': float(a.valor)
+                    })
+
+            conciliados_detalhes.append({
+                'id': p.id,
+                'tipo': 'Entrada' if p.tipo == 'E' else 'Saída',
+                'valor': float(p.valor),
+                'data': p.data_pagamento.strftime('%d/%m/%Y'),
+                'observacao': p.observacao or '',
+                'conta_bancaria': p.conta_bancaria.nome,
+                'vinculos': vinculos
+            })
+
+        # 🔹 Status geral da conciliação
+        if total_nao_conciliados == 0:
+            status_geral = 'Concluída'
+            status_cor = 'success'
+        elif percentual_conciliado >= 80:
+            status_geral = 'Quase Concluída'
+            status_cor = 'warning'
+        elif percentual_conciliado >= 50:
+            status_geral = 'Em Andamento'
+            status_cor = 'info'
+        else:
+            status_geral = 'Pendente'
+            status_cor = 'error'
+
+        # 🔹 Retornar dados completos
+        return Response({
+            'periodo': {
+                'mes': mes,
+                'ano': ano,
+                'data_inicio': data_inicio.strftime('%d/%m/%Y'),
+                'data_fim': data_fim.strftime('%d/%m/%Y')
+            },
+            'resumo': {
+                'total_lancamentos': total_lancamentos,
+                'total_conciliados': total_conciliados,
+                'total_nao_conciliados': total_nao_conciliados,
+                'percentual_conciliado': round(percentual_conciliado, 2),
+                'status_geral': status_geral,
+                'status_cor': status_cor
+            },
+            'valores': {
+                'total_entradas': round(valor_entradas, 2),
+                'total_saidas': round(valor_saidas, 2),
+                'saldo_periodo': round(saldo_periodo, 2),
+                'entradas_conciliadas': round(valor_entradas_conciliadas, 2),
+                'saidas_conciliadas': round(valor_saidas_conciliadas, 2),
+                'entradas_pendentes': round(valor_entradas_pendentes, 2),
+                'saidas_pendentes': round(valor_saidas_pendentes, 2)
+            },
+            'vinculacoes': {
+                'receitas': {
+                    'quantidade': len(receitas_vinculadas),
+                    'valor_total': round(total_receitas_vinculadas, 2)
+                },
+                'despesas': {
+                    'quantidade': len(despesas_vinculadas),
+                    'valor_total': round(total_despesas_vinculadas, 2)
+                },
+                'custodias': {
+                    'quantidade': len(custodias_vinculadas),
+                    'valor_total': round(total_custodias_vinculadas, 2)
+                }
+            },
+            'por_conta': list(contas_resumo.values()),
+            'lancamentos_pendentes': nao_conciliados_detalhes,
+            'lancamentos_conciliados_recentes': conciliados_detalhes,
+            'total_pendentes_exibidos': len(nao_conciliados_detalhes),
+            'total_pendentes': total_nao_conciliados
+        }, status=status.HTTP_200_OK)
+
+    except ValueError as e:
+        return Response({'error': str(e)}, status=400)
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return Response({'error': f'Erro interno: {str(e)}'}, status=500)
 
 
