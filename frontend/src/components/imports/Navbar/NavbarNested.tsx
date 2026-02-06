@@ -83,7 +83,9 @@ const menuItems = [
     initiallyOpened: true,
     links: [
       { label: 'Demonstração de Resultado', link: '/relatorios/dre' },
+      { label: 'Fluxo de Caixa Realizado', link: '/relatorios/balanco' },
       { label: 'Fluxo de Caixa', link: '/relatorios/fluxo' },
+      { label: 'Conciliação Bancária', link: '/relatorios/conciliacao' },
     ],
   },
 ];

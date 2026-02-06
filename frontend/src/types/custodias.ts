@@ -8,8 +8,13 @@ export interface Custodia {
   funcionario?: { id: number; nome: string };
   cliente_id?: number | null;
   funcionario_id?: number | null;
+  cliente_nome?: string;
+  funcionario_nome?: string;
+  data_vencimento?: string;
+  situacao?: 'A' | 'V'; // Aberta ou Vencida
   valor_total: number;
   valor_liquidado: number;
+  valor_aberto?: number; // Calculado: valor_total - valor_liquidado
   status: 'A' | 'P' | 'L';
   status_display: string;
   criado_em: string;
