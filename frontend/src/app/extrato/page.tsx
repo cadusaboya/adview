@@ -20,10 +20,13 @@ import { Payment, PaymentCreate } from '@/types/payments';
 // Tipo para alocações do formulário
 interface AllocationForm {
   id: string;
+  allocation_id?: number;
   tipo: 'receita' | 'despesa' | 'custodia';
   entidade_id: number;
   valor: number;
   valorDisplay: string;
+  isExisting?: boolean;
+  isDeleted?: boolean;
 }
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -140,7 +143,10 @@ export default function ExtratoPage() {
   // 💾 CREATE/UPDATE PAYMENT
   // ======================
   const handleSubmit = async (
-    data: PaymentCreate & { allocations?: AllocationForm[] }
+    data: PaymentCreate & {
+      allocations?: AllocationForm[];
+      allocationsToDelete?: number[];
+    }
   ) => {
     try {
       // Filtrar e validar alocações
@@ -183,21 +189,24 @@ export default function ExtratoPage() {
           observacao: data.observacao,
         });
 
-        // Deleta todas as alocações antigas
-        if (editingPayment.allocations_info && editingPayment.allocations_info.length > 0) {
+        // Deleta apenas as alocações marcadas para deletar
+        if (data.allocationsToDelete && data.allocationsToDelete.length > 0) {
           await Promise.all(
-            editingPayment.allocations_info.map((alloc) =>
-              deleteAllocation(alloc.id)
+            data.allocationsToDelete.map((allocId) =>
+              deleteAllocation(allocId)
             )
           );
         }
 
-        // Cria as novas alocações (apenas as válidas)
+        // Cria apenas as NOVAS alocações (que não são existentes)
         if (data.allocations && data.allocations.length > 0) {
-          await Promise.all(
-            data.allocations
-              .filter((alloc) => alloc.entidade_id && alloc.entidade_id > 0)
-              .map((alloc) =>
+          const newAllocations = data.allocations.filter(
+            (alloc) => !alloc.isExisting && alloc.entidade_id && alloc.entidade_id > 0
+          );
+
+          if (newAllocations.length > 0) {
+            await Promise.all(
+              newAllocations.map((alloc) =>
                 createAllocation({
                   payment_id: editingPayment.id,
                   [`${alloc.tipo}_id`]: alloc.entidade_id,
@@ -205,7 +214,8 @@ export default function ExtratoPage() {
                   observacao: data.observacao,
                 })
               )
-          );
+            );
+          }
         }
 
         toast.success('Pagamento atualizado com sucesso!');
@@ -387,7 +397,7 @@ export default function ExtratoPage() {
               onClick={() => setOpenConciliacaoDialog(true)}
               icon={<GitMerge className="w-4 h-4" />}
             >
-              Fazer Conciliação Bancária
+              Automatizar Conciliação
             </Button>
 
             <Button
@@ -395,7 +405,7 @@ export default function ExtratoPage() {
               onClick={() => setOpenImportDialog(true)}
               icon={<Upload className="w-4 h-4" />}
             >
-              Importar de Extrato Bancário
+              Importar
             </Button>
 
             <Button
