@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
-import { Input } from '@/components/ui/input';
 import { Select as AntdSelect } from 'antd';
+import { toast } from 'sonner';
 
-import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { custodiaCreateSchema } from '@/lib/validation/schemas/custodia';
+import { FormInput } from '@/components/form/FormInput';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getFuncionarios } from '@/services/funcionarios';
@@ -35,23 +39,59 @@ export default function CustodiaDialog({
   custodia,
   tipo,
 }: Props) {
-  const [formData, setFormData] = useState<Omit<CustodiaCreate, 'tipo'>>({
+  const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
+
+  // Load auxiliary data in parallel
+  const { data: funcionarios } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getFuncionarios({ page_size: 1000 });
+      return res.results;
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar funcionários',
+  });
+
+  const { data: clientes } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getClientes({ page_size: 1000 });
+      return res.results;
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar clientes',
+  });
+
+  const { data: bancos } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getBancos({ page_size: 1000 });
+      return res.results.map((b) => ({ id: b.id, nome: b.nome }));
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar bancos',
+  });
+
+  // Form validation
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<Omit<CustodiaCreate, 'tipo'>>({
     nome: '',
     descricao: '',
     cliente_id: null,
     funcionario_id: null,
     valor_total: 0,
+  }, {
+    nome: custodiaCreateSchema.nome!,
+    descricao: custodiaCreateSchema.descricao!,
+    cliente_id: custodiaCreateSchema.cliente_id!,
+    funcionario_id: custodiaCreateSchema.funcionario_id!,
+    valor_total: custodiaCreateSchema.valor_total!,
   });
 
-  const [valorDisplay, setValorDisplay] = useState('');
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
-  const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
-
-  // ======================
-  // 🔄 LOAD EDIT
-  // ======================
+  // Initialize form when editing
   useEffect(() => {
     if (custodia) {
       setFormData({
@@ -61,8 +101,6 @@ export default function CustodiaDialog({
         funcionario_id: custodia.funcionario?.id ?? null,
         valor_total: custodia.valor_total,
       });
-
-      setValorDisplay(formatCurrencyInput(custodia.valor_total));
 
       // Determinar tipo de pessoa
       if (custodia.cliente) {
@@ -78,110 +116,120 @@ export default function CustodiaDialog({
         funcionario_id: null,
         valor_total: 0,
       });
-      setValorDisplay('');
       setPessoaTipo(null);
     }
-  }, [custodia, open]);
+  }, [custodia, open, setFormData]);
 
-  // ======================
-  // 🔹 LOAD AUX
-  // ======================
-  useEffect(() => {
-    getFuncionarios({ page_size: 1000 }).then((res) =>
-      setFuncionarios(res.results)
-    );
-    getClientes({ page_size: 1000 }).then((res) =>
-      setClientes(res.results)
-    );
-    getBancos({ page_size: 1000 }).then((res) =>
-      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })))
-    );
-  }, []);
-
-  // ======================
-  // 💾 SUBMIT
-  // ======================
-  const handleSubmit = async () => {
-    const payload: CustodiaCreate | CustodiaUpdate = {
-      ...formData,
-      tipo, // Usa o tipo recebido da página
-    };
-
-    // Limpar o campo que não está sendo usado
-    if (pessoaTipo === 'cliente') {
-      payload.funcionario_id = null;
-    } else if (pessoaTipo === 'funcionario') {
-      payload.cliente_id = null;
+  const handleSubmitWrapper = async () => {
+    // Validate that at least one person type is selected
+    if (!pessoaTipo) {
+      toast.error('Selecione o tipo de pessoa (Cliente ou Funcionário)');
+      return;
     }
 
-    await onSubmit(payload);
-    onClose();
+    if (pessoaTipo === 'cliente' && !formData.cliente_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+
+    if (pessoaTipo === 'funcionario' && !formData.funcionario_id) {
+      toast.error('Selecione um funcionário');
+      return;
+    }
+
+    await handleSubmit(async (data) => {
+      try {
+        const payload: CustodiaCreate | CustodiaUpdate = {
+          ...data,
+          tipo, // Usa o tipo recebido da página
+        };
+
+        // Limpar o campo que não está sendo usado
+        if (pessoaTipo === 'cliente') {
+          payload.funcionario_id = null;
+        } else if (pessoaTipo === 'funcionario') {
+          payload.cliente_id = null;
+        }
+
+        await onSubmit(payload);
+        onClose();
+        toast.success(
+          custodia ? 'Custódia atualizada com sucesso' : 'Custódia criada com sucesso'
+        );
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) {
+          toast.error(generalError);
+        }
+        throw error;
+      }
+    });
   };
 
   return (
     <DialogBase
       open={open}
       onClose={onClose}
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmitWrapper}
       title={custodia ? 'Editar Custódia' : 'Criar Custódia'}
-      submitLabel={custodia ? 'Salvar' : 'Criar'}
+      loading={isSubmitting}
     >
       <div className="space-y-4">
         {/* Nome e Valor Total */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Nome *</label>
-            <Input
-              placeholder="Digite o nome da custódia"
-              value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Valor Total *</label>
-            <Input
-              placeholder="0,00"
-              value={valorDisplay}
-              onChange={(e) => setValorDisplay(e.target.value)}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
-                setFormData((prev) => ({ ...prev, valor_total: parsed }));
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Descrição */}
-        <div>
-          <label className="block text-sm font-medium mb-2">Descrição</label>
-          <Input
-            placeholder="Digite uma descrição (opcional)"
-            value={formData.descricao ?? ''}
+          <FormInput
+            label="Nome"
+            required
+            placeholder="Digite o nome da custódia"
+            value={formData.nome}
             onChange={(e) =>
-              setFormData({ ...formData, descricao: e.target.value })
+              setFormData((prev) => ({ ...prev, nome: e.target.value }))
             }
+            error={getFieldProps('nome').error}
+          />
+
+          <FormInput
+            label="Valor Total"
+            required
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.valor_total}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, valor_total: parseFloat(e.target.value) || 0 }))
+            }
+            error={getFieldProps('valor_total').error}
           />
         </div>
 
+        {/* Descrição */}
+        <FormInput
+          label="Descrição"
+          placeholder="Digite uma descrição (opcional)"
+          value={formData.descricao ?? ''}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, descricao: e.target.value }))
+          }
+          error={getFieldProps('descricao').error}
+        />
+
         {/* Tipo de Pessoa e Seleção */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Tipo de Pessoa *</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">
+              Tipo de Pessoa <span className="text-red-500">*</span>
+            </label>
             <AntdSelect
               placeholder="Selecione o tipo de pessoa"
               value={pessoaTipo}
               onChange={(value) => {
                 setPessoaTipo(value);
                 // Limpar seleções anteriores
-                setFormData({
-                  ...formData,
+                setFormData((prev) => ({
+                  ...prev,
                   cliente_id: null,
                   funcionario_id: null,
-                });
+                }));
               }}
               style={{ width: '100%' }}
               options={[
@@ -193,52 +241,54 @@ export default function CustodiaDialog({
 
           {/* Cliente */}
           {pessoaTipo === 'cliente' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Cliente *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">
+                Cliente <span className="text-red-500">*</span>
+              </label>
               <AntdSelect
                 showSearch
                 placeholder="Selecione o cliente"
                 value={formData.cliente_id}
                 onChange={(value) =>
-                  setFormData({ ...formData, cliente_id: value })
+                  setFormData((prev) => ({ ...prev, cliente_id: value }))
                 }
                 style={{ width: '100%' }}
                 filterOption={(input, option) =>
-                  (option?.label ?? '')
+                  String(option?.label ?? '')
                     .toLowerCase()
                     .includes(input.toLowerCase())
                 }
-                options={clientes.map((c) => ({
+                options={clientes?.map((c: Cliente) => ({
                   value: c.id,
                   label: c.nome,
-                }))}
+                })) || []}
               />
             </div>
           )}
 
           {/* Funcionário */}
           {pessoaTipo === 'funcionario' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Funcionário/Fornecedor/Parceiro *
+            <div className="space-y-1">
+              <label className="text-sm font-medium">
+                Funcionário/Fornecedor/Parceiro <span className="text-red-500">*</span>
               </label>
               <AntdSelect
                 showSearch
                 placeholder="Selecione o funcionário"
                 value={formData.funcionario_id}
                 onChange={(value) =>
-                  setFormData({ ...formData, funcionario_id: value })
+                  setFormData((prev) => ({ ...prev, funcionario_id: value }))
                 }
                 style={{ width: '100%' }}
                 filterOption={(input, option) =>
-                  (option?.label ?? '')
+                  String(option?.label ?? '')
                     .toLowerCase()
                     .includes(input.toLowerCase())
                 }
-                options={funcionarios.map((f) => ({
+                options={funcionarios?.map((f: Funcionario) => ({
                   value: f.id,
                   label: f.nome,
-                }))}
+                })) || []}
               />
             </div>
           )}
@@ -249,7 +299,7 @@ export default function CustodiaDialog({
           <PaymentsTabs
             tipo="custodia"
             entityId={custodia.id}
-            contasBancarias={bancos}
+            contasBancarias={bancos || []}
             custodiaTipo={custodia.tipo}
             valorAberto={custodia.valor_total - custodia.valor_liquidado}
           />
