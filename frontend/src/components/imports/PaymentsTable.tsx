@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
-import { FileText, Trash2, Loader2 } from 'lucide-react';
+import { FileText, Trash2, Unlink, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { gerarRelatorioPDF } from '@/services/pdf';
@@ -18,10 +18,12 @@ export default function PaymentsTable({
   payments,
   contasBancarias,
   onDelete,
+  onUnlink,
 }: {
   payments: PaymentItem[];
   contasBancarias: { id: number; nome: string }[];
   onDelete: (id: number) => void;
+  onUnlink: (id: number) => void;
 }) {
   const [loadingRecibo, setLoadingRecibo] = useState<number | null>(null);
 
@@ -82,10 +84,19 @@ export default function PaymentsTable({
                 </Button>
 
                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUnlink(p.id)}
+                    title="Desvincular"
+                  >
+                    <Unlink className="w-4 h-4" />
+                  </Button>
+
+                  <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => onDelete(p.id)}
-                    title="Excluir"
+                    title="Apagar Pagamento"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

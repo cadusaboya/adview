@@ -99,7 +99,7 @@ export default function RelatorioConciliacaoBancariaPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="space-y-6">
           {/* HEADER */}
           <div className="flex justify-between items-start">

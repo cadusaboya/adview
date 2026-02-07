@@ -86,13 +86,23 @@ const menuItems = [
       { label: 'Fluxo de Caixa Realizado', link: '/relatorios/balanco' },
       { label: 'Fluxo de Caixa', link: '/relatorios/fluxo' },
       { label: 'Conciliação Bancária', link: '/relatorios/conciliacao' },
+      { label: 'Comissões', link: '/relatorios/comissoes' },
     ],
   },
 ];
 
 export function NavbarNested() {
   const [companyName, setCompanyName] = useState<string>('');
-  const links = menuItems.map((item) => <LinksGroup {...item} key={item.label} />);
+  const [openedItem, setOpenedItem] = useState<string | null>(null);
+
+  const links = menuItems.map((item) => (
+    <LinksGroup
+      {...item}
+      key={item.label}
+      opened={openedItem === item.label}
+      onToggle={() => setOpenedItem(openedItem === item.label ? null : item.label)}
+    />
+  ));
 
   useEffect(() => {
     const loadCompany = async () => {

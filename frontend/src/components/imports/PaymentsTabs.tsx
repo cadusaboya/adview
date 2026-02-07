@@ -14,10 +14,12 @@ import {
 import { toast } from 'sonner';
 
 import { formatCurrencyInput, parseCurrencyBR, formatCurrencyBR } from '@/lib/formatters';
-import { createPayment, getPayments } from '@/services/payments';
+import { createPayment, getPayments, deletePayment } from '@/services/payments';
 import { createAllocation, deleteAllocation, getAllocations } from '@/services/allocations';
 import PaymentsTable from './PaymentsTable';
 import { Payment } from '@/types/payments';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 export interface PaymentUI {
   id: number; // Payment ID
@@ -168,7 +170,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleUnlink = async (id: number) => {
     try {
       // Encontrar a allocation_id correspondente ao payment_id
       const payment = payments.find((p) => p.id === id);
@@ -188,6 +190,35 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     } catch {
       toast.error('Erro ao remover vínculo');
     }
+  };
+
+  const handleDeleteAction = async (id: number) => {
+    try {
+      // Apagar o payment completamente
+      // O backend irá:
+      // 1. Deletar todas as allocations relacionadas
+      // 2. Deletar o payment
+      // 3. Atualizar o status das receitas/despesas/custódias vinculadas
+      await deletePayment(id);
+      setPayments((prev) => prev.filter((p) => p.id !== id));
+      toast.success('Pagamento apagado com sucesso');
+    } catch {
+      toast.error('Erro ao apagar pagamento');
+    }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteAction,
+  });
+
+  const handleDelete = (id: number) => {
+    const payment = payments.find((p) => p.id === id);
+    confirmDelete(id, payment?.observacao);
   };
 
   // Carregar pagamentos disponíveis para vincular
@@ -339,6 +370,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
           payments={payments}
           contasBancarias={contasBancarias}
           onDelete={handleDelete}
+          onUnlink={handleUnlink}
         />
       </TabsContent>
 
@@ -534,6 +566,16 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
           )}
         </div>
       </TabsContent>
+
+      <DeleteConfirmationDialog
+        open={confirmState.isOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+        title="Excluir pagamento?"
+        itemName={confirmState.itemName}
+        isBulk={false}
+        itemCount={0}
+      />
     </Tabs>
   );
 }

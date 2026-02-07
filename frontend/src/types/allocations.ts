@@ -31,6 +31,15 @@ export interface CustodiaInfo {
   valor_total: number;
 }
 
+export interface TransferInfo {
+  id: number;
+  from_bank: string;
+  to_bank: string;
+  valor: number;
+  status: string;
+  status_display: string;
+}
+
 // =========================
 // ENTIDADE (RESPOSTA DA API)
 // =========================
@@ -43,12 +52,14 @@ export interface Allocation {
   receita?: number;
   despesa?: number;
   custodia?: number;
+  transfer?: number;
 
   // Informações aninhadas (read-only)
   payment_info?: PaymentInfo;
   receita_info?: ReceitaInfo;
   despesa_info?: DespesaInfo;
   custodia_info?: CustodiaInfo;
+  transfer_info?: TransferInfo;
 
   valor: number;
   observacao?: string;
@@ -67,6 +78,7 @@ export type AllocationCreate = {
   receita_id?: number;
   despesa_id?: number;
   custodia_id?: number;
+  transfer_id?: number;
   valor: number;
   observacao?: string;
 };
@@ -87,7 +99,8 @@ export interface AllocationListParams {
   receita_id?: number;
   despesa_id?: number;
   custodia_id?: number;
+  transfer_id?: number;
 
   // Filtro por tipo de conta
-  tipo_conta?: 'receita' | 'despesa' | 'custodia';
+  tipo_conta?: 'receita' | 'despesa' | 'custodia' | 'transfer';
 }

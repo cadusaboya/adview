@@ -8,11 +8,11 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Allocation
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Transfer, Allocation
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer,
     FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer, DespesaSerializer, DespesaAbertaSerializer,
-    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, AllocationSerializer
+    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, TransferSerializer, AllocationSerializer
 )
 
 # --- Base ViewSet for Company context ---
@@ -159,6 +159,127 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
         return queryset
 
+    @action(detail=False, methods=['post'], url_path='gerar-comissoes')
+    def gerar_comissoes(self, request):
+        """
+        Gera despesas de comissão para o mês/ano especificado.
+
+        POST /api/clientes/gerar-comissoes/
+        Body: {
+            "mes": 1-12,
+            "ano": 2024
+        }
+
+        Retorna:
+        {
+            "comissionados": [
+                {"id": 1, "nome": "João", "valor": 1000.00},
+                ...
+            ],
+            "total": 5000.00,
+            "mes": 1,
+            "ano": 2024
+        }
+        """
+        from datetime import date
+        import calendar
+        from django.db.models import Sum
+        from core.models import Payment, Despesa, Funcionario
+
+        # Validar parâmetros
+        mes = request.data.get('mes')
+        ano = request.data.get('ano')
+
+        if not mes or not ano:
+            return Response(
+                {'erro': 'Parâmetros "mes" e "ano" são obrigatórios'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            mes = int(mes)
+            ano = int(ano)
+            if not (1 <= mes <= 12):
+                raise ValueError()
+        except ValueError:
+            return Response(
+                {'erro': 'Mês deve ser um número entre 1 e 12'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Calcular data de vencimento (último dia do mês)
+        ultimo_dia_mes = calendar.monthrange(ano, mes)[1]
+        data_vencimento = date(ano, mes, ultimo_dia_mes)
+
+        # Buscar todas as alocações de pagamentos do mês/ano para receitas
+        from core.models import Allocation
+
+        allocations = Allocation.objects.filter(
+            company=request.user.company,
+            receita__isnull=False,
+            payment__data_pagamento__month=mes,
+            payment__data_pagamento__year=ano
+        ).select_related('receita__cliente__comissionado', 'payment')
+
+        # Agrupar por comissionado
+        comissionados_dict = {}
+        for allocation in allocations:
+            comissionado = allocation.receita.cliente.comissionado
+            if comissionado:
+                if comissionado.id not in comissionados_dict:
+                    comissionados_dict[comissionado.id] = {
+                        'comissionado': comissionado,
+                        'total_pagamentos': Decimal('0.00')
+                    }
+                comissionados_dict[comissionado.id]['total_pagamentos'] += allocation.valor
+
+        # Criar despesas de comissão
+        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
+        percentual = percentual_comissao / Decimal('100.00')
+
+        comissionados_resultado = []
+        total_comissoes = Decimal('0.00')
+
+        for data in comissionados_dict.values():
+            comissionado = data['comissionado']
+            total_pagamentos = data['total_pagamentos']
+            valor_comissao = total_pagamentos * percentual
+
+            if valor_comissao > 0:
+                # Atualiza se existe, cria se não existe
+                despesa, created = Despesa.objects.update_or_create(
+                    company=request.user.company,
+                    responsavel=comissionado,
+                    tipo='C',
+                    data_vencimento=data_vencimento,
+                    defaults={
+                        'nome': f'Comissão {mes}/{ano} - {comissionado.nome}',
+                        'descricao': f'Comissão referente aos pagamentos de {mes}/{ano}',
+                        'valor': valor_comissao,
+                        'situacao': 'A'
+                    }
+                )
+
+                comissionados_resultado.append({
+                    'id': comissionado.id,
+                    'nome': comissionado.nome,
+                    'valor': float(valor_comissao)
+                })
+                total_comissoes += valor_comissao
+
+        if not comissionados_resultado:
+            return Response(
+                {'mensagem': f'Nenhuma comissão gerada para {mes}/{ano}'},
+                status=status.HTTP_200_OK
+            )
+
+        return Response({
+            'comissionados': comissionados_resultado,
+            'total': float(total_comissoes),
+            'mes': mes,
+            'ano': ano
+        })
+
 class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint for Funcionarios, scoped by company."""
     queryset = Funcionario.objects.all()
@@ -276,11 +397,11 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
-        # 🔥 ORDENAÇÃO
+        # 🔥 ORDENAÇÃO (adiciona id para garantir ordenação determinística)
         if situacoes and set(situacoes).issubset({"P", "V"}):
-            queryset = queryset.order_by("-data_pagamento", "-data_vencimento")
+            queryset = queryset.order_by("-data_pagamento", "-data_vencimento", "id")
         else:
-            queryset = queryset.order_by("data_vencimento")
+            queryset = queryset.order_by("data_vencimento", "id")
 
         return queryset
 
@@ -330,34 +451,6 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 except ContaBancaria.DoesNotExist:
                     pass  # Silently ignore if bank account doesn't exist
 
-        # 💼 Handle commission creation
-        comissionado = receita.comissionado
-        if not comissionado:
-            return
-
-        if Despesa.objects.filter(
-            receita_origem=receita,
-            tipo='C'
-        ).exists():
-            return
-
-        # Usa o percentual configurado na empresa (padrão: 20%)
-        percentual_comissao = receita.company.percentual_comissao or Decimal('20.00')
-        percentual = percentual_comissao / Decimal('100.00')
-        valor_comissao = receita.valor * percentual
-
-        Despesa.objects.create(
-            company=receita.company,
-            responsavel=comissionado,
-            nome=f'Comissão - {receita.nome}',
-            descricao=f'Comissão referente à receita {receita.id}',
-            data_vencimento=receita.data_vencimento,
-            valor=valor_comissao,
-            tipo='C',
-            situacao='A',
-            receita_origem=receita,
-        )
-
 
 class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """
@@ -402,7 +495,7 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
-        return queryset.order_by('nome')
+        return queryset.order_by('nome', 'id')
 
     @action(detail=False, methods=['post'], url_path='gerar-mes')
     def gerar_mes(self, request):
@@ -493,29 +586,8 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
                     situacao='A',
-                    forma_pagamento=recorrente.forma_pagamento,
-                    comissionado=recorrente.comissionado
+                    forma_pagamento=recorrente.forma_pagamento
                 )
-
-                # Cria despesa de comissão se houver comissionado
-                if recorrente.comissionado:
-                    # Verifica se já não existe uma despesa de comissão para essa receita
-                    if not Despesa.objects.filter(receita_origem=receita, tipo='C').exists():
-                        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
-                        percentual = percentual_comissao / Decimal('100.00')
-                        valor_comissao = receita.valor * percentual
-
-                        Despesa.objects.create(
-                            company=receita.company,
-                            responsavel=recorrente.comissionado,
-                            nome=f'Comissão - {receita.nome}',
-                            descricao=f'Comissão referente à receita {receita.id}',
-                            data_vencimento=receita.data_vencimento,
-                            valor=valor_comissao,
-                            tipo='C',
-                            situacao='A',
-                            receita_origem=receita,
-                        )
 
                 criadas += 1
                 detalhes.append({
@@ -650,28 +722,8 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     tipo=recorrente.tipo,
                     data_vencimento=data_vencimento,
                     situacao='A',
-                    forma_pagamento=recorrente.forma_pagamento,
-                    comissionado=recorrente.comissionado
+                    forma_pagamento=recorrente.forma_pagamento
                 )
-
-                # Cria despesa de comissão se houver comissionado
-                if recorrente.comissionado:
-                    if not Despesa.objects.filter(receita_origem=receita, tipo='C').exists():
-                        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
-                        percentual = percentual_comissao / Decimal('100.00')
-                        valor_comissao = receita.valor * percentual
-
-                        Despesa.objects.create(
-                            company=receita.company,
-                            responsavel=recorrente.comissionado,
-                            nome=f'Comissão - {receita.nome}',
-                            descricao=f'Comissão referente à receita {receita.id}',
-                            data_vencimento=receita.data_vencimento,
-                            valor=valor_comissao,
-                            tipo='C',
-                            situacao='A',
-                            receita_origem=receita,
-                        )
 
                 criadas += 1
                 detalhes.append({
@@ -757,11 +809,11 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
-        # 🔥 ORDENAÇÃO
+        # 🔥 ORDENAÇÃO (adiciona id para garantir ordenação determinística)
         if situacoes and set(situacoes).issubset({"P", "V"}):
-            queryset = queryset.order_by("-data_pagamento", "-data_vencimento")
+            queryset = queryset.order_by("-data_pagamento", "-data_vencimento", "id")
         else:
-            queryset = queryset.order_by("data_vencimento")
+            queryset = queryset.order_by("data_vencimento", "id")
 
         return queryset
 
@@ -855,7 +907,7 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
-        return queryset.order_by('nome')
+        return queryset.order_by('nome', 'id')
 
     @action(detail=False, methods=['post'], url_path='gerar-mes')
     def gerar_mes(self, request):
@@ -1776,7 +1828,12 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             if payment.tipo == 'E':
                 # Entrada: busca receitas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for receita in receitas_abertas:
-                    if receita.valor == payment.valor:
+                    # Calcula o valor não alocado da receita
+                    total_alocado = receita.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+                    valor_nao_alocado = receita.valor - total_alocado
+
+                    # Verifica se há saldo disponível e se o valor do payment é compatível
+                    if valor_nao_alocado >= payment.valor and receita.valor == payment.valor:
                         # Verifica se o nome do cliente ou nome da receita está na observação
                         nome_encontrado = nome_em_observacao(
                             payment.observacao,
@@ -1804,8 +1861,20 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'A':  # Ativo - a receber
-                            valor_restante = custodia.valor_total - custodia.valor_liquidado
-                            if valor_restante == payment.valor:
+                            # Calcula valor restante baseado nas allocations atuais (pode ter mudado durante esta execução)
+                            total_entradas = custodia.allocations.filter(
+                                payment__tipo='E'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            total_saidas = custodia.allocations.filter(
+                                payment__tipo='S'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            valor_liquidado = min(total_saidas, total_entradas)
+                            valor_restante = custodia.valor_total - valor_liquidado
+
+                            # Verifica se há saldo disponível E se o valor total da custódia é exato
+                            if valor_restante >= payment.valor and custodia.valor_total == payment.valor:
                                 # Verifica se nome do cliente/funcionário ou nome da custódia está na observação
                                 nome_encontrado = nome_em_observacao(
                                     payment.observacao,
@@ -1833,7 +1902,12 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             elif payment.tipo == 'S':
                 # Saída: busca despesas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for despesa in despesas_abertas:
-                    if despesa.valor == payment.valor:
+                    # Calcula o valor não alocado da despesa
+                    total_alocado = despesa.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+                    valor_nao_alocado = despesa.valor - total_alocado
+
+                    # Verifica se há saldo disponível e se o valor do payment é compatível
+                    if valor_nao_alocado >= payment.valor and despesa.valor == payment.valor:
                         # Verifica se o nome do responsável ou nome da despesa está na observação
                         nome_encontrado = nome_em_observacao(
                             payment.observacao,
@@ -1861,8 +1935,20 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'P':  # Passivo - a pagar
-                            valor_restante = custodia.valor_total - custodia.valor_liquidado
-                            if valor_restante == payment.valor:
+                            # Calcula valor restante baseado nas allocations atuais (pode ter mudado durante esta execução)
+                            total_entradas = custodia.allocations.filter(
+                                payment__tipo='E'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            total_saidas = custodia.allocations.filter(
+                                payment__tipo='S'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            valor_liquidado = min(total_entradas, total_saidas)
+                            valor_restante = custodia.valor_total - valor_liquidado
+
+                            # Verifica se há saldo disponível E se o valor total da custódia é exato
+                            if valor_restante >= payment.valor and custodia.valor_total == payment.valor:
                                 # Verifica se nome do cliente/funcionário ou nome da custódia está na observação
                                 nome_encontrado = nome_em_observacao(
                                     payment.observacao,
@@ -1892,9 +1978,14 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 sugestoes_payment = []
 
                 if payment.tipo == 'E':
-                    # Sugestões de receitas com mesmo valor
+                    # Sugestões de receitas com mesmo valor E saldo disponível
                     for receita in receitas_abertas:
-                        if receita.valor == payment.valor:
+                        # Calcula o valor não alocado
+                        total_alocado = receita.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+                        valor_nao_alocado = receita.valor - total_alocado
+
+                        # Só sugere se há saldo disponível suficiente
+                        if valor_nao_alocado >= payment.valor and receita.valor == payment.valor:
                             sugestoes_payment.append({
                                 'tipo': 'receita',
                                 'entidade_id': receita.id,
@@ -1904,11 +1995,23 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                 'entidade_vencimento': receita.data_vencimento.isoformat()
                             })
 
-                    # Sugestões de custódias Ativo com mesmo valor
+                    # Sugestões de custódias Ativo com mesmo valor E saldo disponível
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'A':
-                            valor_restante = custodia.valor_total - custodia.valor_liquidado
-                            if valor_restante == payment.valor:
+                            # Calcula valor restante baseado nas allocations atuais
+                            total_entradas = custodia.allocations.filter(
+                                payment__tipo='E'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            total_saidas = custodia.allocations.filter(
+                                payment__tipo='S'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            valor_liquidado = min(total_saidas, total_entradas)
+                            valor_restante = custodia.valor_total - valor_liquidado
+
+                            # Só sugere se há saldo disponível suficiente
+                            if valor_restante >= payment.valor:
                                 contraparte = None
                                 if custodia.cliente:
                                     contraparte = custodia.cliente.nome
@@ -1925,9 +2028,14 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                 })
 
                 elif payment.tipo == 'S':
-                    # Sugestões de despesas com mesmo valor
+                    # Sugestões de despesas com mesmo valor E saldo disponível
                     for despesa in despesas_abertas:
-                        if despesa.valor == payment.valor:
+                        # Calcula o valor não alocado
+                        total_alocado = despesa.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+                        valor_nao_alocado = despesa.valor - total_alocado
+
+                        # Só sugere se há saldo disponível suficiente
+                        if valor_nao_alocado >= payment.valor and despesa.valor == payment.valor:
                             sugestoes_payment.append({
                                 'tipo': 'despesa',
                                 'entidade_id': despesa.id,
@@ -1937,11 +2045,23 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                 'entidade_vencimento': despesa.data_vencimento.isoformat()
                             })
 
-                    # Sugestões de custódias Passivo com mesmo valor
+                    # Sugestões de custódias Passivo com mesmo valor E saldo disponível
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'P':
-                            valor_restante = custodia.valor_total - custodia.valor_liquidado
-                            if valor_restante == payment.valor:
+                            # Calcula valor restante baseado nas allocations atuais
+                            total_entradas = custodia.allocations.filter(
+                                payment__tipo='E'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            total_saidas = custodia.allocations.filter(
+                                payment__tipo='S'
+                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+                            valor_liquidado = min(total_entradas, total_saidas)
+                            valor_restante = custodia.valor_total - valor_liquidado
+
+                            # Só sugere se há saldo disponível suficiente
+                            if valor_restante >= payment.valor:
                                 contraparte = None
                                 if custodia.cliente:
                                     contraparte = custodia.cliente.nome
@@ -2194,7 +2314,57 @@ class CustodiaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(funcionario__nome__icontains=search)
             )
 
-        return queryset.order_by('-criado_em')
+        return queryset.order_by('-criado_em', 'id')
+
+
+class TransferViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
+    """API endpoint para gerenciar transferências entre contas bancárias."""
+    queryset = Transfer.objects.all()
+    serializer_class = TransferSerializer
+    pagination_class = DynamicPageSizePagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('from_bank', 'to_bank')
+
+        params = self.request.query_params
+
+        # Filtro por banco de origem
+        from_bank_id = params.get('from_bank_id')
+        if from_bank_id:
+            queryset = queryset.filter(from_bank_id=from_bank_id)
+
+        # Filtro por banco de destino
+        to_bank_id = params.get('to_bank_id')
+        if to_bank_id:
+            queryset = queryset.filter(to_bank_id=to_bank_id)
+
+        # Filtro por status (aceita múltiplos valores)
+        status_filter = params.getlist('status')
+        if status_filter:
+            queryset = queryset.filter(status__in=status_filter)
+        elif params.get('status'):
+            # Fallback para single value
+            queryset = queryset.filter(status=params.get('status'))
+
+        # Filtro por data
+        data_inicio = params.get('data_inicio')
+        if data_inicio:
+            queryset = queryset.filter(data_transferencia__gte=data_inicio)
+
+        data_fim = params.get('data_fim')
+        if data_fim:
+            queryset = queryset.filter(data_transferencia__lte=data_fim)
+
+        # Busca global
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(descricao__icontains=search) |
+                Q(from_bank__nome__icontains=search) |
+                Q(to_bank__nome__icontains=search)
+            )
+
+        return queryset.order_by('-data_transferencia', '-criado_em', 'id')
 
 
 class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
@@ -2208,7 +2378,8 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             'payment', 'payment__conta_bancaria',
             'receita', 'receita__cliente',
             'despesa', 'despesa__responsavel',
-            'custodia', 'custodia__cliente', 'custodia__funcionario'
+            'custodia', 'custodia__cliente', 'custodia__funcionario',
+            'transfer', 'transfer__from_bank', 'transfer__to_bank'
         )
 
         params = self.request.query_params
@@ -2233,14 +2404,21 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if custodia_id:
             queryset = queryset.filter(custodia_id=custodia_id)
 
+        # Filtro por transferência
+        transfer_id = params.get('transfer_id')
+        if transfer_id:
+            queryset = queryset.filter(transfer_id=transfer_id)
+
         # Filtro por tipo de conta
-        tipo_conta = params.get('tipo_conta')  # 'receita', 'despesa', 'custodia'
+        tipo_conta = params.get('tipo_conta')  # 'receita', 'despesa', 'custodia', 'transfer'
         if tipo_conta == 'receita':
             queryset = queryset.filter(receita__isnull=False)
         elif tipo_conta == 'despesa':
             queryset = queryset.filter(despesa__isnull=False)
         elif tipo_conta == 'custodia':
             queryset = queryset.filter(custodia__isnull=False)
+        elif tipo_conta == 'transfer':
+            queryset = queryset.filter(transfer__isnull=False)
 
         # Busca global
         search = params.get('search')
@@ -2254,7 +2432,7 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(custodia__nome__icontains=search)
             )
 
-        return queryset.order_by('-criado_em')
+        return queryset.order_by('-criado_em', 'id')
 
     def perform_create(self, serializer):
         allocation = serializer.save(company=self.request.user.company)
@@ -2266,6 +2444,8 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             allocation.despesa.atualizar_status()
         elif allocation.custodia:
             allocation.custodia.atualizar_status()
+        elif allocation.transfer:
+            allocation.transfer.atualizar_status()
 
     def perform_update(self, serializer):
         # Guarda referências antigas antes de atualizar
@@ -2273,6 +2453,7 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         old_receita = old_allocation.receita
         old_despesa = old_allocation.despesa
         old_custodia = old_allocation.custodia
+        old_transfer = old_allocation.transfer
 
         # Salva a nova alocação
         allocation = serializer.save()
@@ -2284,6 +2465,8 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             old_despesa.atualizar_status()
         if old_custodia and old_custodia != allocation.custodia:
             old_custodia.atualizar_status()
+        if old_transfer and old_transfer != allocation.transfer:
+            old_transfer.atualizar_status()
 
         # Atualiza status da conta nova
         if allocation.receita:
@@ -2292,11 +2475,14 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             allocation.despesa.atualizar_status()
         elif allocation.custodia:
             allocation.custodia.atualizar_status()
+        elif allocation.transfer:
+            allocation.transfer.atualizar_status()
 
     def perform_destroy(self, instance):
         receita = instance.receita
         despesa = instance.despesa
         custodia = instance.custodia
+        transfer = instance.transfer
 
         # Deleta a alocação
         instance.delete()
@@ -2308,6 +2494,8 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             despesa.atualizar_status()
         if custodia:
             custodia.atualizar_status()
+        if transfer:
+            transfer.atualizar_status()
 
 
 # --- Report Views (Placeholder - Step 7 will detail these) ---

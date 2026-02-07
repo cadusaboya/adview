@@ -16,6 +16,7 @@ import FormaCobrancaList, {
 } from "@/components/dialogs/FormaCobrancaList";
 
 import { Cliente, ClienteCreate, ClienteUpdate } from '@/types/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
 
 import { formatCurrencyInput } from "@/lib/formatters";
 
@@ -41,9 +42,31 @@ export default function ClienteDialog({
     aniversario: null,
     tipo: "",
     formas_cobranca: [],
+    comissionado_id: null,
   });
 
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
+  const [funcionarios, setFuncionarios] = useState<any[]>([]);
+
+  // ======================
+  // 🔄 Buscar funcionários
+  // ======================
+  useEffect(() => {
+    const loadFuncionarios = async () => {
+      try {
+        const response = await getFuncionarios({ page: 1, page_size: 1000 });
+        // Filtrar apenas Funcionários (F) e Parceiros (P)
+        const filtered = response.results.filter((f: any) => f.tipo === 'F' || f.tipo === 'P');
+        setFuncionarios(filtered);
+      } catch (error) {
+        console.error('Erro ao carregar funcionários:', error);
+      }
+    };
+
+    if (open) {
+      loadFuncionarios();
+    }
+  }, [open]);
 
   // ======================
   // 🔄 Preencher ao editar
@@ -58,6 +81,7 @@ export default function ClienteDialog({
         aniversario: cliente.aniversario || null,
         tipo: cliente.tipo,
         formas_cobranca: [],
+        comissionado_id: cliente.comissionado_id || null,
       });
 
       setFormas(
@@ -98,6 +122,7 @@ export default function ClienteDialog({
         aniversario: null,
         tipo: "",
         formas_cobranca: [],
+        comissionado_id: null,
       });
       setFormas([]);
     }
@@ -145,7 +170,7 @@ export default function ClienteDialog({
             <label className="text-sm font-medium">CPF / CNPJ</label>
             <Input
               placeholder="000.000.000-00"
-              value={formData.cpf}
+              value={formData.cpf || ""}
               onChange={(e) =>
                 setFormData({ ...formData, cpf: e.target.value })
               }
@@ -156,7 +181,7 @@ export default function ClienteDialog({
             <label className="text-sm font-medium">Nome *</label>
             <Input
               placeholder="Nome do cliente"
-              value={formData.nome}
+              value={formData.nome || ""}
               onChange={(e) =>
                 setFormData({ ...formData, nome: e.target.value })
               }
@@ -170,7 +195,7 @@ export default function ClienteDialog({
             <label className="text-sm font-medium">Email</label>
             <Input
               placeholder="email@exemplo.com"
-              value={formData.email}
+              value={formData.email || ""}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }
@@ -181,7 +206,7 @@ export default function ClienteDialog({
             <label className="text-sm font-medium">Telefone</label>
             <Input
               placeholder="(00) 00000-0000"
-              value={formData.telefone}
+              value={formData.telefone || ""}
               onChange={(e) =>
                 setFormData({ ...formData, telefone: e.target.value })
               }
@@ -218,6 +243,34 @@ export default function ClienteDialog({
                 })
               }
             />
+          </div>
+        </div>
+
+        {/* 🔹 Linha 3 - Comissionado */}
+        <div className="grid grid-cols-1">
+          <div>
+            <label className="text-sm font-medium">Comissionado</label>
+            <Select
+              value={formData.comissionado_id?.toString() || "none"}
+              onValueChange={(val) =>
+                setFormData({
+                  ...formData,
+                  comissionado_id: val === "none" ? null : Number(val)
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {funcionarios.map((f) => (
+                  <SelectItem key={f.id} value={f.id.toString()}>
+                    {f.nome} ({f.tipo === 'F' ? 'Funcionário' : 'Parceiro'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -20,6 +20,14 @@ export interface AllocationInfo {
     tipo: string;
     tipo_display: string;
   };
+  transfer?: {
+    id: number;
+    from_bank: string;
+    to_bank: string;
+    valor: number;
+    status: string;
+    status_display: string;
+  };
 }
 
 // =========================

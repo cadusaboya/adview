@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CompanyViewSet, CustomUserViewSet, ClienteViewSet,
     FuncionarioViewSet, ReceitaViewSet, ReceitaRecorrenteViewSet, DespesaViewSet, DespesaRecorrenteViewSet,
-    FornecedorViewSet, ContaBancariaViewSet, CustodiaViewSet, PaymentViewSet, AllocationViewSet,
+    FornecedorViewSet, ContaBancariaViewSet, CustodiaViewSet, TransferViewSet, PaymentViewSet, AllocationViewSet,
     FavorecidoViewSet, dashboard_view,
     # Import Report Views
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
@@ -20,8 +20,9 @@ from .pdf_views import (
     relatorio_receitas_a_receber, # Renomeado para a_receber para clareza
     relatorio_dre_consolidado,
     relatorio_fluxo_de_caixa,
-    relatorio_funcionario_especifico, 
+    relatorio_funcionario_especifico,
     recibo_pagamento,
+    relatorio_comissionamento_pdf,
 )
 
 router = DefaultRouter()
@@ -36,6 +37,7 @@ router.register(r'despesas-recorrentes', DespesaRecorrenteViewSet, basename='des
 router.register(r'fornecedores', FornecedorViewSet, basename='Fornecedor')
 router.register(r'contas-bancarias', ContaBancariaViewSet, basename='contabancaria')
 router.register(r'custodias', CustodiaViewSet, basename='custodia')
+router.register(r'transferencias', TransferViewSet, basename='transfer')
 router.register(r'pagamentos', PaymentViewSet, basename='payment')
 router.register(r'alocacoes', AllocationViewSet, basename='allocation')
 router.register(r'favorecidos', FavorecidoViewSet, basename='favorecido')
@@ -81,6 +83,9 @@ urlpatterns = [
     path('pdf/funcionario-especifico/', relatorio_funcionario_especifico, name='relatorio-fluxo-de-caixa'),
 
     path('pdf/recibo-pagamento/', recibo_pagamento, name='recibo_pagamento'),
+
+    # 9. Relatório de Comissionamento PDF
+    path('pdf/comissionamento/', relatorio_comissionamento_pdf, name='relatorio-comissionamento-pdf'),
 
 ]
 

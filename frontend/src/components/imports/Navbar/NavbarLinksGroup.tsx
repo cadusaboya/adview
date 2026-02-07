@@ -13,11 +13,12 @@ interface LinksGroupProps {
   initiallyOpened?: boolean;
   links?: { label: string; link: string }[];
   link?: string;
+  opened?: boolean;
+  onToggle?: () => void;
 }
 
-export function LinksGroup({ icon: Icon, label, initiallyOpened, links, link }: LinksGroupProps) {
+export function LinksGroup({ icon: Icon, label, links, link, opened = false, onToggle }: LinksGroupProps) {
   const hasLinks = Array.isArray(links);
-  const [opened, setOpened] = useState(initiallyOpened || false);
 
   const items = (hasLinks ? links : []).map((l) => (
     <Link className={classes.link} href={l.link} key={l.label}>
@@ -28,7 +29,7 @@ export function LinksGroup({ icon: Icon, label, initiallyOpened, links, link }: 
   if (hasLinks) {
     return (
       <>
-        <UnstyledButton onClick={() => setOpened((o) => !o)} className={classes.control}>
+        <UnstyledButton onClick={onToggle} className={classes.control}>
           <Box className={classes.mainLink}>
             <ThemeIcon
               variant="light"

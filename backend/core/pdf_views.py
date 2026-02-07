@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, date
 from django.db.models import Sum, Q, F, DecimalField, Prefetch
 from django.db.models.functions import Coalesce
 
-from .models import Receita, Despesa, Payment, ContaBancaria, Cliente, Funcionario, Company
+from .models import Receita, Despesa, Payment, ContaBancaria, Cliente, Funcionario, Company, Allocation
 from .helpers.pdf import (
     PDFReportBase, format_currency, format_date, truncate_text, TableBuilder
 )
@@ -1429,3 +1429,221 @@ def recibo_pagamento(request):
     return response
 
 
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def relatorio_comissionamento_pdf(request):
+    """
+    Relatório PDF de comissionamento com detalhes dos pagamentos por comissionado.
+
+    Query params:
+    - mes (int, required): Mês (1-12)
+    - ano (int, required): Ano (YYYY)
+    - funcionario_id (int, optional): ID do funcionário para filtrar
+
+    Retorna PDF com:
+    - Lista de pagamentos por comissionado
+    - Percentual de comissão por cliente
+    - Valor da comissão de cada pagamento
+    - Totais por comissionado e geral
+    """
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+
+    # Validar parâmetros
+    mes = request.query_params.get('mes')
+    ano = request.query_params.get('ano')
+    funcionario_id = request.query_params.get('funcionario_id')
+
+    if not mes or not ano:
+        return Response(
+            {"error": "Parâmetros 'mes' e 'ano' são obrigatórios"},
+            status=400
+        )
+
+    try:
+        mes = int(mes)
+        ano = int(ano)
+        if not (1 <= mes <= 12):
+            raise ValueError()
+    except ValueError:
+        return Response(
+            {"error": "Mês deve ser um número entre 1 e 12"},
+            status=400
+        )
+
+    # Buscar alocações de receitas do mês/ano
+    allocations = Allocation.objects.filter(
+        company=company,
+        receita__isnull=False,
+        payment__data_pagamento__month=mes,
+        payment__data_pagamento__year=ano
+    ).select_related('payment', 'receita__cliente__comissionado', 'receita__cliente')
+
+    # Filtrar por funcionário se especificado
+    if funcionario_id:
+        allocations = allocations.filter(receita__cliente__comissionado_id=funcionario_id)
+
+    # Filtrar apenas alocações de clientes com comissionado
+    allocations = allocations.filter(receita__cliente__comissionado__isnull=False)
+
+    # Agrupar por comissionado
+    comissionados_data = {}
+    for allocation in allocations:
+        comissionado = allocation.receita.cliente.comissionado
+        if comissionado.id not in comissionados_data:
+            comissionados_data[comissionado.id] = {
+                'comissionado': comissionado,
+                'pagamentos': []
+            }
+
+        comissionados_data[comissionado.id]['pagamentos'].append({
+            'data': allocation.payment.data_pagamento,
+            'cliente': allocation.receita.cliente.nome,
+            'valor_pagamento': allocation.valor,
+            'percentual': company.percentual_comissao or Decimal('20.00'),
+            'valor_comissao': allocation.valor * ((company.percentual_comissao or Decimal('20.00')) / Decimal('100.00'))
+        })
+
+    if not comissionados_data:
+        return Response(
+            {"error": f"Nenhum pagamento com comissionado encontrado para {mes}/{ano}"},
+            status=404
+        )
+
+    # Criar PDF
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="comissionamento_{mes}_{ano}.pdf"'
+
+    pdf = canvas.Canvas(response, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    margin = 50
+
+    # Helper para formatação
+    def format_currency_br(valor):
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    # Cabeçalho
+    y = height - margin
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(margin, y, company.name)
+
+    y -= 25
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(margin, y, f"Relatório de Comissionamento - {mes:02d}/{ano}")
+
+    y -= 30
+
+    # Iterar por comissionado
+    total_geral = Decimal('0.00')
+
+    for data in comissionados_data.values():
+        comissionado = data['comissionado']
+        pagamentos = data['pagamentos']
+
+        # Verificar espaço para nova seção
+        if y < 200:
+            pdf.showPage()
+            y = height - margin
+            pdf.setFont("Helvetica-Bold", 16)
+            pdf.drawString(margin, y, company.name)
+            y -= 25
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(margin, y, f"Relatório de Comissionamento - {mes:02d}/{ano}")
+            y -= 30
+
+        # Nome do comissionado
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(margin, y, f"Comissionado: {comissionado.nome}")
+        y -= 20
+
+        # Cabeçalho da tabela
+        pdf.setFont("Helvetica-Bold", 9)
+        col_data = margin
+        col_cliente = col_data + 80
+        col_valor_pag = col_cliente + 200
+        col_percentual = col_valor_pag + 100
+        col_comissao = col_percentual + 80
+
+        pdf.drawString(col_data, y, "Data")
+        pdf.drawString(col_cliente, y, "Cliente")
+        pdf.drawRightString(col_valor_pag + 80, y, "Valor Pago")
+        pdf.drawRightString(col_percentual + 60, y, "% Comissão")
+        pdf.drawRightString(col_comissao + 80, y, "Valor Comissão")
+
+        y -= 2
+        pdf.line(margin, y, width - margin, y)
+        y -= 15
+
+        # Dados da tabela
+        pdf.setFont("Helvetica", 9)
+        total_comissionado = Decimal('0.00')
+
+        for pag in sorted(pagamentos, key=lambda x: x['data']):
+            # Verificar espaço
+            if y < 100:
+                pdf.showPage()
+                y = height - margin
+                pdf.setFont("Helvetica-Bold", 16)
+                pdf.drawString(margin, y, company.name)
+                y -= 25
+                pdf.setFont("Helvetica-Bold", 12)
+                pdf.drawString(margin, y, f"Comissionado: {comissionado.nome} (continuação)")
+                y -= 25
+
+                # Redesenhar cabeçalho
+                pdf.setFont("Helvetica-Bold", 9)
+                pdf.drawString(col_data, y, "Data")
+                pdf.drawString(col_cliente, y, "Cliente")
+                pdf.drawRightString(col_valor_pag + 80, y, "Valor Pago")
+                pdf.drawRightString(col_percentual + 60, y, "% Comissão")
+                pdf.drawRightString(col_comissao + 80, y, "Valor Comissão")
+                y -= 2
+                pdf.line(margin, y, width - margin, y)
+                y -= 15
+                pdf.setFont("Helvetica", 9)
+
+            pdf.drawString(col_data, y, format_date_br(pag['data']))
+
+            # Truncar nome do cliente se necessário
+            cliente_nome = pag['cliente']
+            if len(cliente_nome) > 35:
+                cliente_nome = cliente_nome[:32] + "..."
+            pdf.drawString(col_cliente, y, cliente_nome)
+
+            pdf.drawRightString(col_valor_pag + 80, y, format_currency_br(pag['valor_pagamento']))
+            pdf.drawRightString(col_percentual + 60, y, f"{pag['percentual']:.2f}%")
+            pdf.drawRightString(col_comissao + 80, y, format_currency_br(pag['valor_comissao']))
+
+            total_comissionado += pag['valor_comissao']
+            y -= 15
+
+        # Total do comissionado
+        y -= 5
+        pdf.line(margin, y, width - margin, y)
+        y -= 15
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(margin, y, f"Total {comissionado.nome}:")
+        pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_comissionado))
+
+        total_geral += total_comissionado
+        y -= 30
+
+    # Total geral (se houver múltiplos comissionados)
+    if len(comissionados_data) > 1:
+        if y < 100:
+            pdf.showPage()
+            y = height - margin
+
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(margin, y, "TOTAL GERAL:")
+        col_comissao = width - margin - 130
+        pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_geral))
+
+    pdf.showPage()
+    pdf.save()
+
+    return response

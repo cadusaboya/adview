@@ -20,18 +20,20 @@ import { getBancos } from '@/services/bancos';
 import { getReceitasAbertas } from '@/services/receitas';
 import { getDespesasAbertas } from '@/services/despesas';
 import { getCustodiasAbertas } from '@/services/custodias';
+import { transfersService } from '@/services/transfers';
 
 import { Banco } from '@/types/bancos';
 import { Receita } from '@/types/receitas';
 import { Despesa } from '@/types/despesas';
 import { Custodia } from '@/types/custodias';
+import { Transfer } from '@/types/transfer';
 import { Payment, PaymentCreate } from '@/types/payments';
 
 // Tipo para uma alocação no formulário
 interface AllocationForm {
   id: string; // ID temporário para gerenciar a lista
   allocation_id?: number; // ID da allocation no backend (se já existe)
-  tipo: 'receita' | 'despesa' | 'custodia';
+  tipo: 'receita' | 'despesa' | 'custodia' | 'transfer';
   entidade_id: number;
   valor: number;
   valorDisplay: string;
@@ -73,6 +75,7 @@ export default function PaymentDialog({
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [custodias, setCustodias] = useState<Custodia[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
 
   // ======================
   // 🔄 LOAD EDIT
@@ -92,7 +95,7 @@ export default function PaymentDialog({
       // Carrega alocações existentes para edição
       if (payment.allocations_info && payment.allocations_info.length > 0) {
         const loadedAllocations: AllocationForm[] = payment.allocations_info.map((alloc, index) => {
-          let tipo: 'receita' | 'despesa' | 'custodia' = 'receita';
+          let tipo: 'receita' | 'despesa' | 'custodia' | 'transfer' = 'receita';
           let entidade_id = 0;
 
           if (alloc.receita) {
@@ -145,6 +148,24 @@ export default function PaymentDialog({
               const exists = prev.some(c => c.id === custodiaInfo.id);
               return exists ? prev : [...prev, custodiaInfo];
             });
+          } else if (alloc.transfer) {
+            tipo = 'transfer';
+            entidade_id = alloc.transfer.id;
+
+            // Adicionar a transferência à lista se não estiver presente
+            const transferInfo = {
+              id: alloc.transfer.id,
+              from_bank_nome: alloc.transfer.from_bank,
+              to_bank_nome: alloc.transfer.to_bank,
+              valor: String(alloc.transfer.valor || 0),
+              status: alloc.transfer.status,
+              status_display: alloc.transfer.status_display,
+            } as Transfer;
+
+            setTransfers(prev => {
+              const exists = prev.some(t => t.id === transferInfo.id);
+              return exists ? prev : [...prev, transferInfo];
+            });
           }
 
           return {
@@ -178,11 +199,14 @@ export default function PaymentDialog({
   // 🔹 LOAD AUX DATA
   // ======================
   useEffect(() => {
-    loadBancos();
-    loadReceitas();
-    loadDespesas();
-    loadCustodias();
-  }, []);
+    if (open) {
+      loadBancos();
+      loadReceitas();
+      loadDespesas();
+      loadCustodias();
+      loadTransfers();
+    }
+  }, [open]);
 
   // ======================
   // 🔹 ADJUST ALLOCATIONS WHEN PAYMENT TYPE CHANGES
@@ -245,6 +269,15 @@ export default function PaymentDialog({
       setCustodias(res.results);
     } catch (error) {
       console.error('Erro ao carregar custódias:', error);
+    }
+  };
+
+  const loadTransfers = async () => {
+    try {
+      const res = await transfersService.list({ page_size: 1000 });
+      setTransfers(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar transferências:', error);
     }
   };
 
@@ -448,7 +481,7 @@ export default function PaymentDialog({
                         setAllocations((prev) =>
                           prev.map((a) =>
                             a.id === alloc.id
-                              ? { ...a, tipo: val as 'receita' | 'despesa' | 'custodia', entidade_id: 0 }
+                              ? { ...a, tipo: val as 'receita' | 'despesa' | 'custodia' | 'transfer', entidade_id: 0 }
                               : a
                           )
                         );
@@ -458,11 +491,12 @@ export default function PaymentDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* Recebimento (E) só pode alocar em Receita ou Custódia */}
-                        {/* Saída (S) só pode alocar em Despesa ou Custódia */}
+                        {/* Recebimento (E) só pode alocar em Receita, Custódia ou Transferência */}
+                        {/* Saída (S) só pode alocar em Despesa, Custódia ou Transferência */}
                         {formData.tipo === 'E' && <SelectItem value="receita">Receita</SelectItem>}
                         {formData.tipo === 'S' && <SelectItem value="despesa">Despesa</SelectItem>}
                         <SelectItem value="custodia">Custódia</SelectItem>
+                        <SelectItem value="transfer">Transferência</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -470,12 +504,12 @@ export default function PaymentDialog({
                   {/* Entidade */}
                   <div className="col-span-5">
                     <label className="text-xs font-medium block mb-1">
-                      {alloc.tipo === 'receita' ? 'Receita' : alloc.tipo === 'despesa' ? 'Despesa' : 'Custódia'}
+                      {alloc.tipo === 'receita' ? 'Receita' : alloc.tipo === 'despesa' ? 'Despesa' : alloc.tipo === 'custodia' ? 'Custódia' : 'Transferência'}
                     </label>
                     <AntdSelect
                       key={`entidade-${alloc.id}-${alloc.tipo}`}
                       showSearch
-                      placeholder={`Selecione ${alloc.tipo === 'receita' ? 'uma receita' : alloc.tipo === 'despesa' ? 'uma despesa' : 'uma custódia'}`}
+                      placeholder={`Selecione ${alloc.tipo === 'receita' ? 'uma receita' : alloc.tipo === 'despesa' ? 'uma despesa' : alloc.tipo === 'custodia' ? 'uma custódia' : 'uma transferência'}`}
                       value={alloc.entidade_id || undefined}
                       options={
                         alloc.tipo === 'receita'
@@ -488,9 +522,14 @@ export default function PaymentDialog({
                               value: d.id,
                               label: `${d.nome} - ${d.responsavel?.nome || 'Sem responsável'}`,
                             }))
-                          : custodias.map((c) => ({
+                          : alloc.tipo === 'custodia'
+                          ? custodias.map((c) => ({
                               value: c.id,
                               label: c.nome,
+                            }))
+                          : transfers.map((t) => ({
+                              value: t.id,
+                              label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${t.status_display}`,
                             }))
                       }
                       onChange={(val) => {
@@ -503,26 +542,55 @@ export default function PaymentDialog({
                           const receita = receitas.find((r) => r.id === val);
                           if (receita) {
                             // Usa valor_aberto se disponível, senão usa valor total
-                            valorAberto = receita.valor_aberto ?? receita.valor;
+                            const valorAbertoReceita = Number(receita.valor_aberto);
+                            const valorTotalReceita = Number(receita.valor);
+                            // Usa o valor_aberto se for válido, senão usa o valor total
+                            valorAberto = valorAbertoReceita > 0 ? valorAbertoReceita : valorTotalReceita;
                           }
                         } else if (alloc.tipo === 'despesa') {
                           const despesa = despesas.find((d) => d.id === val);
                           if (despesa) {
                             // Usa valor_aberto se disponível, senão usa valor total
-                            valorAberto = despesa.valor_aberto ?? despesa.valor;
+                            const valorAbertoDespesa = Number(despesa.valor_aberto);
+                            const valorTotalDespesa = Number(despesa.valor);
+                            // Usa o valor_aberto se for válido, senão usa o valor total
+                            valorAberto = valorAbertoDespesa > 0 ? valorAbertoDespesa : valorTotalDespesa;
                           }
                         } else if (alloc.tipo === 'custodia') {
                           const custodia = custodias.find((c) => c.id === val);
                           if (custodia) {
                             // Calcula o valor em aberto (total - liquidado)
-                            valorAberto = custodia.valor_total - custodia.valor_liquidado;
+                            const total = Number(custodia.valor_total) || 0;
+                            const liquidado = Number(custodia.valor_liquidado) || 0;
+                            valorAberto = Math.max(0, total - liquidado);
+                          }
+                        } else if (alloc.tipo === 'transfer') {
+                          const transfer = transfers.find((t) => t.id === val);
+                          if (transfer) {
+                            // Para transferências, usar o valor da transferência menos o que já foi alocado
+                            const valorTransfer = parseFloat(transfer.valor) || 0;
+                            const valorSaida = parseFloat(transfer.valor_saida) || 0;
+                            const valorEntrada = parseFloat(transfer.valor_entrada) || 0;
+
+                            // Se for saída, usar valor - valor_saida, se for entrada, usar valor - valor_entrada
+                            if (formData.tipo === 'S') {
+                              valorAberto = Math.max(0, valorTransfer - valorSaida);
+                            } else {
+                              valorAberto = Math.max(0, valorTransfer - valorEntrada);
+                            }
                           }
                         }
 
                         // Preenche o valor automaticamente
                         if (valorAberto > 0) {
-                          updateAllocation(alloc.id, 'valorDisplay', formatCurrencyInput(valorAberto));
-                          updateAllocation(alloc.id, 'valor', valorAberto);
+                          // Se o valor do pagamento está preenchido, usar o menor entre os dois
+                          // Senão, usar o valor aberto da entidade
+                          const valorAlocar = formData.valor > 0
+                            ? Math.min(valorAberto, formData.valor)
+                            : valorAberto;
+
+                          updateAllocation(alloc.id, 'valorDisplay', formatCurrencyInput(valorAlocar));
+                          updateAllocation(alloc.id, 'valor', valorAlocar);
                         }
                       }}
                       className="h-9 [&_.ant-select-selector]:!h-9 [&_.ant-select-selector]:!py-0 [&_.ant-select-selection-search]:!h-9 [&_.ant-select-selection-item]:!leading-9"

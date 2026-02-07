@@ -25,6 +25,8 @@ import { getErrorMessage } from '@/lib/errors';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 export default function DespesasPagasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
@@ -57,6 +59,11 @@ export default function DespesasPagasPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
 
   // ======================
   // 🔄 LOAD DESPESAS PAGAS
@@ -104,9 +111,7 @@ export default function DespesasPagasPage() {
   // ======================
   // ❌ DELETE DESPESA
   // ======================
-  const handleDeleteDespesa = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta despesa?')) return;
-
+  const handleDeleteDespesaAction = async (id: number) => {
     try {
       await deleteDespesa(id);
       toast.success('Despesa excluída com sucesso!');
@@ -117,26 +122,16 @@ export default function DespesasPagasPage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos uma despesa');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} despesa(s)?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deleteDespesa(Number(id)))
+        ids.map((id) => deleteDespesa(id))
       );
 
-      toast.success(`${selectedRowKeys.length} despesa(s) excluída(s) com sucesso`);
+      toast.success(`${ids.length} despesa(s) excluída(s) com sucesso`);
       setSelectedRowKeys([]);
       loadData();
     } catch (error) {
@@ -145,6 +140,30 @@ export default function DespesasPagasPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteDespesaAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDeleteDespesa = (id: number) => {
+    const despesa = despesas.find((d) => d.id === id);
+    confirmDelete(id, despesa?.nome);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma despesa');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -263,7 +282,7 @@ export default function DespesasPagasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         {/* HEADER */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
@@ -350,6 +369,16 @@ export default function DespesasPagasPage() {
             id: f.id,
             nome: f.nome,
           }))}
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir despesas selecionadas?' : 'Excluir despesa?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

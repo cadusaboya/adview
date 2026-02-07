@@ -8,6 +8,8 @@ import { DownloadOutlined } from '@ant-design/icons';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
@@ -53,6 +55,11 @@ export default function ReceitaRecebidasPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
 
   // ======================
   // 👥 CLIENTES (RELATÓRIO)
@@ -101,9 +108,7 @@ export default function ReceitaRecebidasPage() {
   // ======================
   // ❌ DELETE RECEITA
   // ======================
-  const handleDeleteReceita = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta receita?')) return;
-
+  const handleDeleteReceitaAction = async (id: number) => {
     try {
       await deleteReceita(id);
       toast.success('Receita excluída com sucesso!');
@@ -114,26 +119,16 @@ export default function ReceitaRecebidasPage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos uma receita');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} receita(s)?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deleteReceita(Number(id)))
+        ids.map((id) => deleteReceita(id))
       );
 
-      toast.success(`${selectedRowKeys.length} receita(s) excluída(s) com sucesso`);
+      toast.success(`${ids.length} receita(s) excluída(s) com sucesso`);
       setSelectedRowKeys([]);
       loadData();
     } catch (error) {
@@ -142,6 +137,30 @@ export default function ReceitaRecebidasPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteReceitaAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDeleteReceita = (id: number) => {
+    const receita = receitas.find((r) => r.id === id);
+    confirmDelete(id, receita?.nome);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma receita');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -263,7 +282,7 @@ export default function ReceitaRecebidasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         {/* 🔝 HEADER */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
@@ -347,6 +366,16 @@ export default function ReceitaRecebidasPage() {
             id: c.id,
             nome: c.nome,
           }))}
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir receitas selecionadas?' : 'Excluir receita?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

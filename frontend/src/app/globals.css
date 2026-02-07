@@ -241,9 +241,17 @@
   color: hsl(var(--accent-foreground)) !important;
 }
 
-/* Ant Design Select Dropdown - ensure it appears above dialogs */
+/* Ant Design Select Dropdown - ensure it appears above navbar and dialogs */
 .ant-select-dropdown {
   z-index: 99999 !important;
+}
+
+/* Ensure all Ant Design overlays appear above navbar */
+.ant-modal-wrap,
+.ant-drawer-wrapper,
+.ant-notification,
+.ant-message {
+  z-index: 10000 !important;
 }
 
 /* Ant Design Select in dialogs */
@@ -289,4 +297,16 @@
   margin: 0 !important;
   padding: 0 !important;
   border: none !important;
+}
+
+/* Main content area with fixed navbar */
+.main-content-with-navbar {
+  margin-left: 200px;
+}
+
+/* Remove margin on mobile devices when navbar is hidden */
+@media (max-width: 768px) {
+  .main-content-with-navbar {
+    margin-left: 0;
+  }
 }

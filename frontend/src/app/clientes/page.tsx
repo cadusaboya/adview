@@ -7,6 +7,7 @@ import {
   deleteCliente,
   createCliente,
   updateCliente,
+  gerarComissoes,
 } from '@/services/clientes';
 
 import {
@@ -30,6 +31,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import RelatorioFiltrosModal, {
   RelatorioFiltros,
 } from '@/components/dialogs/RelatorioFiltrosModal';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import {
@@ -37,7 +40,22 @@ import {
   Trash,
   FileText,
   DollarSign,
+  Coins,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 export default function ClientePage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -59,6 +77,12 @@ export default function ClientePage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // Gerar comissões state
+  const [openGerarComissoes, setOpenGerarComissoes] = useState(false);
+  const [mesComissao, setMesComissao] = useState(new Date().getMonth() + 1);
+  const [anoComissao, setAnoComissao] = useState(new Date().getFullYear());
+  const [loadingComissoes, setLoadingComissoes] = useState(false);
 
   // ======================
   // 🔄 LOAD
@@ -90,12 +114,15 @@ export default function ClientePage() {
     setPage(1);
   }, [debouncedSearch]);
 
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
+
   // ======================
   // ❌ DELETE
   // ======================
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este cliente?')) return;
-
+  const handleDeleteAction = async (id: number) => {
     try {
       await deleteCliente(id);
       toast.success('Cliente excluído com sucesso');
@@ -106,26 +133,16 @@ export default function ClientePage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos um cliente');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} cliente(s)?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deleteCliente(Number(id)))
+        ids.map((id) => deleteCliente(id))
       );
 
-      toast.success(`${selectedRowKeys.length} cliente(s) excluído(s) com sucesso`);
+      toast.success(`${ids.length} cliente(s) excluído(s) com sucesso`);
       setSelectedRowKeys([]);
       loadClientes();
     } catch (error: unknown) {
@@ -134,6 +151,30 @@ export default function ClientePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDelete = (id: number) => {
+    const cliente = clientes.find((c) => c.id === id);
+    confirmDelete(id, cliente?.nome);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um cliente');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -169,6 +210,31 @@ export default function ClientePage() {
     } catch (error: unknown) {
       console.error(error);
       toast.error(getErrorMessage(error, 'Erro ao salvar cliente'));
+    }
+  };
+
+  // ======================
+  // 💰 GERAR COMISSÕES
+  // ======================
+  const handleGerarComissoes = async () => {
+    try {
+      setLoadingComissoes(true);
+      const result = await gerarComissoes(mesComissao, anoComissao);
+
+      if (result.comissionados && result.comissionados.length > 0) {
+        toast.success(
+          `Comissões geradas com sucesso! ${result.comissionados.length} comissionado(s), total: R$ ${result.total.toFixed(2)}`
+        );
+      } else {
+        toast.info(`Nenhuma comissão gerada para ${mesComissao}/${anoComissao}`);
+      }
+
+      setOpenGerarComissoes(false);
+    } catch (error: unknown) {
+      console.error(error);
+      toast.error(getErrorMessage(error, 'Erro ao gerar comissões'));
+    } finally {
+      setLoadingComissoes(false);
     }
   };
 
@@ -271,7 +337,7 @@ export default function ClientePage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="flex justify-between mb-4">
           <h1 className="text-2xl font-serif font-bold text-navy">Clientes</h1>
           <div className="flex gap-3 items-center">
@@ -291,6 +357,13 @@ export default function ClientePage() {
                 Excluir {selectedRowKeys.length} selecionado(s)
               </Button>
             )}
+            <Button
+              className="shadow-md bg-amber-600 text-white hover:bg-amber-700"
+              onClick={() => setOpenGerarComissoes(true)}
+              icon={<Coins className="w-4 h-4" />}
+            >
+              Gerar Comissões
+            </Button>
             <Button
               className="shadow-md bg-navy text-white hover:bg-navy/90"
               onClick={() => {
@@ -356,6 +429,82 @@ export default function ClientePage() {
           title="Relatório de Cliente"
           tipoRelatorio="cliente-especifico"
           clientes={clientes}
+        />
+
+        {/* Modal de Gerar Comissões */}
+        <Dialog open={openGerarComissoes} onOpenChange={setOpenGerarComissoes}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Gerar Comissões</DialogTitle>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Mês</label>
+                <Select
+                  value={mesComissao.toString()}
+                  onValueChange={(val) => setMesComissao(Number(val))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <SelectItem key={m} value={m.toString()}>
+                        {new Date(2000, m - 1).toLocaleDateString('pt-BR', { month: 'long' })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Ano</label>
+                <Select
+                  value={anoComissao.toString()}
+                  onValueChange={(val) => setAnoComissao(Number(val))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                      <SelectItem key={y} value={y.toString()}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => setOpenGerarComissoes(false)}
+                className="mr-2"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGerarComissoes}
+                className="bg-navy text-white hover:bg-navy/90"
+                loading={loadingComissoes}
+                disabled={loadingComissoes}
+              >
+                Gerar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir clientes selecionados?' : 'Excluir cliente?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Sum
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment, Custodia, Allocation
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment, Custodia, Transfer, Allocation
 from decimal import Decimal
 
 
@@ -52,6 +52,15 @@ class ClienteSerializer(serializers.ModelSerializer):
     telefone = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     aniversario = serializers.DateField(required=False, allow_null=True)
 
+    # Comissionamento
+    comissionado_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
+        source='comissionado',
+        required=False,
+        allow_null=True
+    )
+    comissionado = serializers.SerializerMethodField()
+
     class Meta:
         model = Cliente
         fields = (
@@ -65,8 +74,19 @@ class ClienteSerializer(serializers.ModelSerializer):
             'tipo_display',
             'company',
             'formas_cobranca',
+            'comissionado_id',
+            'comissionado',
         )
-        read_only_fields = ('company', 'tipo_display')
+        read_only_fields = ('company', 'tipo_display', 'comissionado')
+
+    def get_comissionado(self, obj):
+        if obj.comissionado:
+            return {
+                'id': obj.comissionado.id,
+                'nome': obj.comissionado.nome,
+                'tipo': obj.comissionado.tipo
+            }
+        return None
 
     def create(self, validated_data):
         formas_data = validated_data.pop('formas_cobranca')
@@ -121,11 +141,6 @@ class ReceitaSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
     cliente_id = serializers.PrimaryKeyRelatedField(queryset=Cliente.objects.all(), source='cliente')
     cliente = ClienteSerializer(read_only=True)
-    comissionado_id = serializers.PrimaryKeyRelatedField(
-        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
-        source='comissionado', allow_null=True, required=False
-    )
-    comissionado = FuncionarioSerializer(read_only=True)
 
     forma_pagamento_display = serializers.CharField(source='get_forma_pagamento_display', read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
@@ -134,7 +149,7 @@ class ReceitaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receita
         fields = '__all__'
-        read_only_fields = ('company', 'cliente', 'comissionado',
+        read_only_fields = ('company', 'cliente',
                             'forma_pagamento_display', 'tipo_display', 'situacao_display')
 
     def validate(self, data):
@@ -172,7 +187,6 @@ class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
     # Read-only fields
     company = CompanySerializer(read_only=True)
     cliente = ClienteSerializer(read_only=True)
-    comissionado = FuncionarioSerializer(read_only=True)
     status_display = serializers.CharField(
         source='get_status_display',
         read_only=True
@@ -192,18 +206,11 @@ class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
         source='cliente',
         write_only=True
     )
-    comissionado_id = serializers.PrimaryKeyRelatedField(
-        queryset=Funcionario.objects.all(),
-        source='comissionado',
-        write_only=True,
-        required=False,
-        allow_null=True
-    )
 
     class Meta:
         model = ReceitaRecorrente
         fields = '__all__'
-        read_only_fields = ('company', 'cliente', 'comissionado')
+        read_only_fields = ('company', 'cliente')
 
     def validate_dia_vencimento(self, value):
         """Valida que dia está entre 1 e 31"""
@@ -401,7 +408,14 @@ class PaymentSerializer(serializers.ModelSerializer):
                 'nome': alloc.custodia.nome,
                 'tipo': alloc.custodia.tipo,
                 'tipo_display': alloc.custodia.get_tipo_display()
-            } if alloc.custodia else None
+            } if alloc.custodia else None,
+            'transfer': {
+                'id': alloc.transfer.id,
+                'from_bank': alloc.transfer.from_bank.nome,
+                'to_bank': alloc.transfer.to_bank.nome,
+                'status': alloc.transfer.status,
+                'status_display': alloc.transfer.get_status_display()
+            } if alloc.transfer else None
         } for alloc in allocations]
 
     def validate(self, data):
@@ -464,6 +478,97 @@ class CustodiaSerializer(serializers.ModelSerializer):
         return data
 
 
+# 🔹 Transfer
+class TransferSerializer(serializers.ModelSerializer):
+    """Serializer para transferências entre contas bancárias"""
+
+    # Read-only fields
+    company = CompanySerializer(read_only=True)
+    from_bank_nome = serializers.CharField(source='from_bank.nome', read_only=True)
+    to_bank_nome = serializers.CharField(source='to_bank.nome', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    # Write-only fields for IDs
+    from_bank_id = serializers.PrimaryKeyRelatedField(
+        queryset=ContaBancaria.objects.all(),
+        source='from_bank',
+        write_only=True
+    )
+    to_bank_id = serializers.PrimaryKeyRelatedField(
+        queryset=ContaBancaria.objects.all(),
+        source='to_bank',
+        write_only=True
+    )
+
+    # Campos calculados
+    valor_saida = serializers.SerializerMethodField(read_only=True)
+    valor_entrada = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Transfer
+        fields = (
+            'id',
+            'company',
+            'from_bank',
+            'from_bank_id',
+            'from_bank_nome',
+            'to_bank',
+            'to_bank_id',
+            'to_bank_nome',
+            'valor',
+            'data_transferencia',
+            'descricao',
+            'status',
+            'status_display',
+            'valor_saida',
+            'valor_entrada',
+            'criado_em',
+            'atualizado_em'
+        )
+        read_only_fields = (
+            'id',
+            'company',
+            'from_bank',
+            'to_bank',
+            'status',
+            'criado_em',
+            'atualizado_em'
+        )
+
+    def get_valor_saida(self, obj):
+        """Retorna o total de saídas alocadas"""
+        total = obj.allocations.filter(
+            payment__tipo='S'
+        ).aggregate(total=Sum('valor'))['total']
+        return total or Decimal('0.00')
+
+    def get_valor_entrada(self, obj):
+        """Retorna o total de entradas alocadas"""
+        total = obj.allocations.filter(
+            payment__tipo='E'
+        ).aggregate(total=Sum('valor'))['total']
+        return total or Decimal('0.00')
+
+    def validate(self, data):
+        """Validação: bancos origem e destino devem ser diferentes"""
+        from_bank = data.get('from_bank')
+        to_bank = data.get('to_bank')
+
+        if from_bank and to_bank and from_bank == to_bank:
+            raise serializers.ValidationError(
+                "Os bancos de origem e destino devem ser diferentes."
+            )
+
+        # Validar que o valor é positivo
+        valor = data.get('valor')
+        if valor and valor <= 0:
+            raise serializers.ValidationError({
+                'valor': 'O valor da transferência deve ser maior que zero.'
+            })
+
+        return data
+
+
 # 🔹 Allocation
 class AllocationSerializer(serializers.ModelSerializer):
     """Serializer para alocações de pagamentos"""
@@ -473,6 +578,7 @@ class AllocationSerializer(serializers.ModelSerializer):
     receita_info = serializers.SerializerMethodField(read_only=True)
     despesa_info = serializers.SerializerMethodField(read_only=True)
     custodia_info = serializers.SerializerMethodField(read_only=True)
+    transfer_info = serializers.SerializerMethodField(read_only=True)
 
     # Write-only fields for IDs
     payment_id = serializers.PrimaryKeyRelatedField(
@@ -501,6 +607,13 @@ class AllocationSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    transfer_id = serializers.PrimaryKeyRelatedField(
+        queryset=Transfer.objects.all(),
+        source='transfer',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = Allocation
@@ -519,6 +632,9 @@ class AllocationSerializer(serializers.ModelSerializer):
             'custodia',
             'custodia_id',
             'custodia_info',
+            'transfer',
+            'transfer_id',
+            'transfer_info',
             'valor',
             'observacao',
             'criado_em',
@@ -531,6 +647,7 @@ class AllocationSerializer(serializers.ModelSerializer):
             'receita',
             'despesa',
             'custodia',
+            'transfer',
             'criado_em',
             'atualizado_em'
         )
@@ -588,27 +705,42 @@ class AllocationSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_transfer_info(self, obj):
+        """Retorna informações básicas da transferência"""
+        if obj.transfer:
+            return {
+                'id': obj.transfer.id,
+                'from_bank': obj.transfer.from_bank.nome if obj.transfer.from_bank else None,
+                'to_bank': obj.transfer.to_bank.nome if obj.transfer.to_bank else None,
+                'valor': obj.transfer.valor,
+                'status': obj.transfer.status,
+                'status_display': obj.transfer.get_status_display()
+            }
+        return None
+
     def validate(self, data):
-        """Validação: deve ter receita, despesa OU custódia, mas não mais de um"""
+        """Validação: deve ter receita, despesa, custódia OU transferência, mas não mais de um"""
         receita = data.get('receita')
         despesa = data.get('despesa')
         custodia = data.get('custodia')
+        transfer = data.get('transfer')
 
         # Contar quantas contas foram especificadas
         contas_preenchidas = sum([
             bool(receita),
             bool(despesa),
-            bool(custodia)
+            bool(custodia),
+            bool(transfer)
         ])
 
         if contas_preenchidas == 0:
             raise serializers.ValidationError(
-                "A alocação deve estar vinculada a uma Receita, Despesa ou Custódia."
+                "A alocação deve estar vinculada a uma Receita, Despesa, Custódia ou Transferência."
             )
 
         if contas_preenchidas > 1:
             raise serializers.ValidationError(
-                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa ou Custódia)."
+                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa, Custódia ou Transferência)."
             )
 
         # Validar que o valor é positivo

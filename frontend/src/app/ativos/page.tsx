@@ -29,6 +29,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 export default function AtivosPage() {
   const [custodias, setCustodias] = useState<Custodia[]>([]);
@@ -86,12 +88,15 @@ export default function AtivosPage() {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
+
   // ======================
   // ❌ DELETE
   // ======================
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este ativo de custódia?')) return;
-
+  const handleDeleteAction = async (id: number) => {
     try {
       await deleteCustodia(id);
       toast.success('Ativo de custódia excluído com sucesso!');
@@ -102,26 +107,16 @@ export default function AtivosPage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos um ativo');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} ativo(s) de custódia?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deleteCustodia(Number(id)))
+        ids.map((id) => deleteCustodia(id))
       );
 
-      toast.success(`${selectedRowKeys.length} ativo(s) de custódia excluído(s) com sucesso`);
+      toast.success(`${ids.length} ativo(s) de custódia excluído(s) com sucesso`);
       setSelectedRowKeys([]);
       loadCustodias();
     } catch (error) {
@@ -130,6 +125,30 @@ export default function AtivosPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDelete = (id: number) => {
+    const custodia = custodias.find((c) => c.id === id);
+    confirmDelete(id, custodia?.descricao);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um ativo');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -255,7 +274,7 @@ export default function AtivosPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
             Ativos de Custódia
@@ -335,6 +354,16 @@ export default function AtivosPage() {
           onSubmit={handleSubmit}
           custodia={editingCustodia}
           tipo="A"
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir ativos selecionados?' : 'Excluir ativo?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

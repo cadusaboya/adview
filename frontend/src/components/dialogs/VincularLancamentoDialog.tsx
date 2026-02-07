@@ -19,16 +19,18 @@ import { createAllocation, getAllocations, deleteAllocation } from '@/services/a
 import { getReceitasAbertas, getReceitaById } from '@/services/receitas';
 import { getDespesasAbertas, getDespesaById } from '@/services/despesas';
 import { getCustodiasAbertas, getCustodiaById } from '@/services/custodias';
+import { transfersService } from '@/services/transfers';
 import { LancamentoPendente } from '@/services/relatorios';
 import { Receita } from '@/types/receitas';
 import { Despesa } from '@/types/despesas';
 import { Custodia } from '@/types/custodias';
+import { Transfer } from '@/types/transfer';
 
 // Tipo para uma alocação no formulário
 interface AllocationForm {
   id: string; // ID temporário para gerenciar a lista
   allocation_id?: number; // ID da allocation no backend (se já existe)
-  tipo: 'receita' | 'despesa' | 'custodia';
+  tipo: 'receita' | 'despesa' | 'custodia' | 'transfer';
   entidade_id: number;
   valor: number;
   valorDisplay: string;
@@ -58,6 +60,7 @@ export default function VincularLancamentoDialog({
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [custodias, setCustodias] = useState<Custodia[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
 
   const loadExistingAllocations = useCallback(async () => {
     if (!lancamento) return;
@@ -73,6 +76,7 @@ export default function VincularLancamentoDialog({
         const receitasVinculadas: Receita[] = [];
         const despesasVinculadas: Despesa[] = [];
         const custodiasVinculadas: Custodia[] = [];
+        const transfersVinculadas: Transfer[] = [];
 
         for (const alloc of res.results) {
           try {
@@ -85,6 +89,9 @@ export default function VincularLancamentoDialog({
             } else if (alloc.custodia) {
               const custodia = await getCustodiaById(alloc.custodia);
               custodiasVinculadas.push(custodia);
+            } else if (alloc.transfer) {
+              const transfer = await transfersService.get(alloc.transfer);
+              transfersVinculadas.push(transfer);
             }
           } catch (error) {
             console.error('Erro ao carregar entidade vinculada:', error);
@@ -113,9 +120,16 @@ export default function VincularLancamentoDialog({
           return [...prev, ...novos];
         });
 
+        setTransfers((prev) => {
+          const novos = transfersVinculadas.filter(
+            (t) => !prev.some((p) => p.id === t.id)
+          );
+          return [...prev, ...novos];
+        });
+
         // Mapear alocações existentes
         const existingAllocations: AllocationForm[] = res.results.map((alloc) => {
-          let tipo: 'receita' | 'despesa' | 'custodia' = 'receita';
+          let tipo: 'receita' | 'despesa' | 'custodia' | 'transfer' = 'receita';
           let entidade_id = 0;
 
           if (alloc.receita) {
@@ -127,6 +141,9 @@ export default function VincularLancamentoDialog({
           } else if (alloc.custodia) {
             tipo = 'custodia';
             entidade_id = alloc.custodia;
+          } else if (alloc.transfer) {
+            tipo = 'transfer';
+            entidade_id = alloc.transfer;
           }
 
           return {
@@ -187,6 +204,7 @@ export default function VincularLancamentoDialog({
       loadReceitas();
       loadDespesas();
       loadCustodias();
+      loadTransfers();
 
       // Carregar alocações existentes
       loadExistingAllocations();
@@ -220,6 +238,25 @@ export default function VincularLancamentoDialog({
     } catch (error) {
       console.error('Erro ao carregar custódias:', error);
     }
+  };
+
+  const loadTransfers = async () => {
+    try {
+      const res = await transfersService.list({ page_size: 9999 });
+      setTransfers(res.results);
+    } catch (error) {
+      console.error('Erro ao carregar transferências:', error);
+    }
+  };
+
+  // Função para recarregar todas as listas de entidades
+  const reloadAllEntities = async () => {
+    await Promise.all([
+      loadReceitas(),
+      loadDespesas(),
+      loadCustodias(),
+      loadTransfers(),
+    ]);
   };
 
   // ======================
@@ -330,6 +367,7 @@ export default function VincularLancamentoDialog({
           receita_id?: number;
           despesa_id?: number;
           custodia_id?: number;
+          transfer_id?: number;
         } = {
           payment_id: lancamento.id,
           valor: alloc.valor,
@@ -339,8 +377,10 @@ export default function VincularLancamentoDialog({
           allocationPayload.receita_id = alloc.entidade_id;
         } else if (alloc.tipo === 'despesa') {
           allocationPayload.despesa_id = alloc.entidade_id;
-        } else {
+        } else if (alloc.tipo === 'custodia') {
           allocationPayload.custodia_id = alloc.entidade_id;
+        } else if (alloc.tipo === 'transfer') {
+          allocationPayload.transfer_id = alloc.entidade_id;
         }
 
         await createAllocation(allocationPayload);
@@ -360,6 +400,10 @@ export default function VincularLancamentoDialog({
       }
 
       toast.success(messages.join(' e ') + ' com sucesso');
+
+      // Recarregar as listas de entidades para garantir que apenas itens em aberto apareçam
+      await reloadAllEntities();
+
       onSuccess?.();
       onClose();
     } catch (error) {
@@ -542,6 +586,7 @@ export default function VincularLancamentoDialog({
                         <SelectItem value="despesa">Despesa</SelectItem>
                       )}
                       <SelectItem value="custodia">Custódia</SelectItem>
+                      <SelectItem value="transfer">Transferência</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -553,7 +598,9 @@ export default function VincularLancamentoDialog({
                       ? 'Receita'
                       : alloc.tipo === 'despesa'
                       ? 'Despesa'
-                      : 'Custódia'}{' '}
+                      : alloc.tipo === 'custodia'
+                      ? 'Custódia'
+                      : 'Transferência'}{' '}
                     {index === 0 && '*'}
                   </label>
                   <AntdSelect
@@ -564,7 +611,9 @@ export default function VincularLancamentoDialog({
                         ? 'uma receita'
                         : alloc.tipo === 'despesa'
                         ? 'uma despesa'
-                        : 'uma custódia'
+                        : alloc.tipo === 'custodia'
+                        ? 'uma custódia'
+                        : 'uma transferência'
                     }`}
                     value={alloc.entidade_id || undefined}
                     options={
@@ -578,9 +627,14 @@ export default function VincularLancamentoDialog({
                             value: d.id,
                             label: `${d.nome} - ${d.responsavel?.nome || 'Sem responsável'} - ${formatCurrencyBR(d.valor_aberto ?? d.valor)}`,
                           }))
-                        : custodias.map((c) => ({
+                        : alloc.tipo === 'custodia'
+                        ? custodias.map((c) => ({
                             value: c.id,
                             label: `${c.nome} - ${c.cliente?.nome || c.cliente_nome || c.funcionario?.nome || c.funcionario_nome || '-'} - ${formatCurrencyBR(c.valor_aberto ?? (c.valor_total - c.valor_liquidado))}`,
+                          }))
+                        : transfers.map((t) => ({
+                            value: t.id,
+                            label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatCurrencyBR(parseFloat(t.valor))} - ${t.status_display}`,
                           }))
                     }
                     onChange={(val) => {
@@ -603,6 +657,21 @@ export default function VincularLancamentoDialog({
                         const custodia = custodias.find((c) => c.id === val);
                         if (custodia) {
                           valorAberto = custodia.valor_aberto ?? (custodia.valor_total - custodia.valor_liquidado);
+                        }
+                      } else if (alloc.tipo === 'transfer') {
+                        const transfer = transfers.find((t) => t.id === val);
+                        if (transfer) {
+                          // Para transferências, usar o valor da transferência menos o que já foi alocado
+                          const valorTransfer = parseFloat(transfer.valor);
+                          const valorSaida = parseFloat(transfer.valor_saida);
+                          const valorEntrada = parseFloat(transfer.valor_entrada);
+
+                          // Se for saída, usar valor - valor_saida, se for entrada, usar valor - valor_entrada
+                          if (lancamento.tipo === 'Saída') {
+                            valorAberto = Math.max(0, valorTransfer - valorSaida);
+                          } else {
+                            valorAberto = Math.max(0, valorTransfer - valorEntrada);
+                          }
                         }
                       }
 
@@ -693,8 +762,8 @@ export default function VincularLancamentoDialog({
             </li>
             <li>
               {lancamento.tipo === 'Entrada'
-                ? 'Entradas podem ser vinculadas a Receitas ou Custódias'
-                : 'Saídas podem ser vinculadas a Despesas ou Custódias'}
+                ? 'Entradas podem ser vinculadas a Receitas, Custódias ou Transferências'
+                : 'Saídas podem ser vinculadas a Despesas, Custódias ou Transferências'}
             </li>
           </ul>
         </div>

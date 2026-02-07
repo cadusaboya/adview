@@ -74,6 +74,14 @@ class Cliente(models.Model):
     telefone = models.CharField(max_length=20, blank=True, null=True)
     aniversario = models.DateField(blank=True, null=True)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)
+    comissionado = models.ForeignKey(
+        'Funcionario',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        limit_choices_to={'tipo__in': ['F', 'P']},
+        verbose_name='Funcionário Comissionado'
+    )
 
     def __str__(self):
         return self.nome
@@ -141,7 +149,6 @@ class Receita(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     valor_pago = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     forma_pagamento = models.CharField(max_length=1, choices=FORMA_CHOICES, blank=True, null=True)
-    comissionado = models.ForeignKey(Funcionario, on_delete=models.SET_NULL, blank=True, null=True, limit_choices_to={'tipo__in': ['F', 'P']}) # Only Funcionário or Parceiro
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)
     situacao = models.CharField(max_length=1, choices=SITUACAO_CHOICES, default='A')
 
@@ -196,14 +203,6 @@ class ReceitaRecorrente(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, default='F')
     forma_pagamento = models.CharField(max_length=1, choices=FORMA_CHOICES, blank=True, null=True)
-    comissionado = models.ForeignKey(
-        Funcionario,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        limit_choices_to={'tipo__in': ['F', 'P']},
-        help_text="Funcionário ou Parceiro que receberá comissão"
-    )
 
     # Recorrência
     data_inicio = models.DateField(
@@ -518,9 +517,84 @@ class Custodia(models.Model):
         self.save()
 
 
+class Transfer(models.Model):
+    """
+    Representa transferências entre contas bancárias.
+    Status é calculado baseado nas alocações de pagamentos:
+    - Pendente: sem allocations vinculadas
+    - Mismatch: soma das saídas ≠ soma das entradas
+    - Completo: saídas = entradas
+    """
+    STATUS_CHOICES = (
+        ('P', 'Pendente'),
+        ('M', 'Mismatch'),
+        ('C', 'Completo'),
+    )
+
+    company = models.ForeignKey('Company', on_delete=models.CASCADE)
+
+    # Contas bancárias origem e destino
+    from_bank = models.ForeignKey(
+        'ContaBancaria',
+        on_delete=models.PROTECT,
+        related_name='transfers_out',
+        verbose_name='Banco de Origem'
+    )
+    to_bank = models.ForeignKey(
+        'ContaBancaria',
+        on_delete=models.PROTECT,
+        related_name='transfers_in',
+        verbose_name='Banco de Destino'
+    )
+
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    data_transferencia = models.DateField()
+    descricao = models.TextField(blank=True, null=True)
+
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='P')
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Transferência"
+        verbose_name_plural = "Transferências"
+        ordering = ['-data_transferencia', '-criado_em']
+
+    def __str__(self):
+        return f"Transferência de {self.from_bank.nome} para {self.to_bank.nome} - R$ {self.valor}"
+
+    def atualizar_status(self):
+        """
+        Atualiza o status baseado nas alocações:
+        - Pendente: sem allocations
+        - Mismatch: total saídas ≠ total entradas
+        - Completo: saídas = entradas
+        """
+        # Calcula total de saídas (do banco origem)
+        total_saidas = self.allocations.filter(
+            payment__tipo='S'
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+        # Calcula total de entradas (no banco destino)
+        total_entradas = self.allocations.filter(
+            payment__tipo='E'
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+        # Determina o status
+        if total_saidas == Decimal('0.00') and total_entradas == Decimal('0.00'):
+            self.status = 'P'  # Pendente
+        elif total_saidas == total_entradas:
+            self.status = 'C'  # Completo
+        else:
+            self.status = 'M'  # Mismatch
+
+        self.save()
+
+
 class Allocation(models.Model):
     """
-    Alocação de um pagamento a uma conta (Receita, Despesa ou Passivo).
+    Alocação de um pagamento a uma conta (Receita, Despesa, Custódia ou Transferência).
     Permite dividir um único pagamento entre múltiplas contas.
     """
     company = models.ForeignKey('Company', on_delete=models.CASCADE)
@@ -553,6 +627,14 @@ class Allocation(models.Model):
         related_name='allocations',
         help_text="Custódia para a qual este pagamento foi alocado"
     )
+    transfer = models.ForeignKey(
+        'Transfer',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='allocations',
+        help_text="Transferência para a qual este pagamento foi alocado"
+    )
 
     # Valor alocado para essa conta
     valor = models.DecimalField(
@@ -578,6 +660,8 @@ class Allocation(models.Model):
             return f"Alocação de R$ {self.valor} para Despesa: {self.despesa.nome}"
         elif self.custodia:
             return f"Alocação de R$ {self.valor} para Custódia: {self.custodia.nome}"
+        elif self.transfer:
+            return f"Alocação de R$ {self.valor} para Transferência: {self.transfer}"
         return f"Alocação {self.id} - R$ {self.valor}"
 
     def clean(self):
@@ -587,17 +671,18 @@ class Allocation(models.Model):
         contas_preenchidas = sum([
             bool(self.receita),
             bool(self.despesa),
-            bool(self.custodia)
+            bool(self.custodia),
+            bool(self.transfer)
         ])
 
         if contas_preenchidas == 0:
             raise ValidationError(
-                "A alocação deve estar vinculada a uma Receita, Despesa ou Custódia."
+                "A alocação deve estar vinculada a uma Receita, Despesa, Custódia ou Transferência."
             )
 
         if contas_preenchidas > 1:
             raise ValidationError(
-                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa ou Custódia)."
+                "A alocação só pode estar vinculada a uma única conta (Receita, Despesa, Custódia ou Transferência)."
             )
 
         # Validar que o valor é positivo

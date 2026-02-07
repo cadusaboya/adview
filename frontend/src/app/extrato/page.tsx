@@ -21,7 +21,7 @@ import { Payment, PaymentCreate } from '@/types/payments';
 interface AllocationForm {
   id: string;
   allocation_id?: number;
-  tipo: 'receita' | 'despesa' | 'custodia';
+  tipo: 'receita' | 'despesa' | 'custodia' | 'transfer';
   entidade_id: number;
   valor: number;
   valorDisplay: string;
@@ -33,6 +33,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Trash, Upload, Pencil, GitMerge } from 'lucide-react';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 export default function ExtratoPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -59,6 +61,11 @@ export default function ExtratoPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
 
   // ======================
   // 🔄 LOAD PAYMENTS
@@ -90,9 +97,7 @@ export default function ExtratoPage() {
   // ======================
   // ❌ DELETE PAYMENT
   // ======================
-  const handleDeletePayment = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este pagamento?')) return;
-
+  const handleDeletePaymentAction = async (id: number) => {
     try {
       await deletePayment(id);
       toast.success('Pagamento excluído com sucesso!');
@@ -103,25 +108,15 @@ export default function ExtratoPage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos um pagamento');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} pagamento(s)?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       await Promise.all(
-        selectedRowKeys.map((id) => deletePayment(Number(id)))
+        ids.map((id) => deletePayment(id))
       );
 
-      toast.success(`${selectedRowKeys.length} pagamento(s) excluído(s) com sucesso`);
+      toast.success(`${ids.length} pagamento(s) excluído(s) com sucesso`);
       setSelectedRowKeys([]);
       loadData();
     } catch (error) {
@@ -130,6 +125,30 @@ export default function ExtratoPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeletePaymentAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDeletePayment = (id: number) => {
+    const payment = payments.find((p) => p.id === id);
+    confirmDelete(id, payment?.observacao);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um pagamento');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -310,6 +329,13 @@ export default function ExtratoPage() {
                 </div>
               );
             }
+            if (alloc.transfer) {
+              return (
+                <div key={idx} className="text-sm">
+                  {alloc.transfer.from_bank} → {alloc.transfer.to_bank}
+                </div>
+              );
+            }
             return null;
           });
         }
@@ -367,7 +393,7 @@ export default function ExtratoPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
             Extrato de Pagamentos
@@ -464,6 +490,16 @@ export default function ExtratoPage() {
           open={openConciliacaoDialog}
           onClose={() => setOpenConciliacaoDialog(false)}
           onSuccess={loadData}
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir pagamentos selecionados?' : 'Excluir pagamento?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

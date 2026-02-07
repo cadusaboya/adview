@@ -308,7 +308,7 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <NavbarNested />
-      <div className="bg-muted min-h-screen w-full p-6">
+      <div className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
