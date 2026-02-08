@@ -15,6 +15,12 @@ yarn-error.log*
 pnpm-debug.log*
 pip-log.txt
 
+# Arquivos de migração de dados (NUNCA commitar - contêm dados sensíveis!)
+backend/dados_*.json
+backend/**/dados_*.json
+backend/backup_*.sql
+backend/backup_*.dump
+
 # IDEs e editores
 .vscode/
 .idea/
