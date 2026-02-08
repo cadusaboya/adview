@@ -1250,37 +1250,29 @@ def recibo_pagamento(request):
     margin = 50
     y = height - margin
 
-    # ========== CABEÇALHO COM LOGO E WEBSITE ==========
-    # Logo FRS (se existir)
+    # ========== CABEÇALHO COM LOGO CENTRALIZADA ==========
+    # Logo FRS centralizada (se existir)
     if company.logo:
         try:
             from reportlab.lib.utils import ImageReader
             logo_path = company.logo.path
-            # Logo no canto superior esquerdo
-            pdf.drawImage(logo_path, margin, y - 60, width=120, height=60, preserveAspectRatio=True, mask='auto')
+            # Logo centralizada no topo com tamanho aumentado
+            logo_width = 180
+            logo_height = 90
+            logo_x = (width - logo_width) / 2
+            pdf.drawImage(logo_path, logo_x, y - 70, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
         except Exception as e:
-            # Se falhar, apenas desenha o nome da empresa
+            # Se falhar, apenas desenha o nome da empresa centralizado
             pdf.setFont("Helvetica-Bold", 18)
             pdf.setFillColor(color_navy)
-            pdf.drawString(margin, y - 40, company.name)
+            pdf.drawCentredString(width / 2, y - 40, company.name)
     else:
-        # Se não tiver logo, desenha o nome da empresa
+        # Se não tiver logo, desenha o nome da empresa centralizado
         pdf.setFont("Helvetica-Bold", 18)
         pdf.setFillColor(color_navy)
-        pdf.drawString(margin, y - 40, company.name)
+        pdf.drawCentredString(width / 2, y - 40, company.name)
 
-    # Website no canto superior direito (valor fixo por enquanto)
-    pdf.setFont("Helvetica", 10)
-    pdf.setFillColor(color_text)
-    website = "frsadv.com.br"  # Fixo por enquanto
-    pdf.drawRightString(width - margin, y - 20, website)
-
-    # Slogan
-    pdf.setFont("Helvetica-Oblique", 9)
-    pdf.setFillColor(colors.HexColor("#6B7280"))
-    pdf.drawString(margin, y - 75, "advocacia e consultoria")
-
-    y -= 100
+    y -= 90
 
     # ========== TÍTULO COM FUNDO CINZA ==========
     # Retângulo de fundo cinza
@@ -1296,7 +1288,7 @@ def recibo_pagamento(request):
     y -= 50
 
     # ========== MARCA D'ÁGUA (opcional) ==========
-    # Desenhar marca d'água FRS grande no centro/fundo
+    # Desenhar marca d'água FRS no quadrante inferior direito (270-360 graus)
     if company.logo:
         try:
             from reportlab.lib.utils import ImageReader
@@ -1304,10 +1296,10 @@ def recibo_pagamento(request):
             pdf.saveState()
             # Configurar transparência para marca d'água
             pdf.setFillAlpha(0.05)  # 5% de opacidade
-            # Desenhar logo grande no centro do documento
+            # Desenhar logo grande no canto inferior direito (quadrante 270-360 graus)
             watermark_size = 300
-            watermark_x = (width - watermark_size) / 2
-            watermark_y = (height - watermark_size) / 2
+            watermark_x = width - watermark_size - margin
+            watermark_y = margin
             pdf.drawImage(
                 company.logo.path,
                 watermark_x,
