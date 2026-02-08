@@ -39,6 +39,8 @@ interface Props {
   onClose: () => void;
   onSubmit: (data: ReceitaCreate | ReceitaUpdate) => Promise<void>;
   receita?: Receita | null;
+  initialBancos?: { id: number; nome: string }[];
+  initialClientes?: Cliente[];
 }
 
 export default function ReceitaDialog({
@@ -46,31 +48,37 @@ export default function ReceitaDialog({
   onClose,
   onSubmit,
   receita,
+  initialBancos,
+  initialClientes,
 }: Props) {
-  // Load auxiliary data in parallel
-  const { data: bancos, loading: loadingBancos } = useLoadAuxiliaryData({
+  // Load auxiliary data in parallel (or use initial data if provided)
+  const { data: bancosFromHook, loading: loadingBancos } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getBancos({ page_size: 1000 });
       return res.results.map((b) => ({ id: b.id, nome: b.nome }));
     },
-    onOpen: open,
+    onOpen: open && !initialBancos, // Only load if not provided
     errorMessage: 'Erro ao carregar bancos',
   });
 
-  const { data: clientes, loading: loadingClientes } = useLoadAuxiliaryData({
+  const { data: clientesFromHook, loading: loadingClientes } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getClientes({ page_size: 1000 });
       return res.results;
     },
-    onOpen: open,
+    onOpen: open && !initialClientes, // Only load if not provided
     errorMessage: 'Erro ao carregar clientes',
   });
+
+  // Use initial data if provided, otherwise use hook data
+  const bancos = initialBancos || bancosFromHook;
+  const clientes = initialClientes || clientesFromHook;
 
   // Check if auxiliary data is still loading (only when editing)
   // Considera tanto o estado de loading quanto a disponibilidade dos dados
   const isLoadingAuxData = receita && (
-    loadingBancos ||
-    loadingClientes ||
+    (!initialBancos && loadingBancos) ||
+    (!initialClientes && loadingClientes) ||
     !bancos ||
     !clientes
   );

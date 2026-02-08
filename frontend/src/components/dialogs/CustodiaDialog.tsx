@@ -30,6 +30,9 @@ interface Props {
   onSubmit: (data: CustodiaCreate | CustodiaUpdate) => Promise<void>;
   custodia?: Custodia | null;
   tipo: 'P' | 'A'; // P = Passivo, A = Ativo (vem da página)
+  initialFuncionarios?: Funcionario[];
+  initialClientes?: Cliente[];
+  initialBancos?: { id: number; nome: string }[];
 }
 
 export default function CustodiaDialog({
@@ -38,43 +41,51 @@ export default function CustodiaDialog({
   onSubmit,
   custodia,
   tipo,
+  initialFuncionarios,
+  initialClientes,
+  initialBancos,
 }: Props) {
   const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
 
-  // Load auxiliary data in parallel
-  const { data: funcionarios, loading: loadingFuncionarios } = useLoadAuxiliaryData({
+  // Load auxiliary data in parallel (or use initial data if provided)
+  const { data: funcionariosFromHook, loading: loadingFuncionarios } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getFuncionarios({ page_size: 1000 });
       return res.results;
     },
-    onOpen: open,
+    onOpen: open && !initialFuncionarios, // Only load if not provided
     errorMessage: 'Erro ao carregar funcionários',
   });
 
-  const { data: clientes, loading: loadingClientes } = useLoadAuxiliaryData({
+  const { data: clientesFromHook, loading: loadingClientes } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getClientes({ page_size: 1000 });
       return res.results;
     },
-    onOpen: open,
+    onOpen: open && !initialClientes, // Only load if not provided
     errorMessage: 'Erro ao carregar clientes',
   });
 
-  const { data: bancos, loading: loadingBancos } = useLoadAuxiliaryData({
+  const { data: bancosFromHook, loading: loadingBancos } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getBancos({ page_size: 1000 });
       return res.results.map((b) => ({ id: b.id, nome: b.nome }));
     },
-    onOpen: open,
+    onOpen: open && !initialBancos, // Only load if not provided
     errorMessage: 'Erro ao carregar bancos',
   });
+
+  // Use initial data if provided, otherwise use hook data
+  const funcionarios = initialFuncionarios || funcionariosFromHook;
+  const clientes = initialClientes || clientesFromHook;
+  const bancos = initialBancos || bancosFromHook;
 
   // Check if auxiliary data is still loading (only when editing)
   // Considera tanto o estado de loading quanto a disponibilidade dos dados
   const isLoadingAuxData = custodia && (
-    loadingFuncionarios ||
-    loadingClientes ||
-    loadingBancos ||
+    (!initialFuncionarios && loadingFuncionarios) ||
+    (!initialClientes && loadingClientes) ||
+    (!initialBancos && loadingBancos) ||
     !funcionarios ||
     !clientes ||
     !bancos

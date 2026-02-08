@@ -35,6 +35,7 @@ import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
+import { getBancos } from '@/services/bancos';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -58,6 +59,9 @@ export default function DespesasPage() {
 
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
   const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
+
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
+  const [bancosLoaded, setBancosLoaded] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -116,6 +120,31 @@ export default function DespesasPage() {
     } catch (error) {
       console.error('Erro ao carregar favorecidos:', error);
     }
+  };
+
+  // ======================
+  // 🏦 BANCOS (LAZY)
+  // ======================
+  const loadBancos = async () => {
+    if (bancosLoaded) return;
+
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })));
+      setBancosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
+
+  // ======================
+  // 🔄 PREFETCH (quando clica para editar)
+  // ======================
+  const prefetchAuxiliaryData = async () => {
+    await Promise.all([
+      loadFavorecidos(),
+      loadBancos(),
+    ]);
   };
 
   // ======================
@@ -272,9 +301,11 @@ export default function DespesasPage() {
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: () => {
+              onClick: async () => {
                 setEditingDespesa(record);
                 setOpenDialog(true);
+                // Prefetch auxiliary data in background
+                await prefetchAuxiliaryData();
               },
             },
             {
@@ -372,6 +403,8 @@ export default function DespesasPage() {
             // loadDespesas() é chamado no handleSubmit após salvar com sucesso
           }}
           onSubmit={handleSubmit}
+          initialBancos={bancos}
+          initialFavorecidos={favorecidos}
         />
 
         <RelatorioFiltrosModal

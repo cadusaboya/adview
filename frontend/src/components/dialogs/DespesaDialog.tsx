@@ -36,6 +36,8 @@ interface Props {
   onClose: () => void;
   onSubmit: (data: DespesaCreate | DespesaUpdate) => Promise<void>;
   despesa?: Despesa | null;
+  initialBancos?: { id: number; nome: string }[];
+  initialFavorecidos?: Favorecido[];
 }
 
 export default function DespesaDialog({
@@ -43,31 +45,37 @@ export default function DespesaDialog({
   onClose,
   onSubmit,
   despesa,
+  initialBancos,
+  initialFavorecidos,
 }: Props) {
-  // Load auxiliary data in parallel
-  const { data: bancos, loading: loadingBancos } = useLoadAuxiliaryData({
+  // Load auxiliary data in parallel (or use initial data if provided)
+  const { data: bancosFromHook, loading: loadingBancos } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getBancos({ page_size: 1000 });
       return res.results.map((b) => ({ id: b.id, nome: b.nome }));
     },
-    onOpen: open,
+    onOpen: open && !initialBancos, // Only load if not provided
     errorMessage: 'Erro ao carregar bancos',
   });
 
-  const { data: favorecidos, loading: loadingFavorecidos } = useLoadAuxiliaryData({
+  const { data: favorecidosFromHook, loading: loadingFavorecidos } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getFavorecidos({ page_size: 1000 });
       return res.results;
     },
-    onOpen: open,
+    onOpen: open && !initialFavorecidos, // Only load if not provided
     errorMessage: 'Erro ao carregar favorecidos',
   });
+
+  // Use initial data if provided, otherwise use hook data
+  const bancos = initialBancos || bancosFromHook;
+  const favorecidos = initialFavorecidos || favorecidosFromHook;
 
   // Check if auxiliary data is still loading (only when editing)
   // Considera tanto o estado de loading quanto a disponibilidade dos dados
   const isLoadingAuxData = despesa && (
-    loadingBancos ||
-    loadingFavorecidos ||
+    (!initialBancos && loadingBancos) ||
+    (!initialFavorecidos && loadingFavorecidos) ||
     !bancos ||
     !favorecidos
   );

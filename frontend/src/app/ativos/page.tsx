@@ -26,6 +26,11 @@ import {
 
 import { formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { getFuncionarios } from '@/services/funcionarios';
+import { getClientes } from '@/services/clientes';
+import { getBancos } from '@/services/bancos';
+import { Funcionario } from '@/types/funcionarios';
+import { Cliente } from '@/types/clientes';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
@@ -47,6 +52,14 @@ export default function AtivosPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // Auxiliary data for prefetch
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [funcionariosLoaded, setFuncionariosLoaded] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesLoaded, setClientesLoaded] = useState(false);
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
+  const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // ======================
   // 🔄 LOAD DATA
@@ -98,6 +111,50 @@ export default function AtivosPage() {
   useEffect(() => {
     setSelectedRowKeys([]);
   }, [page, pageSize]);
+
+  // ======================
+  // 🔄 PREFETCH AUXILIARY DATA
+  // ======================
+  const loadFuncionarios = async () => {
+    if (funcionariosLoaded) return;
+    try {
+      const res = await getFuncionarios({ page_size: 1000 });
+      setFuncionarios(res.results);
+      setFuncionariosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  };
+
+  const loadClientes = async () => {
+    if (clientesLoaded) return;
+    try {
+      const res = await getClientes({ page_size: 1000 });
+      setClientes(res.results);
+      setClientesLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+    }
+  };
+
+  const loadBancos = async () => {
+    if (bancosLoaded) return;
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })));
+      setBancosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
+
+  const prefetchAuxiliaryData = async () => {
+    await Promise.all([
+      loadFuncionarios(),
+      loadClientes(),
+      loadBancos(),
+    ]);
+  };
 
   // ======================
   // ❌ DELETE
@@ -256,9 +313,11 @@ export default function AtivosPage() {
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: () => {
+              onClick: async () => {
                 setEditingCustodia(record);
                 setOpenDialog(true);
+                // Prefetch auxiliary data in background
+                await prefetchAuxiliaryData();
               },
             },
             {
@@ -360,6 +419,9 @@ export default function AtivosPage() {
           onSubmit={handleSubmit}
           custodia={editingCustodia}
           tipo="A"
+          initialFuncionarios={funcionarios}
+          initialClientes={clientes}
+          initialBancos={bancos}
         />
 
         <DeleteConfirmationDialog

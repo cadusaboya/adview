@@ -28,6 +28,7 @@ import {
 
 import { getClientes } from '@/services/clientes';
 import { Cliente } from '@/types/clientes';
+import { getBancos } from '@/services/bancos';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
@@ -54,6 +55,9 @@ export default function ReceitasPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesLoaded, setClientesLoaded] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
+  const [bancosLoaded, setBancosLoaded] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -111,6 +115,31 @@ export default function ReceitasPage() {
       toast.error('Erro ao carregar lista de clientes');
     }
   }, [clientesLoaded]);
+
+  // ======================
+  // 🏦 BANCOS (LAZY)
+  // ======================
+  const loadBancos = async () => {
+    if (bancosLoaded) return;
+
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })));
+      setBancosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
+
+  // ======================
+  // 🔄 PREFETCH (quando clica para editar)
+  // ======================
+  const prefetchAuxiliaryData = async () => {
+    await Promise.all([
+      loadClientes(),
+      loadBancos(),
+    ]);
+  };
 
   // ======================
   // ❌ DELETE
@@ -260,9 +289,11 @@ export default function ReceitasPage() {
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: () => {
+              onClick: async () => {
                 setEditingReceita(record);
                 setOpenDialog(true);
+                // Prefetch auxiliary data in background
+                await prefetchAuxiliaryData();
               },
             },
             {
@@ -362,6 +393,8 @@ export default function ReceitasPage() {
           }}
           receita={editingReceita}
           onSubmit={handleSubmit}
+          initialBancos={bancos}
+          initialClientes={clientes}
         />
 
 
