@@ -54,7 +54,7 @@ export default function PassivosPage() {
   const loadCustodias = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {
+      const params: { page: number; page_size: number; search: string; tipo: 'A' | 'P'; status?: string } = {
         page,
         page_size: pageSize,
         search: debouncedSearch,

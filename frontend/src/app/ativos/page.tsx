@@ -24,7 +24,7 @@ import {
   CustodiaUpdate,
 } from '@/types/custodias';
 
-import { formatCurrencyBR, formatDateBR } from '@/lib/formatters';
+import { formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
@@ -54,7 +54,13 @@ export default function AtivosPage() {
   const loadCustodias = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {
+      const params: {
+        page: number;
+        page_size: number;
+        search: string;
+        tipo: 'A' | 'P';
+        status?: string;
+      } = {
         page,
         page_size: pageSize,
         search: debouncedSearch,

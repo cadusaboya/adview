@@ -289,7 +289,7 @@ export default function FuncionarioPage() {
               placeholder="Buscar funcionários..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-full md:w-80"
             />
             {selectedRowKeys.length > 0 && (
               <Button

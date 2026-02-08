@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
 
@@ -93,7 +93,7 @@ export default function DespesasPage() {
       setTotal(res.count);
     } catch (error) {
       console.error(error);
-      message.error('Erro ao buscar despesas');
+      toast.error('Erro ao buscar despesas');
     } finally {
       setLoading(false);
     }
@@ -305,7 +305,7 @@ export default function DespesasPage() {
               placeholder="Buscar despesas..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-full md:w-80"
             />
 
             {selectedRowKeys.length > 0 && (
@@ -369,7 +369,7 @@ export default function DespesasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingDespesa(null);
-            loadDespesas(); // Refetch para atualizar mudanças (ex: pagamentos)
+            // loadDespesas() é chamado no handleSubmit após salvar com sucesso
           }}
           onSubmit={handleSubmit}
         />

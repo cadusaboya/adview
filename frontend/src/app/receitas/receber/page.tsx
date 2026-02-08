@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -52,6 +52,7 @@ export default function ReceitasPage() {
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesLoaded, setClientesLoaded] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   const [total, setTotal] = useState(0);
@@ -76,7 +77,7 @@ export default function ReceitasPage() {
       setTotal(res.count);
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
-      message.error('Erro ao buscar receitas');
+      toast.error('Erro ao buscar receitas');
     } finally {
       setLoading(false);
     }
@@ -97,18 +98,19 @@ export default function ReceitasPage() {
   }, [page, pageSize]);
 
   // ======================
-  // 🔄 CLIENTES (RELATÓRIO)
+  // 🔄 CLIENTES (RELATÓRIO) - Lazy load
   // ======================
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await getClientes({ page_size: 1000 });
-        setClientes(res.results);
-      } catch (error) {
-        console.error('Erro ao carregar clientes:', error);
-      }
-    })();
-  }, []);
+  const loadClientes = useCallback(async () => {
+    if (clientesLoaded) return;
+    try {
+      const res = await getClientes({ page_size: 1000 });
+      setClientes(res.results);
+      setClientesLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+      toast.error('Erro ao carregar lista de clientes');
+    }
+  }, [clientesLoaded]);
 
   // ======================
   // ❌ DELETE
@@ -293,7 +295,7 @@ export default function ReceitasPage() {
               placeholder="Buscar por nome, cliente, valor, data..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-full md:w-80"
             />
 
             {selectedRowKeys.length > 0 && (
@@ -309,7 +311,10 @@ export default function ReceitasPage() {
 
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => setOpenRelatorioModal(true)}
+              onClick={async () => {
+                await loadClientes();
+                setOpenRelatorioModal(true);
+              }}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
@@ -353,7 +358,7 @@ export default function ReceitasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
-            loadReceitas(); // Refetch para atualizar mudanças (ex: pagamentos)
+            // loadReceitas() é chamado no handleSubmit após salvar com sucesso
           }}
           receita={editingReceita}
           onSubmit={handleSubmit}

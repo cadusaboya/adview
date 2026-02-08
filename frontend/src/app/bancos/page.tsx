@@ -213,7 +213,7 @@ export default function BancosPage() {
 
   const handleDeleteTransfer = (id: number) => {
     const transfer = transfers.find((t) => t.id === id);
-    const transferName = transfer ? `${formatCurrencyBR(transfer.valor)} de ${transfer.conta_origem_nome} para ${transfer.conta_destino_nome}` : undefined;
+    const transferName = transfer ? `${formatCurrencyBR(transfer.valor)} de ${transfer.from_bank_nome} para ${transfer.to_bank_nome}` : undefined;
     confirmDeleteTransfer(id, transferName);
   };
 

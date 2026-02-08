@@ -14,6 +14,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { getFuncionarios } from '@/services/funcionarios';
+import { Funcionario } from '@/types/funcionarios';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -21,7 +22,7 @@ export default function ComissoesPage() {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [funcionarioId, setFuncionarioId] = useState<string>('todos');
-  const [funcionarios, setFuncionarios] = useState<any[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function ComissoesPage() {
       const response = await getFuncionarios({ page: 1, page_size: 1000 });
       // Filtrar apenas Funcionários (F) e Parceiros (P)
       const filtered = response.results.filter(
-        (f: any) => f.tipo === 'F' || f.tipo === 'P'
+        (f: Funcionario) => f.tipo === 'F' || f.tipo === 'P'
       );
       setFuncionarios(filtered);
     } catch (error) {
@@ -45,7 +46,7 @@ export default function ComissoesPage() {
     try {
       setLoading(true);
 
-      const payload: any = {
+      const payload: { mes: number; ano: number; funcionario_id?: number } = {
         mes,
         ano,
       };
@@ -185,7 +186,7 @@ export default function ComissoesPage() {
                   <li>Total geral de comissões do período</li>
                 </ul>
                 <p className="mt-4 text-xs">
-                  <strong>Dica:</strong> Deixe o campo "Funcionário" como "Todos"
+                  <strong>Dica:</strong> Deixe o campo &quot;Funcionário&quot; como &quot;Todos&quot;
                   para gerar um relatório consolidado com todos os comissionados,
                   ou selecione um funcionário específico para ver apenas as
                   comissões dele.

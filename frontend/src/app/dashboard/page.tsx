@@ -353,13 +353,13 @@ export default function DashboardPage() {
           {/* Alerts Row - Despesas e Receitas Vencidas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
-              title="Despesas Vencidas"
+              title="Qtd. Despesas Vencidas"
               value={data.despesasVencidas.toString()}
               icon={<AlertCircle className="w-6 h-6" />}
               color="red"
             />
             <StatCard
-              title="Despesas Vencidas"
+              title="Valor Despesas Vencidas"
               value={data.valorDespesasVencidas}
               icon={<TrendingDown className="w-6 h-6" />}
               color="red"
