@@ -9,7 +9,8 @@ from .models import (
     Receita,
     Despesa,
     Payment,
-    ContaBancaria
+    ContaBancaria,
+    Custodia
 )
 
 # =========================
@@ -130,11 +131,33 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'company',
+        'tipo',
         'valor',
         'data_pagamento',
-        'conta_bancaria',
-        'receita',
-        'despesa'
+        'conta_bancaria'
     )
-    list_filter = ('company', 'conta_bancaria')
+    list_filter = ('company', 'tipo', 'conta_bancaria')
     date_hierarchy = 'data_pagamento'
+
+
+# =========================
+# PASSIVO
+# =========================
+@admin.register(Custodia)
+class CustodiaAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'nome',
+        'tipo',
+        'company',
+        'cliente',
+        'funcionario',
+        'valor_total',
+        'valor_liquidado',
+        'status',
+        'criado_em'
+    )
+    list_filter = ('company', 'tipo', 'status')
+    search_fields = ('nome', 'cliente__nome', 'funcionario__nome')
+    date_hierarchy = 'criado_em'
+    readonly_fields = ('status', 'criado_em', 'atualizado_em')

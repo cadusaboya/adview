@@ -9,8 +9,6 @@ export interface Receita {
   data_vencimento: string;
   tipo: 'F' | 'V' | 'E';
   forma_pagamento?: 'P' | 'B';
-  comissionado?: { id: number; nome: string };
-  comissionado_id?: number | null;
   situacao: 'A' | 'P' | 'V';
 }
 
@@ -22,7 +20,6 @@ export type ReceitaCreate = {
   data_vencimento: string;
   tipo: 'F' | 'V' | 'E';
   forma_pagamento?: 'P' | 'B';
-  comissionado_id?: number | null;
 };
 
 export type ReceitaUpdate = Partial<ReceitaCreate>;

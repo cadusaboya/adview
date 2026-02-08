@@ -50,6 +50,7 @@ export default function DespesasRecorrentesPage() {
   const debouncedSearch = useDebounce(search, 300);
   const [showGerarMesAlert, setShowGerarMesAlert] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState('');
+  const [anoSelecionado, setAnoSelecionado] = useState('');
 
   const [showGerarProximosMesesDialog, setShowGerarProximosMesesDialog] = useState(false);
   const [despesaSelecionada, setDespesaSelecionada] = useState<DespesaRecorrente | null>(null);
@@ -57,7 +58,7 @@ export default function DespesasRecorrentesPage() {
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -81,7 +82,7 @@ export default function DespesasRecorrentesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadDespesas();
@@ -91,6 +92,11 @@ export default function DespesasRecorrentesPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
 
   // ======================
   // ❌ DELETE
@@ -200,7 +206,13 @@ export default function DespesasRecorrentesPage() {
     setShowGerarMesAlert(false);
 
     try {
-      const result = await gerarDespesasDoMes(mesSelecionado || undefined);
+      // Combinar mês e ano no formato YYYY-MM, se ambos estiverem preenchidos
+      let mesFormatado: string | undefined = undefined;
+      if (mesSelecionado && anoSelecionado) {
+        mesFormatado = `${anoSelecionado}-${mesSelecionado.padStart(2, '0')}`;
+      }
+
+      const result = await gerarDespesasDoMes(mesFormatado);
 
       if (result.criadas > 0) {
         toast.success(
@@ -215,6 +227,7 @@ export default function DespesasRecorrentesPage() {
       }
 
       setMesSelecionado('');
+      setAnoSelecionado('');
       loadDespesas();
     } catch (error) {
       console.error(error);
@@ -357,7 +370,7 @@ export default function DespesasRecorrentesPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
             Despesas Recorrentes
@@ -411,6 +424,12 @@ export default function DespesasRecorrentesPage() {
             pageSize,
             total,
             onChange: (p) => setPage(p),
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onShowSizeChange: (_, size) => {
+              setPageSize(size);
+              setPage(1);
+            },
           }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
@@ -432,23 +451,56 @@ export default function DespesasRecorrentesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Gerar Despesas do Mês</AlertDialogTitle>
               <AlertDialogDescription>
-                Selecione o mês para gerar as despesas recorrentes ativas.
+                Selecione o mês e ano para gerar as despesas recorrentes ativas.
                 Deixe em branco para gerar o mês atual.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="py-4">
-              <label className="text-sm font-medium mb-2 block">
-                Mês (opcional)
-              </label>
-              <Input
-                type="month"
-                value={mesSelecionado}
-                onChange={(e) => setMesSelecionado(e.target.value)}
-                placeholder="Selecione o mês"
-              />
+            <div className="py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Mês (opcional)
+                  </label>
+                  <select
+                    value={mesSelecionado}
+                    onChange={(e) => setMesSelecionado(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Selecione</option>
+                    <option value="1">Janeiro</option>
+                    <option value="2">Fevereiro</option>
+                    <option value="3">Março</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Maio</option>
+                    <option value="6">Junho</option>
+                    <option value="7">Julho</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Setembro</option>
+                    <option value="10">Outubro</option>
+                    <option value="11">Novembro</option>
+                    <option value="12">Dezembro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Ano (opcional)
+                  </label>
+                  <Input
+                    type="number"
+                    value={anoSelecionado}
+                    onChange={(e) => setAnoSelecionado(e.target.value)}
+                    placeholder="2024"
+                    min="2000"
+                    max="2099"
+                  />
+                </div>
+              </div>
             </div>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setMesSelecionado('')}>
+              <AlertDialogCancel onClick={() => {
+                setMesSelecionado('');
+                setAnoSelecionado('');
+              }}>
                 Cancelar
               </AlertDialogCancel>
               <AlertDialogAction

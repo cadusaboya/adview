@@ -2,22 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
-
 import { Select as AntdSelect } from 'antd';
+import { toast } from 'sonner';
 
-import {
-  formatCurrencyInput,
-  parseCurrencyBR,
-} from '@/lib/formatters';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { despesaCreateSchema } from '@/lib/validation/schemas/despesa';
+import { FormInput } from '@/components/form/FormInput';
+import { FormSelect } from '@/components/form/FormSelect';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
@@ -50,29 +44,52 @@ export default function DespesaDialog({
   onSubmit,
   despesa,
 }: Props) {
-  // 🔹 Form SEMPRE baseado em DespesaCreate
-  const [formData, setFormData] = useState<DespesaCreate>({
-    nome: '',
-    descricao: '',
-    responsavel_id: 0,
-    valor: 0,
-    data_vencimento: '',
-    tipo: 'F',
+  // Load auxiliary data in parallel
+  const { data: bancos } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getBancos({ page_size: 1000 });
+      return res.results.map((b) => ({ id: b.id, nome: b.nome }));
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar bancos',
   });
 
-  const [valorDisplay, setValorDisplay] = useState('');
-  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
-  const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
+  const { data: favorecidos } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getFavorecidos({ page_size: 1000 });
+      return res.results;
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar favorecidos',
+  });
 
-  // Estado para marcar como pago
+  // Form validation
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<DespesaCreate>(
+    {
+      nome: '',
+      descricao: '',
+      responsavel_id: 0,
+      valor: 0,
+      data_vencimento: '',
+      tipo: 'F',
+    },
+    despesaCreateSchema
+  );
+
+  // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
   const [dataPagamento, setDataPagamento] = useState('');
   const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
   const [observacaoPagamento, setObservacaoPagamento] = useState('');
 
-  // ======================
-  // 🔄 Preencher ao editar
-  // ======================
+  // Initialize form when editing
   useEffect(() => {
     if (despesa) {
       setFormData({
@@ -83,10 +100,6 @@ export default function DespesaDialog({
         data_vencimento: despesa.data_vencimento,
         tipo: despesa.tipo,
       });
-
-      setValorDisplay(
-        despesa.valor ? formatCurrencyInput(despesa.valor) : ''
-      );
     } else {
       setFormData({
         nome: '',
@@ -96,58 +109,47 @@ export default function DespesaDialog({
         data_vencimento: '',
         tipo: 'F',
       });
-      setValorDisplay('');
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
       setObservacaoPagamento('');
     }
-  }, [despesa, open]);
+  }, [despesa, open, setFormData]);
 
-  // ======================
-  // 🔹 Bancos
-  // ======================
-  useEffect(() => {
-    const loadBancos = async () => {
-      const { results } = await getBancos({ page_size: 1000 });
-      setBancos(results.map((b) => ({ id: b.id, nome: b.nome })));
-    };
-    loadBancos();
-  }, []);
+  const handleSubmitWrapper = async () => {
+    await handleSubmit(async (data) => {
+      try {
+        let payload: DespesaUpdate | DespesaCreate | DespesaCreateWithPayment;
 
-  // ======================
-  // 🔹 Favorecidos
-  // ======================
-  useEffect(() => {
-    const loadFavorecidos = async () => {
-      const { results } = await getFavorecidos({ page_size: 1000 });
-      setFavorecidos(results);
-    };
-    loadFavorecidos();
-  }, []);
+        if (despesa) {
+          payload = { ...data } as DespesaUpdate;
+        } else {
+          payload = { ...data } as DespesaCreate;
 
-  // ======================
-  // 💾 Submit
-  // ======================
-  const handleSubmit = async () => {
-    if (despesa) {
-      const payload: DespesaUpdate = { ...formData };
-      await onSubmit(payload);
-    } else {
-      const payload: DespesaCreateWithPayment = { ...formData };
+          // Add payment data if checkbox is checked
+          if (marcarComoPago) {
+            const paymentPayload = payload as DespesaCreateWithPayment;
+            paymentPayload.marcar_como_pago = true;
+            paymentPayload.data_pagamento = dataPagamento;
+            paymentPayload.conta_bancaria_id = contaBancariaId;
+            paymentPayload.observacao_pagamento = observacaoPagamento;
+            payload = paymentPayload;
+          }
+        }
 
-      // Se marcar como pago, incluir dados do pagamento
-      if (marcarComoPago) {
-        payload.marcar_como_pago = true;
-        payload.data_pagamento = dataPagamento;
-        payload.conta_bancaria_id = contaBancariaId;
-        payload.observacao_pagamento = observacaoPagamento;
+        await onSubmit(payload);
+        onClose();
+        toast.success(
+          despesa ? 'Despesa atualizada com sucesso' : 'Despesa criada com sucesso'
+        );
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) {
+          toast.error(generalError);
+        }
+        throw error;
       }
-
-      await onSubmit(payload as DespesaCreate);
-    }
-
-    onClose();
+    });
   };
 
   return (
@@ -155,113 +157,118 @@ export default function DespesaDialog({
       open={open}
       onClose={onClose}
       title={despesa ? 'Editar Despesa' : 'Nova Despesa'}
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmitWrapper}
+      loading={isSubmitting}
+      size="lg"
+      maxHeight="max-h-[75vh]"
+      compact
     >
       <div className="grid grid-cols-1 gap-4">
         {/* Favorecido + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm">Favorecido</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">
+              Favorecido <span className="text-red-500">*</span>
+            </label>
             <AntdSelect
               showSearch
               allowClear
               placeholder="Selecione um favorecido"
               value={formData.responsavel_id || undefined}
-              options={favorecidos.map((f) => ({
+              options={favorecidos?.map((f: Favorecido) => ({
                 value: f.id,
                 label: f.nome,
-              }))}
+              })) || []}
               onChange={(val) =>
-                setFormData({
-                  ...formData,
+                setFormData((prev) => ({
+                  ...prev,
                   responsavel_id: val ?? 0,
-                })
+                }))
+              }
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              status={getFieldProps('responsavel_id').error ? 'error' : undefined}
             />
+            {getFieldProps('responsavel_id').error && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <span className="font-medium">⚠</span> {getFieldProps('responsavel_id').error}
+              </p>
+            )}
           </div>
 
-          <div>
-            <label className="text-sm">Nome</label>
-            <Input
-              placeholder="Nome da despesa"
-              value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
-            />
-          </div>
-        </div>
-
-        {/* Descrição */}
-        <div>
-          <label className="text-sm">Descrição</label>
-          <Input
-            placeholder="Detalhes sobre a despesa"
-            value={formData.descricao}
+          <FormInput
+            label="Nome"
+            required
+            placeholder="Nome da despesa"
+            value={formData.nome}
             onChange={(e) =>
-              setFormData({ ...formData, descricao: e.target.value })
+              setFormData((prev) => ({ ...prev, nome: e.target.value }))
             }
+            error={getFieldProps('nome').error}
           />
         </div>
 
+        {/* Descrição */}
+        <FormInput
+          label="Descrição"
+          required
+          placeholder="Detalhes sobre a despesa"
+          value={formData.descricao}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, descricao: e.target.value }))
+          }
+          error={getFieldProps('descricao').error}
+        />
+
         {/* Valor / Vencimento / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm">Valor (R$)</label>
-            <Input
-              placeholder="0,00"
-              value={valorDisplay}
-              onChange={(e) => setValorDisplay(e.target.value)}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(
-                  parsed ? formatCurrencyInput(parsed) : ''
-                );
-                setFormData((prev) => ({
-                  ...prev,
-                  valor: parsed,
-                }));
-              }}
-            />
-          </div>
+          <FormInput
+            label="Valor (R$)"
+            required
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.valor}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))
+            }
+            error={getFieldProps('valor').error}
+          />
 
-          <div>
-            <label className="text-sm">Data de Vencimento</label>
-            <Input
-              type="date"
-              value={formData.data_vencimento}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  data_vencimento: e.target.value,
-                })
-              }
-            />
-          </div>
+          <FormInput
+            label="Data de Vencimento"
+            required
+            type="date"
+            value={formData.data_vencimento}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                data_vencimento: e.target.value,
+              }))
+            }
+            error={getFieldProps('data_vencimento').error}
+          />
 
-          <div>
-            <label className="text-sm">Tipo</label>
-            <Select
-              value={formData.tipo}
-              onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val as DespesaCreate['tipo'] })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Fixa</SelectItem>
-                <SelectItem value="V">Variável</SelectItem>
-                <SelectItem value="C">Comissão</SelectItem>
-                <SelectItem value="R">Reembolso</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FormSelect
+            label="Tipo"
+            required
+            value={formData.tipo}
+            onValueChange={(val) =>
+              setFormData((prev) => ({ ...prev, tipo: val as DespesaCreate['tipo'] }))
+            }
+            options={[
+              { value: 'F', label: 'Fixa' },
+              { value: 'V', label: 'Variável' },
+              { value: 'C', label: 'Comissão' },
+              { value: 'R', label: 'Reembolso' },
+            ]}
+            error={getFieldProps('tipo').error}
+          />
         </div>
 
-        {/* Marcar como pago (apenas na criação) */}
+        {/* Marcar como pago - only when creating */}
         {!despesa && (
           <div className="space-y-4 border-t pt-4">
             <div className="flex items-center space-x-2">
@@ -282,39 +289,38 @@ export default function DespesaDialog({
 
             {marcarComoPago && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
-                <div>
-                  <label className="text-sm">Data de Pagamento</label>
-                  <Input
-                    type="date"
-                    value={dataPagamento}
-                    onChange={(e) => setDataPagamento(e.target.value)}
-                  />
-                </div>
+                <FormInput
+                  label="Data de Pagamento"
+                  type="date"
+                  value={dataPagamento}
+                  onChange={(e) => setDataPagamento(e.target.value)}
+                />
 
-                <div>
-                  <label className="text-sm">Conta Bancária</label>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Conta Bancária</label>
                   <AntdSelect
                     showSearch
                     allowClear
                     placeholder="Selecione uma conta"
                     value={contaBancariaId}
-                    options={bancos.map((b) => ({
+                    options={bancos?.map((b) => ({
                       value: b.id,
                       label: b.nome,
-                    }))}
+                    })) || []}
                     onChange={(val) => setContaBancariaId(val)}
+                    filterOption={(input, option) =>
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                     style={{ width: '100%' }}
                   />
                 </div>
 
-                <div>
-                  <label className="text-sm">Observação (opcional)</label>
-                  <Input
-                    placeholder="Observação do pagamento"
-                    value={observacaoPagamento}
-                    onChange={(e) => setObservacaoPagamento(e.target.value)}
-                  />
-                </div>
+                <FormInput
+                  label="Observação (opcional)"
+                  placeholder="Observação do pagamento"
+                  value={observacaoPagamento}
+                  onChange={(e) => setObservacaoPagamento(e.target.value)}
+                />
               </div>
             )}
           </div>
@@ -325,7 +331,8 @@ export default function DespesaDialog({
           <PaymentsTabs
             tipo="despesa"
             entityId={despesa.id}
-            contasBancarias={bancos}
+            contasBancarias={bancos || []}
+            valorAberto={despesa.valor_aberto ?? despesa.valor}
           />
         )}
       </div>

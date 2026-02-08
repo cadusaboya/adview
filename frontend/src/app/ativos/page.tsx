@@ -1,0 +1,377 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { Button, message } from 'antd';
+import { toast } from 'sonner';
+import type { TableColumnsType } from 'antd';
+
+import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
+import GenericTable from '@/components/imports/GenericTable';
+import CustodiaDialog from '@/components/dialogs/CustodiaDialog';
+import { Input } from '@/components/ui/input';
+import { Select } from 'antd';
+
+import {
+  getCustodias,
+  createCustodia,
+  updateCustodia,
+  deleteCustodia,
+} from '@/services/custodias';
+
+import {
+  Custodia,
+  CustodiaCreate,
+  CustodiaUpdate,
+} from '@/types/custodias';
+
+import { formatCurrencyBR } from '@/lib/formatters';
+import { useDebounce } from '@/hooks/useDebounce';
+
+import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
+import { Pencil, Trash } from 'lucide-react';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
+
+export default function AtivosPage() {
+  const [custodias, setCustodias] = useState<Custodia[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingCustodia, setEditingCustodia] = useState<Custodia | null>(null);
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const [statusFilter, setStatusFilter] = useState<string>('nao_liquidado');
+
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Row selection state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // ======================
+  // 🔄 LOAD DATA
+  // ======================
+  const loadCustodias = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params: {
+        page: number;
+        page_size: number;
+        search: string;
+        tipo: 'A' | 'P';
+        status?: string;
+      } = {
+        page,
+        page_size: pageSize,
+        search: debouncedSearch,
+        tipo: 'A',
+      };
+
+      // Aplicar filtro de status
+      if (statusFilter === 'nao_liquidado') {
+        params.status = 'A,P'; // Aberto e Parcial
+      } else if (statusFilter !== 'todos') {
+        params.status = statusFilter;
+      }
+
+      const res = await getCustodias(params);
+      setCustodias(res.results);
+      setTotal(res.count);
+    } catch (error) {
+      console.error('Erro ao buscar ativos de custódia:', error);
+      message.error('Erro ao buscar ativos de custódia');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedSearch, statusFilter]);
+
+  useEffect(() => {
+    loadCustodias();
+  }, [loadCustodias]);
+
+  // Reset page when search or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  // Clear selection when page or pageSize changes
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
+
+  // ======================
+  // ❌ DELETE
+  // ======================
+  const handleDeleteAction = async (id: number) => {
+    try {
+      await deleteCustodia(id);
+      toast.success('Ativo de custódia excluído com sucesso!');
+      loadCustodias();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir ativo de custódia');
+    }
+  };
+
+  const handleBulkDeleteAction = async (ids: number[]) => {
+    try {
+      setLoading(true);
+
+      // Delete all selected items
+      await Promise.all(
+        ids.map((id) => deleteCustodia(id))
+      );
+
+      toast.success(`${ids.length} ativo(s) de custódia excluído(s) com sucesso`);
+      setSelectedRowKeys([]);
+      loadCustodias();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao excluir ativos de custódia');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDelete = (id: number) => {
+    const custodia = custodias.find((c) => c.id === id);
+    confirmDelete(id, custodia?.descricao);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos um ativo');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
+  };
+
+  // ======================
+  // 🔘 ROW SELECTION
+  // ======================
+  const handleSelectionChange = (selectedKeys: React.Key[]) => {
+    setSelectedRowKeys(selectedKeys);
+  };
+
+  // ======================
+  // 💾 CREATE / UPDATE
+  // ======================
+  const handleSubmit = async (
+    data: CustodiaCreate | CustodiaUpdate
+  ) => {
+    try {
+      if (editingCustodia) {
+        await updateCustodia(
+          editingCustodia.id,
+          data as CustodiaUpdate
+        );
+        toast.success('Ativo de custódia atualizado com sucesso!');
+      } else {
+        await createCustodia(data as CustodiaCreate);
+        toast.success('Ativo de custódia criado com sucesso!');
+      }
+
+      setOpenDialog(false);
+      setEditingCustodia(null);
+      loadCustodias();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao salvar ativo de custódia');
+      throw error;
+    }
+  };
+
+  // ======================
+  // 📊 TABELA
+  // ======================
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { color: string; bg: string }> = {
+      'Aberto': { color: 'text-red-600', bg: 'bg-red-50' },
+      'Parcial': { color: 'text-yellow-600', bg: 'bg-yellow-50' },
+      'Liquidado': { color: 'text-green-600', bg: 'bg-green-50' },
+    };
+
+    const statusStyle = statusMap[status] || { color: 'text-gray-600', bg: 'bg-gray-50' };
+
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyle.color} ${statusStyle.bg}`}>
+        {status}
+      </span>
+    );
+  };
+
+  const columns: TableColumnsType<Custodia> = [
+    {
+      title: 'Contraparte',
+      key: 'contraparte',
+      width: '25%',
+      render: (_: unknown, record: Custodia) => {
+        if (record.cliente) {
+          return record.cliente.nome;
+        }
+        if (record.funcionario) {
+          return record.funcionario.nome;
+        }
+        return '—';
+      },
+    },
+    {
+      title: 'Nome',
+      dataIndex: 'nome',
+      width: '30%',
+    },
+    {
+      title: 'Saldo',
+      key: 'saldo',
+      width: '15%',
+      render: (_: unknown, record: Custodia) => {
+        const saldo = record.valor_total - record.valor_liquidado;
+        return formatCurrencyBR(saldo);
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status_display',
+      width: '15%',
+      render: (status: string) => getStatusBadge(status),
+    },
+    {
+      title: 'Ações',
+      key: 'actions',
+      width: '15%',
+      render: (_: unknown, record: Custodia) => (
+        <ActionsDropdown
+          actions={[
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onClick: () => {
+                setEditingCustodia(record);
+                setOpenDialog(true);
+              },
+            },
+            {
+              label: 'Excluir',
+              icon: Trash,
+              danger: true,
+              onClick: () => handleDelete(record.id),
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+
+  // ======================
+  // 🧱 RENDER
+  // ======================
+  return (
+    <div className="flex">
+      <NavbarNested />
+
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h1 className="text-2xl font-serif font-bold text-navy">
+            Ativos de Custódia
+          </h1>
+
+          <div className="flex flex-wrap gap-3 items-center">
+            <Input
+              placeholder="Buscar ativos de custódia..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-80"
+            />
+
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              className="w-48"
+              options={[
+                { value: 'nao_liquidado', label: 'Não Liquidados' },
+                { value: 'todos', label: 'Todos' },
+                { value: 'A', label: 'Aberto' },
+                { value: 'P', label: 'Parcial' },
+                { value: 'L', label: 'Liquidado' },
+              ]}
+            />
+
+            {selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                className="shadow-md"
+                onClick={handleBulkDelete}
+                icon={<Trash className="w-4 h-4" />}
+              >
+                Excluir {selectedRowKeys.length} selecionado(s)
+              </Button>
+            )}
+
+            <Button
+              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              onClick={() => {
+                setEditingCustodia(null);
+                setOpenDialog(true);
+              }}
+            >
+              Criar Ativo
+            </Button>
+          </div>
+        </div>
+
+        <GenericTable<Custodia>
+          columns={columns}
+          data={custodias}
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            onChange: (p) => setPage(p),
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onShowSizeChange: (_, size) => {
+              setPageSize(size);
+              setPage(1);
+            },
+          }}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
+        />
+
+        <CustodiaDialog
+          open={openDialog}
+          onClose={() => {
+            setOpenDialog(false);
+            setEditingCustodia(null);
+            loadCustodias();
+          }}
+          onSubmit={handleSubmit}
+          custodia={editingCustodia}
+          tipo="A"
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir ativos selecionados?' : 'Excluir ativo?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
+        />
+      </main>
+    </div>
+  );
+}

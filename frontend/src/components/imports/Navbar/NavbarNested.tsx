@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import {
   IconGauge,
-  IconCurrencyDollar,
   IconTrendingDown,
   IconTrendingUp,
   IconUsers,
-  IconUserCog,
   IconFileAnalytics,
   IconBuilding,
   IconLogout,
+  IconAlertTriangle,
+  IconReceipt,
 } from '@tabler/icons-react';
 import { Group, ScrollArea } from '@mantine/core';
 import Image from 'next/image';
@@ -44,25 +44,65 @@ const menuItems = [
     ],
   },
 
-  { label: 'Clientes', icon: IconUsers, link: '/clientes' },
-  { label: 'Fornecedores', icon: IconUsers, link: '/fornecedores' },
-  { label: 'Funcionários', icon: IconUserCog, link: '/funcionarios' },
-  { label: 'Bancos', icon: IconCurrencyDollar, link: '/bancos' },
-  { label: 'Empresa', icon: IconBuilding, link: '/empresa' },
+  {
+    label: 'Custódias',
+    icon: IconAlertTriangle,
+    initiallyOpened: true,
+    links: [
+      { label: 'A Receber', link: '/ativos' },
+      { label: 'A Repassar', link: '/passivos' },
+    ],
+  },
+
+  { label: 'Extrato', icon: IconReceipt, link: '/extrato' },
+
+  {
+    label: 'Empresa',
+    icon: IconBuilding,
+    initiallyOpened: true,
+    links: [
+      { label: 'Bancos', link: '/bancos' },
+      { label: 'Configurações', link: '/empresa' },
+    ],
+  },
+
+  {
+    label: 'Pessoas',
+    icon: IconUsers,
+    initiallyOpened: true,
+    links: [
+      { label: 'Clientes', link: '/clientes' },
+      { label: 'Fornecedores', link: '/fornecedores' },
+      { label: 'Funcionários', link: '/funcionarios' },
+    ],
+  },
+
   {
     label: 'Relatórios',
     icon: IconFileAnalytics,
     initiallyOpened: true,
     links: [
       { label: 'Demonstração de Resultado', link: '/relatorios/dre' },
+      { label: 'Fluxo de Caixa Realizado', link: '/relatorios/balanco' },
       { label: 'Fluxo de Caixa', link: '/relatorios/fluxo' },
+      { label: 'Conciliação Bancária', link: '/relatorios/conciliacao' },
+      { label: 'Comissões', link: '/relatorios/comissoes' },
     ],
   },
 ];
 
 export function NavbarNested() {
   const [companyName, setCompanyName] = useState<string>('');
-  const links = menuItems.map((item) => <LinksGroup {...item} key={item.label} />);
+  const [openedItem, setOpenedItem] = useState<string | null>(null);
+
+  const links = menuItems.map((item) => (
+    <LinksGroup
+      {...item}
+      key={item.label}
+      opened={openedItem === item.label}
+      onToggle={() => setOpenedItem(openedItem === item.label ? null : item.label)}
+    />
+  ));
 
   useEffect(() => {
     const loadCompany = async () => {

@@ -18,6 +18,14 @@ export interface FormaCobranca {
 
     // 🔥 ADICIONAR ISTO
     formas_cobranca?: FormaCobranca[];
+
+    // Comissionamento
+    comissionado_id?: number | null;
+    comissionado?: {
+      id: number;
+      nome: string;
+      tipo: string;
+    } | null;
   }
   
 
@@ -37,6 +45,7 @@ export interface FormaCobranca {
     aniversario?: string | null;
     tipo: string;
     formas_cobranca?: FormaCobrancaPayload[];
+    comissionado_id?: number | null;
   };
   
   // 🔹 Payload de atualização (edição parcial)

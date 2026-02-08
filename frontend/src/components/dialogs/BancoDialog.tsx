@@ -1,20 +1,18 @@
 'use client';
 
 import DialogBase from '@/components/dialogs/DialogBase';
-import { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
-
+import { useEffect } from 'react';
 import { Banco, BancoCreate, BancoUpdate } from '@/types/bancos';
-
-import {
-  formatCurrencyInput,
-  parseCurrencyBR,
-} from '@/lib/formatters';
+import { toast } from 'sonner';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { bancoCreateSchema } from '@/lib/validation/schemas/banco';
+import { FormInput } from '@/components/form/FormInput';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 interface BancoDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: BancoCreate | BancoUpdate) => void;
+  onSubmit: (data: BancoCreate | BancoUpdate) => Promise<void>;
   banco?: Banco | null;
 }
 
@@ -24,18 +22,24 @@ export default function BancoDialog({
   onSubmit,
   banco,
 }: BancoDialogProps) {
-  // 🔹 Form SEMPRE usa BancoCreate
-  const [formData, setFormData] = useState<BancoCreate>({
-    nome: '',
-    descricao: '',
-    saldo_atual: 0,
-  });
+  // Form validation with new hook
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<BancoCreate>(
+    {
+      nome: '',
+      descricao: '',
+      saldo_atual: 0,
+    },
+    bancoCreateSchema
+  );
 
-  const [saldoDisplay, setSaldoDisplay] = useState('');
-
-  // ======================
-  // 🔄 Preencher ao editar
-  // ======================
+  // Initialize form with banco data when editing
   useEffect(() => {
     if (banco) {
       setFormData({
@@ -43,48 +47,31 @@ export default function BancoDialog({
         descricao: banco.descricao,
         saldo_atual: banco.saldo_atual,
       });
-
-      setSaldoDisplay(
-        banco.saldo_atual
-          ? formatCurrencyInput(banco.saldo_atual)
-          : ''
-      );
     } else {
       setFormData({
         nome: '',
         descricao: '',
         saldo_atual: 0,
       });
-
-      setSaldoDisplay('');
     }
-  }, [banco, open]);
+  }, [banco, open, setFormData]);
 
-  // ======================
-  // 💾 Submit
-  // ======================
-  const handleSubmit = () => {
-    if (banco) {
-      // UPDATE → parcial permitido
-      const payload: BancoUpdate = {
-        nome: formData.nome,
-        descricao: formData.descricao,
-        saldo_atual: formData.saldo_atual,
-      };
-
-      onSubmit(payload);
-    } else {
-      // CREATE → payload completo
-      const payload: BancoCreate = {
-        nome: formData.nome,
-        descricao: formData.descricao,
-        saldo_atual: formData.saldo_atual,
-      };
-
-      onSubmit(payload);
-    }
-
-    onClose();
+  const handleSubmitWrapper = async () => {
+    await handleSubmit(async (data) => {
+      try {
+        await onSubmit(data);
+        onClose();
+        toast.success(
+          banco ? 'Conta bancária atualizada com sucesso' : 'Conta bancária criada com sucesso'
+        );
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) {
+          toast.error(generalError);
+        }
+        throw error;
+      }
+    });
   };
 
   return (
@@ -92,64 +79,48 @@ export default function BancoDialog({
       open={open}
       onClose={onClose}
       title={banco ? 'Editar Conta Bancária' : 'Nova Conta Bancária'}
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmitWrapper}
+      loading={isSubmitting}
     >
       <div className="grid grid-cols-1 gap-6">
-        {/* 🔹 Linha 1 */}
+        {/* Linha 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Nome da Conta</label>
-            <Input
-              placeholder="Ex.: Itaú PJ, Nubank, Caixa"
-              value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium block">Saldo Atual</label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={saldoDisplay}
-              onChange={(e) => {
-                setSaldoDisplay(e.target.value);
-              }}
-              onFocus={() => {
-                setSaldoDisplay(
-                  saldoDisplay.replace(/[^\d,]/g, '')
-                );
-              }}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(saldoDisplay);
-
-                setSaldoDisplay(
-                  parsed ? formatCurrencyInput(parsed) : ''
-                );
-
-                setFormData((prev) => ({
-                  ...prev,
-                  saldo_atual: parsed,
-                }));
-              }}
-            />
-          </div>
-        </div>
-
-        {/* 🔹 Linha 2 */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium block">Descrição</label>
-          <Input
-            placeholder="Ex.: Conta PJ usada para despesas fixas"
-            value={formData.descricao}
+          <FormInput
+            label="Nome da Conta"
+            required
+            placeholder="Ex.: Itaú PJ, Nubank, Caixa"
+            value={formData.nome}
             onChange={(e) =>
-              setFormData({ ...formData, descricao: e.target.value })
+              setFormData((prev) => ({ ...prev, nome: e.target.value }))
             }
+            error={getFieldProps('nome').error}
+          />
+
+          <FormInput
+            label="Saldo Atual"
+            required
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.saldo_atual}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, saldo_atual: parseFloat(e.target.value) || 0 }))
+            }
+            error={getFieldProps('saldo_atual').error}
           />
         </div>
+
+        {/* Linha 2 */}
+        <FormInput
+          label="Descrição"
+          required
+          placeholder="Ex.: Conta PJ usada para despesas fixas"
+          value={formData.descricao}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, descricao: e.target.value }))
+          }
+          error={getFieldProps('descricao').error}
+        />
       </div>
     </DialogBase>
   );

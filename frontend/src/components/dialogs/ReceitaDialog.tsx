@@ -2,26 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select as AntdSelect } from 'antd';
+import { toast } from 'sonner';
 
-import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { useFormDirty } from '@/hooks/useFormDirty';
+import { receitaCreateSchema } from '@/lib/validation/schemas/receita';
+import { FormInput } from '@/components/form/FormInput';
+import { FormSelect } from '@/components/form/FormSelect';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
 import { getBancos } from '@/services/bancos';
-import { getFuncionarios } from '@/services/funcionarios';
 import { getClientes } from '@/services/clientes';
 
-import { Funcionario } from '@/types/funcionarios';
 import { Cliente } from '@/types/clientes';
 import {
   Receita,
@@ -50,7 +47,54 @@ export default function ReceitaDialog({
   onSubmit,
   receita,
 }: Props) {
-  const [formData, setFormData] = useState<ReceitaCreate>({
+  // Load auxiliary data in parallel
+  const { data: bancos } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getBancos({ page_size: 1000 });
+      return res.results.map((b) => ({ id: b.id, nome: b.nome }));
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar bancos',
+  });
+
+  const { data: clientes } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getClientes({ page_size: 1000 });
+      return res.results;
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar clientes',
+  });
+
+  // Form validation
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<ReceitaCreate>(
+    {
+      nome: '',
+      descricao: '',
+      cliente_id: 0,
+      valor: 0,
+      data_vencimento: '',
+      tipo: 'F',
+      forma_pagamento: 'P',
+    },
+    receitaCreateSchema
+  );
+
+  // Payment fields state (only for creation)
+  const [marcarComoPago, setMarcarComoPago] = useState(false);
+  const [dataPagamento, setDataPagamento] = useState('');
+  const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
+  const [observacaoPagamento, setObservacaoPagamento] = useState('');
+
+  // Initial form data for dirty checking
+  const initialFormData: ReceitaCreate = {
     nome: '',
     descricao: '',
     cliente_id: 0,
@@ -58,37 +102,41 @@ export default function ReceitaDialog({
     data_vencimento: '',
     tipo: 'F',
     forma_pagamento: 'P',
-    comissionado_id: null,
-  });
+  };
 
-  const [valorDisplay, setValorDisplay] = useState('');
-  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  // Track if form has unsaved changes
+  const isDirty = useFormDirty(formData, receita ? {
+    nome: receita.nome,
+    descricao: receita.descricao,
+    cliente_id: receita.cliente?.id ?? receita.cliente_id ?? 0,
+    valor: receita.valor,
+    data_vencimento: receita.data_vencimento,
+    tipo: receita.tipo,
+    forma_pagamento: receita.forma_pagamento ?? 'P',
+  } : initialFormData);
 
-  // Payment fields state
-  const [marcarComoPago, setMarcarComoPago] = useState(false);
-  const [dataPagamento, setDataPagamento] = useState('');
-  const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
-  const [observacaoPagamento, setObservacaoPagamento] = useState('');
+  // Handle close with confirmation
+  const handleClose = () => {
+    if (isDirty && !isSubmitting) {
+      if (!confirm('Descartar alterações não salvas?')) {
+        return;
+      }
+    }
+    onClose();
+  };
 
-  // ======================
-  // 🔄 LOAD EDIT
-  // ======================
+  // Initialize form when editing
   useEffect(() => {
     if (receita) {
       setFormData({
         nome: receita.nome,
         descricao: receita.descricao,
-        cliente_id: receita.cliente?.id ?? receita.cliente_id!,
+        cliente_id: receita.cliente?.id ?? receita.cliente_id ?? 0,
         valor: receita.valor,
         data_vencimento: receita.data_vencimento,
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento ?? 'P',
-        comissionado_id: receita.comissionado?.id ?? null,
       });
-
-      setValorDisplay(formatCurrencyInput(receita.valor));
     } else {
       setFormData({
         nome: '',
@@ -98,186 +146,166 @@ export default function ReceitaDialog({
         data_vencimento: '',
         tipo: 'F',
         forma_pagamento: 'P',
-        comissionado_id: null,
       });
-      setValorDisplay('');
+      setMarcarComoPago(false);
+      setDataPagamento('');
+      setContaBancariaId(undefined);
+      setObservacaoPagamento('');
     }
-  }, [receita, open]);
+  }, [receita, open, setFormData]);
 
-  // ======================
-  // 🔹 LOAD AUX
-  // ======================
-  useEffect(() => {
-    getBancos({ page_size: 1000 }).then((res) =>
-      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })))
-    );
-    getFuncionarios({ page_size: 1000 }).then((res) =>
-      setFuncionarios(res.results)
-    );
-    getClientes({ page_size: 1000 }).then((res) =>
-      setClientes(res.results)
-    );
-  }, []);
+  const handleSubmitWrapper = async () => {
+    await handleSubmit(async (data) => {
+      try {
+        let payload: ReceitaUpdate | ReceitaCreate | ReceitaCreateWithPayment;
 
-  // ======================
-  // 💾 SUBMIT
-  // ======================
-  const handleSubmit = async () => {
-    let payload: ReceitaUpdate | ReceitaCreate | ReceitaCreateWithPayment;
+        if (receita) {
+          payload = { ...data } as ReceitaUpdate;
+        } else {
+          payload = { ...data } as ReceitaCreate;
 
-    if (receita) {
-      // Editing existing receita
-      payload = { ...formData } as ReceitaUpdate;
-    } else {
-      // Creating new receita
-      payload = { ...formData } as ReceitaCreate;
+          // Add payment data if checkbox is checked
+          if (marcarComoPago) {
+            const paymentPayload = payload as ReceitaCreateWithPayment;
+            paymentPayload.marcar_como_pago = true;
+            paymentPayload.data_pagamento = dataPagamento;
+            paymentPayload.conta_bancaria_id = contaBancariaId;
+            paymentPayload.observacao_pagamento = observacaoPagamento;
+            payload = paymentPayload;
+          }
+        }
 
-      // Add payment data if checkbox is checked
-      if (marcarComoPago) {
-        const paymentPayload = payload as ReceitaCreateWithPayment;
-        paymentPayload.marcar_como_pago = true;
-        paymentPayload.data_pagamento = dataPagamento;
-        paymentPayload.conta_bancaria_id = contaBancariaId;
-        paymentPayload.observacao_pagamento = observacaoPagamento;
-        payload = paymentPayload;
+        await onSubmit(payload);
+        onClose();
+        toast.success(
+          receita ? 'Receita atualizada com sucesso' : 'Receita criada com sucesso'
+        );
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) {
+          toast.error(generalError);
+        }
+        throw error;
       }
-    }
-
-    await onSubmit(payload);
-    onClose();
+    });
   };
 
   return (
     <DialogBase
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={receita ? 'Editar Receita' : 'Nova Receita'}
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmitWrapper}
+      loading={isSubmitting}
+      size="lg"
+      maxHeight="max-h-[75vh]"
+      compact
     >
       <div className="grid grid-cols-1 gap-4">
         {/* Cliente + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm">Cliente</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">
+              Cliente <span className="text-red-500">*</span>
+            </label>
             <AntdSelect
               showSearch
               placeholder="Selecione um cliente"
               value={formData.cliente_id || undefined}
-              options={clientes.map((c) => ({
+              options={clientes?.map((c: Cliente) => ({
                 value: c.id,
                 label: c.nome,
-              }))}
+              })) || []}
               onChange={(val) =>
-                setFormData({ ...formData, cliente_id: val })
+                setFormData((prev) => ({ ...prev, cliente_id: val }))
+              }
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              status={getFieldProps('cliente_id').error ? 'error' : undefined}
             />
+            {getFieldProps('cliente_id').error && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <span className="font-medium">⚠</span> {getFieldProps('cliente_id').error}
+              </p>
+            )}
           </div>
 
-          <div>
-            <label className="text-sm">Nome</label>
-            <Input
-              placeholder="Nome da receita"
-              value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
-            />
-          </div>
+          <FormInput
+            label="Nome"
+            required
+            placeholder="Nome da receita"
+            value={formData.nome}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, nome: e.target.value }))
+            }
+            error={getFieldProps('nome').error}
+          />
         </div>
 
         {/* Valor / Data / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm">Valor (R$)</label>
-            <Input
-              placeholder="0,00"
-              value={valorDisplay}
-              onChange={(e) => setValorDisplay(e.target.value)}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
-                setFormData((prev) => ({ ...prev, valor: parsed }));
-              }}
-            />
-          </div>
+          <FormInput
+            label="Valor (R$)"
+            required
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.valor}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))
+            }
+            error={getFieldProps('valor').error}
+          />
 
-          <div>
-            <label className="text-sm">Data de Vencimento</label>
-            <Input
-              type="date"
-              value={formData.data_vencimento}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  data_vencimento: e.target.value,
-                })
-              }
-            />
-          </div>
+          <FormInput
+            label="Data de Vencimento"
+            required
+            type="date"
+            value={formData.data_vencimento}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                data_vencimento: e.target.value,
+              }))
+            }
+            error={getFieldProps('data_vencimento').error}
+          />
 
-          <div>
-            <label className="text-sm">Tipo</label>
-            <Select
-              value={formData.tipo}
-              onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val as ReceitaCreate['tipo'] })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Fixa</SelectItem>
-                <SelectItem value="V">Variável</SelectItem>
-                <SelectItem value="E">Estorno</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FormSelect
+            label="Tipo"
+            required
+            value={formData.tipo}
+            onValueChange={(val) =>
+              setFormData((prev) => ({ ...prev, tipo: val as ReceitaCreate['tipo'] }))
+            }
+            options={[
+              { value: 'F', label: 'Fixa' },
+              { value: 'V', label: 'Variável' },
+              { value: 'E', label: 'Estorno' },
+            ]}
+            error={getFieldProps('tipo').error}
+          />
         </div>
 
         {/* Forma / Comissionado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm">Forma de Pagamento</label>
-            <Select
-              value={formData.forma_pagamento}
-              onValueChange={(val) =>
-                setFormData({
-                  ...formData,
-                  forma_pagamento: val as ReceitaCreate['forma_pagamento'],
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="P">Pix</SelectItem>
-                <SelectItem value="B">Boleto</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="text-sm">Comissionado</label>
-            <AntdSelect
-              allowClear
-              placeholder="Selecione um comissionado"
-              value={formData.comissionado_id ?? undefined}
-              options={funcionarios.map((f) => ({
-                value: f.id,
-                label: f.nome,
-              }))}
-              onChange={(val) =>
-                setFormData({
-                  ...formData,
-                  comissionado_id: val ?? null,
-                })
-              }
-              style={{ width: '100%' }}
-            />
-          </div>
+          <FormSelect
+            label="Forma de Pagamento"
+            value={formData.forma_pagamento || ''}
+            onValueChange={(val) =>
+              setFormData((prev) => ({
+                ...prev,
+                forma_pagamento: val as ReceitaCreate['forma_pagamento'],
+              }))
+            }
+            options={[
+              { value: 'P', label: 'Pix' },
+              { value: 'B', label: 'Boleto' },
+            ]}
+            error={getFieldProps('forma_pagamento').error}
+          />
         </div>
 
         {/* Marcar como pago - only when creating */}
@@ -301,43 +329,37 @@ export default function ReceitaDialog({
 
             {marcarComoPago && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">
-                    Data Pagamento
-                  </label>
-                  <Input
-                    type="date"
-                    value={dataPagamento}
-                    onChange={(e) => setDataPagamento(e.target.value)}
-                  />
-                </div>
+                <FormInput
+                  label="Data Pagamento"
+                  type="date"
+                  value={dataPagamento}
+                  onChange={(e) => setDataPagamento(e.target.value)}
+                />
 
-                <div>
-                  <label className="text-sm text-muted-foreground">
-                    Conta Bancária
-                  </label>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Conta Bancária</label>
                   <AntdSelect
+                    showSearch
                     placeholder="Selecione"
                     value={contaBancariaId}
-                    options={bancos.map((b) => ({
+                    options={bancos?.map((b) => ({
                       value: b.id,
                       label: b.nome,
-                    }))}
+                    })) || []}
                     onChange={(val) => setContaBancariaId(val)}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                     style={{ width: '100%' }}
                   />
                 </div>
 
-                <div>
-                  <label className="text-sm text-muted-foreground">
-                    Observação (opcional)
-                  </label>
-                  <Input
-                    placeholder="Observação"
-                    value={observacaoPagamento}
-                    onChange={(e) => setObservacaoPagamento(e.target.value)}
-                  />
-                </div>
+                <FormInput
+                  label="Observação (opcional)"
+                  placeholder="Observação"
+                  value={observacaoPagamento}
+                  onChange={(e) => setObservacaoPagamento(e.target.value)}
+                />
               </div>
             )}
           </div>
@@ -347,7 +369,8 @@ export default function ReceitaDialog({
           <PaymentsTabs
             tipo="receita"
             entityId={receita.id}
-            contasBancarias={bancos}
+            contasBancarias={bancos || []}
+            valorAberto={receita.valor_aberto ?? receita.valor}
           />
         )}
       </div>

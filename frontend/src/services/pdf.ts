@@ -22,6 +22,13 @@ export interface RelatorioDREPayload {
   ano: number;
 }
 
+// 🔹 Payload específico para Comissionamento
+export interface RelatorioComissionamentoPayload {
+  mes: number;
+  ano: number;
+  funcionario_id?: number;
+}
+
 /* =========================
    TIPOS DE RELATÓRIO
 ========================= */
@@ -37,11 +44,13 @@ type TipoRelatorioLista =
 
 type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
+type TipoRelatorioComissionamento = 'comissionamento';
 
 export type TipoRelatorio =
   | TipoRelatorioLista
   | TipoRelatorioDRE
-  | TipoRelatorioRecibo;
+  | TipoRelatorioRecibo
+  | TipoRelatorioComissionamento;
 
 /* =========================
    CONFIG
@@ -89,6 +98,10 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
     endpoint: '/api/pdf/recibo-pagamento/',
     nomeArquivo: 'recibo_pagamento.pdf',
   },
+  'comissionamento': {
+    endpoint: '/api/pdf/comissionamento/',
+    nomeArquivo: 'relatorio_comissionamento.pdf',
+  },
 };
 
 /* =========================
@@ -113,10 +126,16 @@ export async function gerarRelatorioPDF(
   filtros: RelatorioReciboPayload
 ): Promise<void>;
 
+// 🔹 Comissionamento
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioComissionamento,
+  filtros: RelatorioComissionamentoPayload
+): Promise<void>;
+
 // 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -211,6 +230,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'dre-consolidado': 'Demonstração de Resultado do Exercício (DRE)',
     'fluxo-de-caixa': 'Relatório de Fluxo de Caixa',
     'recibo-pagamento': 'Recibo de Pagamento',
+    'comissionamento': 'Relatório de Comissionamento',
   };
 
   return nomes[tipoRelatorio];

@@ -47,12 +47,22 @@ export function formatCurrencyInput(value: number | string) {
 /* ======================
    💰 MOEDA – BACKEND
 ====================== */
-export function parseCurrencyBR(value: string) {
+export function parseCurrencyBR(value: string): number {
   if (!value) return 0;
 
-  return Number(
-    value.replace(/\./g, '').replace(',', '.')
-  );
+  // Remove símbolos de moeda (R$) e espaços em branco
+  const cleaned = value.trim().replace(/[R$\s]/g, '');
+
+  // Detecta se é negativo
+  const isNegative = cleaned.startsWith('-');
+  const absolute = cleaned.replace('-', '');
+
+  // Formato brasileiro: 1.234,56
+  // Remove pontos (separador de milhar) e substitui vírgula por ponto (separador decimal)
+  const normalized = absolute.replace(/\./g, '').replace(',', '.');
+
+  const result = parseFloat(normalized) || 0;
+  return isNegative ? -result : result;
 }
 
 /* ======================

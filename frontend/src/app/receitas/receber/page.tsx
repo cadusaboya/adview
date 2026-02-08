@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -34,6 +34,8 @@ import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
+import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
 // ✅ Dropdown reutilizável
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
@@ -50,11 +52,12 @@ export default function ReceitasPage() {
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesLoaded, setClientesLoaded] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -74,11 +77,11 @@ export default function ReceitasPage() {
       setTotal(res.count);
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
-      message.error('Erro ao buscar receitas');
+      toast.error('Erro ao buscar receitas');
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadReceitas();
@@ -89,26 +92,30 @@ export default function ReceitasPage() {
     setPage(1);
   }, [debouncedSearch]);
 
-  // ======================
-  // 🔄 CLIENTES (RELATÓRIO)
-  // ======================
+  // Clear selection when page or pageSize changes
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await getClientes({ page_size: 1000 });
-        setClientes(res.results);
-      } catch (error) {
-        console.error('Erro ao carregar clientes:', error);
-      }
-    })();
-  }, []);
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
+
+  // ======================
+  // 🔄 CLIENTES (RELATÓRIO) - Lazy load
+  // ======================
+  const loadClientes = useCallback(async () => {
+    if (clientesLoaded) return;
+    try {
+      const res = await getClientes({ page_size: 1000 });
+      setClientes(res.results);
+      setClientesLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+      toast.error('Erro ao carregar lista de clientes');
+    }
+  }, [clientesLoaded]);
 
   // ======================
   // ❌ DELETE
   // ======================
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta receita?')) return;
-
+  const handleDeleteAction = async (id: number) => {
     try {
       await deleteReceita(id);
       toast.success('Receita excluída com sucesso!');
@@ -118,26 +125,16 @@ export default function ReceitasPage() {
     }
   };
 
-  // ======================
-  // ❌ BULK DELETE
-  // ======================
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) {
-      toast.error('Selecione pelo menos uma receita');
-      return;
-    }
-
-    if (!confirm(`Deseja realmente excluir ${selectedRowKeys.length} receita(s)?`)) return;
-
+  const handleBulkDeleteAction = async (ids: number[]) => {
     try {
       setLoading(true);
 
       // Delete all selected items
       await Promise.all(
-        selectedRowKeys.map((id) => deleteReceita(Number(id)))
+        ids.map((id) => deleteReceita(id))
       );
 
-      toast.success(`${selectedRowKeys.length} receita(s) excluída(s) com sucesso`);
+      toast.success(`${ids.length} receita(s) excluída(s) com sucesso`);
       setSelectedRowKeys([]);
       loadReceitas();
     } catch (error) {
@@ -146,6 +143,30 @@ export default function ReceitasPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const {
+    confirmState,
+    confirmDelete,
+    confirmBulkDelete,
+    handleConfirm,
+    handleCancel,
+  } = useDeleteConfirmation({
+    onDelete: handleDeleteAction,
+    onBulkDelete: handleBulkDeleteAction,
+  });
+
+  const handleDelete = (id: number) => {
+    const receita = receitas.find((r) => r.id === id);
+    confirmDelete(id, receita?.nome);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      toast.error('Selecione pelo menos uma receita');
+      return;
+    }
+    confirmBulkDelete(selectedRowKeys.map(Number));
   };
 
   // ======================
@@ -263,7 +284,7 @@ export default function ReceitasPage() {
     <div className="flex">
       <NavbarNested />
 
-      <main className="bg-muted min-h-screen w-full p-6">
+      <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-serif font-bold text-navy">
             Receitas em Aberto
@@ -274,7 +295,7 @@ export default function ReceitasPage() {
               placeholder="Buscar por nome, cliente, valor, data..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-full md:w-80"
             />
 
             {selectedRowKeys.length > 0 && (
@@ -290,7 +311,10 @@ export default function ReceitasPage() {
 
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => setOpenRelatorioModal(true)}
+              onClick={async () => {
+                await loadClientes();
+                setOpenRelatorioModal(true);
+              }}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
@@ -318,6 +342,12 @@ export default function ReceitasPage() {
             pageSize,
             total,
             onChange: (page) => setPage(page),
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onShowSizeChange: (_, size) => {
+              setPageSize(size);
+              setPage(1);
+            },
           }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
@@ -328,7 +358,7 @@ export default function ReceitasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
-            loadReceitas(); // Refetch para atualizar mudanças (ex: pagamentos)
+            // loadReceitas() é chamado no handleSubmit após salvar com sucesso
           }}
           receita={editingReceita}
           onSubmit={handleSubmit}
@@ -345,6 +375,16 @@ export default function ReceitasPage() {
             id: c.id,
             nome: c.nome,
           }))}
+        />
+
+        <DeleteConfirmationDialog
+          open={confirmState.isOpen}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          title={confirmState.isBulk ? 'Excluir receitas selecionadas?' : 'Excluir receita?'}
+          itemName={confirmState.itemName}
+          isBulk={confirmState.isBulk}
+          itemCount={confirmState.itemIds.length}
         />
       </main>
     </div>

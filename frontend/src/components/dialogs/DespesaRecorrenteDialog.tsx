@@ -1,18 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
-
 import DialogBase from './DialogBase';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import { Select as AntdSelect } from 'antd';
+
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { despesaRecorrenteCreateSchema } from '@/lib/validation/schemas/despesaRecorrente';
+import { FormInput } from '@/components/form/FormInput';
+import { FormSelect } from '@/components/form/FormSelect';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 import {
   DespesaRecorrente,
@@ -21,7 +19,6 @@ import {
 } from '@/types/despesasRecorrentes';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
-import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 interface Props {
   open: boolean;
@@ -36,7 +33,20 @@ export default function DespesaRecorrenteDialog({
   onSubmit,
   despesa,
 }: Props) {
-  const [formData, setFormData] = useState<DespesaRecorrenteCreate>({
+  const { data: favorecidos } = useLoadAuxiliaryData({
+    loadFn: async () => (await getFavorecidos({ page_size: 1000 })).results,
+    onOpen: open,
+    errorMessage: 'Erro ao carregar favorecidos',
+  });
+
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<DespesaRecorrenteCreate>({
     nome: '',
     descricao: '',
     responsavel_id: 0,
@@ -45,29 +55,8 @@ export default function DespesaRecorrenteDialog({
     forma_pagamento: null,
     data_inicio: '',
     dia_vencimento: 1,
-  });
+  }, despesaRecorrenteCreateSchema);
 
-  const [valorDisplay, setValorDisplay] = useState('');
-  const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
-
-  // ======================
-  // 🔹 Favorecidos
-  // ======================
-  useEffect(() => {
-    const loadFavorecidos = async () => {
-      try {
-        const { results } = await getFavorecidos({ page_size: 1000 });
-        setFavorecidos(results);
-      } catch (error) {
-        console.error('Erro ao carregar favorecidos:', error);
-      }
-    };
-    loadFavorecidos();
-  }, []);
-
-  // ======================
-  // 🔄 Preencher ao editar
-  // ======================
   useEffect(() => {
     if (despesa) {
       setFormData({
@@ -82,9 +71,6 @@ export default function DespesaRecorrenteDialog({
         dia_vencimento: despesa.dia_vencimento,
         status: despesa.status,
       });
-      setValorDisplay(
-        despesa.valor ? formatCurrencyInput(despesa.valor) : ''
-      );
     } else {
       setFormData({
         nome: '',
@@ -96,209 +82,46 @@ export default function DespesaRecorrenteDialog({
         data_inicio: '',
         dia_vencimento: 1,
       });
-      setValorDisplay('');
     }
-  }, [despesa, open]);
+  }, [despesa, open, setFormData]);
 
-  // ======================
-  // 💾 Submit
-  // ======================
-  const handleSubmit = async () => {
-    // Validações
-    if (!formData.nome || !formData.responsavel_id || !formData.data_inicio) {
-      toast.error('Preencha todos os campos obrigatórios');
-      return;
-    }
-
-    if (formData.valor <= 0) {
-      toast.error('Valor deve ser maior que zero');
-      return;
-    }
-
-    if (formData.dia_vencimento < 1 || formData.dia_vencimento > 31) {
-      toast.error('Dia de vencimento deve estar entre 1 e 31');
-      return;
-    }
-
-    try {
-      await onSubmit(formData);
-      onClose();
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-    }
+  const handleSubmitWrapper = async () => {
+    await handleSubmit(async (data) => {
+      try {
+        await onSubmit(data);
+        onClose();
+        toast.success(despesa ? 'Despesa recorrente atualizada com sucesso' : 'Despesa recorrente criada com sucesso');
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) toast.error(generalError);
+        throw error;
+      }
+    });
   };
 
   return (
-    <DialogBase
-      open={open}
-      onClose={onClose}
-      title={despesa ? 'Editar Despesa Recorrente' : 'Nova Despesa Recorrente'}
-      onSubmit={handleSubmit}
-    >
+    <DialogBase open={open} onClose={onClose} title={despesa ? 'Editar Despesa Recorrente' : 'Nova Despesa Recorrente'} onSubmit={handleSubmitWrapper} loading={isSubmitting}>
       <div className="grid grid-cols-1 gap-4">
-        {/* Favorecido + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium">Favorecido *</label>
-            <AntdSelect
-              showSearch
-              allowClear
-              placeholder="Selecione um favorecido"
-              value={formData.responsavel_id || undefined}
-              options={favorecidos.map((f) => ({
-                value: f.id,
-                label: f.nome,
-              }))}
-              onChange={(val) =>
-                setFormData({ ...formData, responsavel_id: val ?? 0 })
-              }
-              style={{ width: '100%' }}
-            />
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Favorecido <span className="text-red-500">*</span></label>
+            <AntdSelect showSearch placeholder="Selecione um favorecido" value={formData.responsavel_id || undefined} options={favorecidos?.map((f: Favorecido) => ({ value: f.id, label: f.nome })) || []} onChange={(val) => setFormData(prev => ({ ...prev, responsavel_id: val ?? 0 }))} style={{ width: '100%' }} status={getFieldProps('responsavel_id').error ? 'error' : undefined} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} />
+            {getFieldProps('responsavel_id').error && <p className="text-xs text-red-500 flex items-center gap-1"><span className="font-medium">⚠</span> {getFieldProps('responsavel_id').error}</p>}
           </div>
-
-          <div>
-            <label className="text-sm font-medium">Nome da Despesa *</label>
-            <Input
-              placeholder="Ex: Aluguel do Escritório"
-              value={formData.nome}
-              onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
-              }
-            />
-          </div>
+          <FormInput label="Nome da Despesa" required placeholder="Ex: Aluguel Escritório" value={formData.nome} onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))} error={getFieldProps('nome').error} />
         </div>
-
-        {/* Descrição */}
-        <div>
-          <label className="text-sm font-medium">Descrição</label>
-          <Input
-            placeholder="Detalhes sobre a despesa recorrente"
-            value={formData.descricao}
-            onChange={(e) =>
-              setFormData({ ...formData, descricao: e.target.value })
-            }
-          />
-        </div>
-
-        {/* Valor, Tipo, Dia Vencimento */}
+        <FormInput label="Descrição" required placeholder="Detalhes sobre a despesa recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium">Valor (R$) *</label>
-            <Input
-              placeholder="0,00"
-              value={valorDisplay}
-              onChange={(e) => setValorDisplay(e.target.value)}
-              onBlur={() => {
-                const parsed = parseCurrencyBR(valorDisplay);
-                setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
-                setFormData((prev) => ({ ...prev, valor: parsed }));
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Tipo</label>
-            <Select
-              value={formData.tipo}
-              onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val as 'F' | 'V' })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Fixa</SelectItem>
-                <SelectItem value="V">Variável</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Dia de Vencimento *</label>
-            <Input
-              type="number"
-              min="1"
-              max="31"
-              placeholder="1-31"
-              value={formData.dia_vencimento}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  dia_vencimento: parseInt(e.target.value) || 1,
-                })
-              }
-            />
-          </div>
+          <FormInput label="Valor (R$)" required type="number" step="0.01" placeholder="0.00" value={formData.valor} onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))} error={getFieldProps('valor').error} />
+          <FormSelect label="Tipo" required value={formData.tipo} onValueChange={(val) => setFormData(prev => ({ ...prev, tipo: val as 'F' | 'V' }))} options={[{ value: 'F', label: 'Fixa' }, { value: 'V', label: 'Variável' }]} error={getFieldProps('tipo').error} />
+          <FormInput label="Dia de Vencimento" required type="number" min="1" max="31" placeholder="1-31" value={formData.dia_vencimento} onChange={(e) => setFormData(prev => ({ ...prev, dia_vencimento: parseInt(e.target.value) || 1 }))} error={getFieldProps('dia_vencimento').error} />
         </div>
-
-        {/* Forma de Pagamento */}
-        <div>
-          <label className="text-sm font-medium">Forma de Pagamento</label>
-          <Select
-            value={formData.forma_pagamento || ''}
-            onValueChange={(val) =>
-              setFormData({
-                ...formData,
-                forma_pagamento: val ? (val as 'P' | 'B') : null,
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="P">Pix</SelectItem>
-              <SelectItem value="B">Boleto</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Data Início, Data Fim, Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium">Data de Início *</label>
-            <Input
-              type="date"
-              value={formData.data_inicio}
-              onChange={(e) =>
-                setFormData({ ...formData, data_inicio: e.target.value })
-              }
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Data de Fim (Opcional)</label>
-            <Input
-              type="date"
-              value={formData.data_fim || ''}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  data_fim: e.target.value || null,
-                })
-              }
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Status</label>
-            <Select
-              value={formData.status || 'A'}
-              onValueChange={(val) =>
-                setFormData({ ...formData, status: val as 'A' | 'P' })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A">Ativa</SelectItem>
-                <SelectItem value="P">Pausada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FormSelect label="Forma de Pagamento" value={formData.forma_pagamento || ''} onValueChange={(val) => setFormData(prev => ({ ...prev, forma_pagamento: val ? val as 'P' | 'B' : null }))} options={[{ value: 'P', label: 'Pix' }, { value: 'B', label: 'Boleto' }]} placeholder="Selecione..." />
+          <FormInput label="Data de Início" required type="date" value={formData.data_inicio} onChange={(e) => setFormData(prev => ({ ...prev, data_inicio: e.target.value }))} error={getFieldProps('data_inicio').error} />
+          <FormInput label="Data de Fim (Opcional)" type="date" value={formData.data_fim || ''} onChange={(e) => setFormData(prev => ({ ...prev, data_fim: e.target.value || null }))} />
         </div>
+        <FormSelect label="Status" value={formData.status || 'A'} onValueChange={(val) => setFormData(prev => ({ ...prev, status: val as 'A' | 'P' }))} options={[{ value: 'A', label: 'Ativa' }, { value: 'P', label: 'Pausada' }]} />
       </div>
     </DialogBase>
   );

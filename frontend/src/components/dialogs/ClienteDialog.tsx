@@ -2,27 +2,27 @@
 
 import DialogBase from "@/components/dialogs/DialogBase";
 import { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { toast } from 'sonner';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { clienteCreateSchema } from '@/lib/validation/schemas/cliente';
+import { FormInput } from '@/components/form/FormInput';
+import { FormSelect } from '@/components/form/FormSelect';
+import { applyBackendErrors } from '@/lib/validation/backendErrors';
 
 import FormaCobrancaList, {
   FormaCobrancaItem,
 } from "@/components/dialogs/FormaCobrancaList";
 
 import { Cliente, ClienteCreate, ClienteUpdate } from '@/types/clientes';
-
+import { getFuncionarios } from '@/services/funcionarios';
+import { Funcionario } from '@/types/funcionarios';
 import { formatCurrencyInput } from "@/lib/formatters";
 
 interface ClienteDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: ClienteCreate | ClienteUpdate) => void;
+  onSubmit: (data: ClienteCreate | ClienteUpdate) => Promise<void>;
   cliente?: Cliente | null;
 }
 
@@ -32,22 +32,43 @@ export default function ClienteDialog({
   onSubmit,
   cliente,
 }: ClienteDialogProps) {
-  // 🔹 Form SEMPRE baseado em ClienteCreate
-  const [formData, setFormData] = useState<ClienteCreate>({
-    nome: "",
-    cpf: "",
-    email: "",
-    telefone: "",
-    aniversario: null,
-    tipo: "",
-    formas_cobranca: [],
-  });
-
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
 
-  // ======================
-  // 🔄 Preencher ao editar
-  // ======================
+  // Load funcionários
+  const {
+    data: funcionarios,
+  } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const response = await getFuncionarios({ page: 1, page_size: 1000 });
+      return response.results.filter((f: Funcionario) => f.tipo === 'F' || f.tipo === 'P');
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar funcionários',
+  });
+
+  // Form validation
+  const {
+    formData,
+    setFormData,
+    setFieldError,
+    isSubmitting,
+    handleSubmit,
+    getFieldProps,
+  } = useFormValidation<ClienteCreate>(
+    {
+      nome: "",
+      cpf: "",
+      email: "",
+      telefone: "",
+      aniversario: null,
+      tipo: "",
+      formas_cobranca: [],
+      comissionado_id: null,
+    },
+    clienteCreateSchema
+  );
+
+  // Initialize form when editing
   useEffect(() => {
     if (cliente) {
       setFormData({
@@ -58,6 +79,7 @@ export default function ClienteDialog({
         aniversario: cliente.aniversario || null,
         tipo: cliente.tipo,
         formas_cobranca: [],
+        comissionado_id: cliente.comissionado_id || null,
       });
 
       setFormas(
@@ -65,16 +87,16 @@ export default function ClienteDialog({
           const formato =
             f.formato === "M" || f.formato === "E"
               ? f.formato
-              : "M"; // fallback seguro
-      
+              : "M";
+
           const valor =
             formato === "M"
               ? Number(f.valor_mensal)
               : Number(f.percentual_exito);
-      
+
           return {
             id: String(f.id),
-            formato, // ✅ agora é "M" | "E"
+            formato,
             descricao: f.descricao || "",
             valor,
             valor_display:
@@ -88,7 +110,6 @@ export default function ClienteDialog({
           };
         })
       );
-      
     } else {
       setFormData({
         nome: "",
@@ -98,15 +119,13 @@ export default function ClienteDialog({
         aniversario: null,
         tipo: "",
         formas_cobranca: [],
+        comissionado_id: null,
       });
       setFormas([]);
     }
-  }, [cliente, open]);
+  }, [cliente, open, setFormData]);
 
-  // ======================
-  // 💾 Submit
-  // ======================
-  const handleSubmit = () => {
+  const handleSubmitWrapper = async () => {
     const formasPayload = formas.map((f) => ({
       formato: f.formato,
       descricao: f.descricao,
@@ -114,21 +133,25 @@ export default function ClienteDialog({
       percentual_exito: f.formato === "E" ? f.valor : null,
     }));
 
-    if (cliente) {
-      const payload: ClienteUpdate = {
-        ...formData,
-        formas_cobranca: formasPayload,
-      };
-      onSubmit(payload);
-    } else {
-      const payload: ClienteCreate = {
-        ...formData,
-        formas_cobranca: formasPayload,
-      };
-      onSubmit(payload);
-    }
-
-    onClose();
+    await handleSubmit(async (data) => {
+      try {
+        const payload = {
+          ...data,
+          formas_cobranca: formasPayload,
+        };
+        await onSubmit(payload);
+        onClose();
+        toast.success(
+          cliente ? 'Cliente atualizado com sucesso' : 'Cliente criado com sucesso'
+        );
+      } catch (error) {
+        const generalError = applyBackendErrors(setFieldError, error);
+        if (generalError) {
+          toast.error(generalError);
+        }
+        throw error;
+      }
+    });
   };
 
   return (
@@ -136,92 +159,112 @@ export default function ClienteDialog({
       open={open}
       onClose={onClose}
       title={cliente ? "Editar Cliente" : "Novo Cliente"}
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmitWrapper}
+      loading={isSubmitting}
     >
       <div className="grid grid-cols-1 gap-6">
-        {/* 🔹 Linha 1 */}
+        {/* Linha 1 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium">CPF / CNPJ</label>
-            <Input
-              placeholder="000.000.000-00"
-              value={formData.cpf}
-              onChange={(e) =>
-                setFormData({ ...formData, cpf: e.target.value })
-              }
-            />
-          </div>
+          <FormInput
+            label="CPF / CNPJ"
+            placeholder="000.000.000-00"
+            value={formData.cpf || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, cpf: e.target.value }))
+            }
+            error={getFieldProps('cpf').error}
+          />
 
           <div className="md:col-span-2">
-            <label className="text-sm font-medium">Nome *</label>
-            <Input
+            <FormInput
+              label="Nome"
+              required
               placeholder="Nome do cliente"
-              value={formData.nome}
+              value={formData.nome || ""}
               onChange={(e) =>
-                setFormData({ ...formData, nome: e.target.value })
+                setFormData((prev) => ({ ...prev, nome: e.target.value }))
               }
+              error={getFieldProps('nome').error}
             />
           </div>
         </div>
 
-        {/* 🔹 Linha 2 */}
+        {/* Linha 2 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="text-sm font-medium">Email</label>
-            <Input
-              placeholder="email@exemplo.com"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-            />
-          </div>
+          <FormInput
+            label="Email"
+            type="email"
+            placeholder="email@exemplo.com"
+            value={formData.email || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, email: e.target.value }))
+            }
+            error={getFieldProps('email').error}
+          />
 
-          <div>
-            <label className="text-sm font-medium">Telefone</label>
-            <Input
-              placeholder="(00) 00000-0000"
-              value={formData.telefone}
-              onChange={(e) =>
-                setFormData({ ...formData, telefone: e.target.value })
-              }
-            />
-          </div>
+          <FormInput
+            label="Telefone"
+            placeholder="(00) 00000-0000"
+            value={formData.telefone || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, telefone: e.target.value }))
+            }
+            error={getFieldProps('telefone').error}
+          />
 
-          <div>
-            <label className="text-sm font-medium">Tipo de Cliente *</label>
-            <Select
-              value={formData.tipo}
-              onValueChange={(val) =>
-                setFormData({ ...formData, tipo: val })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Fixo</SelectItem>
-                <SelectItem value="A">Avulso</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FormSelect
+            label="Tipo de Cliente"
+            required
+            value={formData.tipo}
+            onValueChange={(val) =>
+              setFormData((prev) => ({ ...prev, tipo: val }))
+            }
+            options={[
+              { value: 'F', label: 'Fixo' },
+              { value: 'A', label: 'Avulso' },
+            ]}
+            placeholder="Selecione"
+            error={getFieldProps('tipo').error}
+          />
 
-          <div>
-            <label className="text-sm font-medium">Data de Nascimento</label>
-            <Input
-              type="date"
-              value={formData.aniversario || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  aniversario: e.target.value || null,
-                })
-              }
-            />
-          </div>
+          <FormInput
+            label="Data de Nascimento"
+            type="date"
+            value={formData.aniversario || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                aniversario: e.target.value || null,
+              }))
+            }
+            error={getFieldProps('aniversario').error}
+          />
         </div>
 
-        {/* 🔥 Formas de cobrança */}
+        {/* Linha 3 - Comissionado */}
+        <div className="grid grid-cols-1">
+          <FormSelect
+            label="Comissionado"
+            value={formData.comissionado_id?.toString() || "none"}
+            onValueChange={(val) =>
+              setFormData((prev) => ({
+                ...prev,
+                comissionado_id: val === "none" ? null : Number(val)
+              }))
+            }
+            options={[
+              { value: 'none', label: 'Nenhum' },
+              ...(funcionarios?.map((f: Funcionario) => ({
+                value: f.id.toString(),
+                label: `${f.nome} (${f.tipo === 'F' ? 'Funcionário' : 'Parceiro'})`
+              })) || [])
+            ]}
+            placeholder="Nenhum"
+            error={getFieldProps('comissionado_id').error}
+          />
+        </div>
+
+        {/* Formas de cobrança */}
         <FormaCobrancaList formas={formas} setFormas={setFormas} />
       </div>
     </DialogBase>

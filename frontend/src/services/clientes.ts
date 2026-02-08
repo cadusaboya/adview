@@ -52,3 +52,14 @@ export async function deleteCliente(
 ): Promise<void> {
   await api.delete(`/api/clientes/${id}/`);
 }
+
+// 🔹 GERAR COMISSÕES
+export async function gerarComissoes(mes: number, ano: number): Promise<{
+  comissionados: Array<{ id: number; nome: string; valor: number }>;
+  total: number;
+  mes: number;
+  ano: number;
+}> {
+  const res = await api.post('/api/clientes/gerar-comissoes/', { mes, ano });
+  return res.data;
+}
