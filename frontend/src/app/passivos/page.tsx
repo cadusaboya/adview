@@ -94,6 +94,15 @@ export default function PassivosPage() {
     loadCustodias();
   }, [loadCustodias]);
 
+  // ======================
+  // 🔄 PREFETCH ON MOUNT
+  // ======================
+  useEffect(() => {
+    // Carregar dados auxiliares assim que a página monta
+    prefetchAuxiliaryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Só executa uma vez na montagem
+
   // Reset page when search or status filter changes
   useEffect(() => {
     setPage(1);

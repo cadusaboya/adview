@@ -91,6 +91,15 @@ export default function ReceitasPage() {
     loadReceitas();
   }, [loadReceitas]);
 
+  // ======================
+  // 🔄 PREFETCH ON MOUNT
+  // ======================
+  useEffect(() => {
+    // Carregar dados auxiliares assim que a página monta
+    prefetchAuxiliaryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Só executa uma vez na montagem
+
   // Reset page when search changes
   useEffect(() => {
     setPage(1);

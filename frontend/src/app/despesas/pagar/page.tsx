@@ -108,6 +108,15 @@ export default function DespesasPage() {
   }, [loadDespesas]);
 
   // ======================
+  // 🔄 PREFETCH ON MOUNT
+  // ======================
+  useEffect(() => {
+    // Carregar dados auxiliares assim que a página monta
+    prefetchAuxiliaryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Só executa uma vez na montagem
+
+  // ======================
   // 👥 FAVORECIDOS (LAZY)
   // ======================
   const loadFavorecidos = async () => {
