@@ -42,7 +42,7 @@ export default function CustodiaDialog({
   const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
 
   // Load auxiliary data in parallel
-  const { data: funcionarios } = useLoadAuxiliaryData({
+  const { data: funcionarios, loading: loadingFuncionarios } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getFuncionarios({ page_size: 1000 });
       return res.results;
@@ -51,7 +51,7 @@ export default function CustodiaDialog({
     errorMessage: 'Erro ao carregar funcionários',
   });
 
-  const { data: clientes } = useLoadAuxiliaryData({
+  const { data: clientes, loading: loadingClientes } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getClientes({ page_size: 1000 });
       return res.results;
@@ -60,7 +60,7 @@ export default function CustodiaDialog({
     errorMessage: 'Erro ao carregar clientes',
   });
 
-  const { data: bancos } = useLoadAuxiliaryData({
+  const { data: bancos, loading: loadingBancos } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getBancos({ page_size: 1000 });
       return res.results.map((b) => ({ id: b.id, nome: b.nome }));
@@ -68,6 +68,9 @@ export default function CustodiaDialog({
     onOpen: open,
     errorMessage: 'Erro ao carregar bancos',
   });
+
+  // Check if auxiliary data is still loading (only when editing)
+  const isLoadingAuxData = custodia && (loadingFuncionarios || loadingClientes || loadingBancos);
 
   // Form validation
   const {
@@ -174,7 +177,13 @@ export default function CustodiaDialog({
       title={custodia ? 'Editar Custódia' : 'Criar Custódia'}
       loading={isSubmitting}
     >
-      <div className="space-y-4">
+      {isLoadingAuxData ? (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          <p className="text-sm text-muted-foreground">Carregando dados...</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
         {/* Nome e Valor Total */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput
@@ -305,6 +314,7 @@ export default function CustodiaDialog({
           />
         )}
       </div>
+      )}
     </DialogBase>
   );
 }
