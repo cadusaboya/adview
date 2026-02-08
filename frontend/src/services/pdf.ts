@@ -230,6 +230,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'dre-consolidado': 'Demonstração de Resultado do Exercício (DRE)',
     'fluxo-de-caixa': 'Relatório de Fluxo de Caixa',
     'recibo-pagamento': 'Recibo de Pagamento',
+    'comissionamento': 'Relatório de Comissionamento',
   };
 
   return nomes[tipoRelatorio];

@@ -7,9 +7,12 @@ export const clienteCreateSchema: ValidationSchema<ClienteCreate> = {
     required("Nome é obrigatório"),
     minLength(3, "Nome deve ter pelo menos 3 caracteres"),
   ],
-  cpf: [cpfOrCnpj()],
-  email: [email()],
-  telefone: [phone()],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cpf: [cpfOrCnpj() as any], // Type cast needed for optional field
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  email: [email() as any], // Type cast needed for optional field
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  telefone: [phone() as any], // Type cast needed for optional field
   tipo: [required("Tipo de cliente é obrigatório")],
   aniversario: [], // Optional
   comissionado_id: [], // Optional

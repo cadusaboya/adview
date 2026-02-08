@@ -5,10 +5,10 @@ import { required, minValue, custom } from "../validators";
 export const transferCreateSchema: ValidationSchema<TransferCreate> = {
   from_bank_id: [
     required("Banco de origem é obrigatório"),
-    custom(
+    custom<number>(
       (value, allValues) => {
         if (!allValues) return true;
-        return value !== allValues.to_bank_id;
+        return value !== (allValues as TransferCreate).to_bank_id;
       },
       "As contas de origem e destino devem ser diferentes"
     ),
