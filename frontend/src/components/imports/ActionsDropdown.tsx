@@ -23,11 +23,12 @@ export type ActionItem = {
 
 interface ActionsDropdownProps {
   actions: ActionItem[];
+  onOpen?: () => void;
 }
 
-export function ActionsDropdown({ actions }: ActionsDropdownProps) {
+export function ActionsDropdown({ actions, onOpen }: ActionsDropdownProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open && onOpen?.()}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"

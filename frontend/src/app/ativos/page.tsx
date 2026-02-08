@@ -309,15 +309,14 @@ export default function AtivosPage() {
       width: '15%',
       render: (_: unknown, record: Custodia) => (
         <ActionsDropdown
+          onOpen={() => prefetchAuxiliaryData()}
           actions={[
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: async () => {
+              onClick: () => {
                 setEditingCustodia(record);
                 setOpenDialog(true);
-                // Prefetch auxiliary data in background
-                await prefetchAuxiliaryData();
               },
             },
             {

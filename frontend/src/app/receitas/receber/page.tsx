@@ -285,15 +285,14 @@ export default function ReceitasPage() {
       width: '6%',
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
+          onOpen={() => prefetchAuxiliaryData()}
           actions={[
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: async () => {
+              onClick: () => {
                 setEditingReceita(record);
                 setOpenDialog(true);
-                // Prefetch auxiliary data in background
-                await prefetchAuxiliaryData();
               },
             },
             {

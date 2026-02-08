@@ -297,15 +297,14 @@ export default function DespesasPage() {
       width: '6%',
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
+          onOpen={() => prefetchAuxiliaryData()}
           actions={[
             {
               label: 'Editar',
               icon: Pencil,
-              onClick: async () => {
+              onClick: () => {
                 setEditingDespesa(record);
                 setOpenDialog(true);
-                // Prefetch auxiliary data in background
-                await prefetchAuxiliaryData();
               },
             },
             {
