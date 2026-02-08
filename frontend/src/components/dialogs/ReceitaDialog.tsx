@@ -67,7 +67,13 @@ export default function ReceitaDialog({
   });
 
   // Check if auxiliary data is still loading (only when editing)
-  const isLoadingAuxData = receita && (loadingBancos || loadingClientes);
+  // Considera tanto o estado de loading quanto a disponibilidade dos dados
+  const isLoadingAuxData = receita && (
+    loadingBancos ||
+    loadingClientes ||
+    !bancos ||
+    !clientes
+  );
 
   // Form validation
   const {

@@ -64,7 +64,13 @@ export default function DespesaDialog({
   });
 
   // Check if auxiliary data is still loading (only when editing)
-  const isLoadingAuxData = despesa && (loadingBancos || loadingFavorecidos);
+  // Considera tanto o estado de loading quanto a disponibilidade dos dados
+  const isLoadingAuxData = despesa && (
+    loadingBancos ||
+    loadingFavorecidos ||
+    !bancos ||
+    !favorecidos
+  );
 
   // Form validation
   const {

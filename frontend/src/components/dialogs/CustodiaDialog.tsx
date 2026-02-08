@@ -70,7 +70,15 @@ export default function CustodiaDialog({
   });
 
   // Check if auxiliary data is still loading (only when editing)
-  const isLoadingAuxData = custodia && (loadingFuncionarios || loadingClientes || loadingBancos);
+  // Considera tanto o estado de loading quanto a disponibilidade dos dados
+  const isLoadingAuxData = custodia && (
+    loadingFuncionarios ||
+    loadingClientes ||
+    loadingBancos ||
+    !funcionarios ||
+    !clientes ||
+    !bancos
+  );
 
   // Form validation
   const {

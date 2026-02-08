@@ -41,6 +41,7 @@ interface Props {
 export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo, valorAberto }: Props) {
   const [payments, setPayments] = useState<PaymentUI[]>([]);
   const [valorDisplay, setValorDisplay] = useState('');
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true);
 
   const [form, setForm] = useState({
     data_pagamento: '',
@@ -57,6 +58,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   const [searchTerm, setSearchTerm] = useState('');
 
   const loadPayments = useCallback(async () => {
+    setIsLoadingPayments(true);
     try {
       // Buscar allocations ao invés de payments diretos
       const query =
@@ -81,6 +83,8 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       );
     } catch {
       toast.error('Erro ao carregar pagamentos');
+    } finally {
+      setIsLoadingPayments(false);
     }
   }, [tipo, entityId]);
 
@@ -367,13 +371,20 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       </TabsList>
 
       <TabsContent value="pagamentos" className="min-h-[400px]">
-        <PaymentsTable
-          payments={payments}
-          contasBancarias={contasBancarias}
-          onDelete={handleDelete}
-          onUnlink={handleUnlink}
-          tipo={tipo}
-        />
+        {isLoadingPayments ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+            <p className="text-sm text-muted-foreground">Carregando pagamentos...</p>
+          </div>
+        ) : (
+          <PaymentsTable
+            payments={payments}
+            contasBancarias={contasBancarias}
+            onDelete={handleDelete}
+            onUnlink={handleUnlink}
+            tipo={tipo}
+          />
+        )}
       </TabsContent>
 
       <TabsContent value="baixa" className="min-h-[400px]">
