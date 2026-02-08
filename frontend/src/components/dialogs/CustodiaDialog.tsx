@@ -23,6 +23,7 @@ import {
   CustodiaCreate,
   CustodiaUpdate,
 } from '@/types/custodias';
+import { PaymentUI } from '@/types/payments';
 
 interface Props {
   open: boolean;
@@ -33,7 +34,7 @@ interface Props {
   initialFuncionarios?: Funcionario[];
   initialClientes?: Cliente[];
   initialBancos?: { id: number; nome: string }[];
-  initialPayments?: any[];
+  initialPayments?: PaymentUI[];
 }
 
 export default function CustodiaDialog({

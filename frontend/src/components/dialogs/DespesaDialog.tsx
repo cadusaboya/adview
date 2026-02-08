@@ -23,6 +23,7 @@ import {
   DespesaCreate,
   DespesaUpdate,
 } from '@/types/despesas';
+import { PaymentUI } from '@/types/payments';
 
 interface DespesaCreateWithPayment extends DespesaCreate {
   marcar_como_pago?: boolean;
@@ -38,7 +39,7 @@ interface Props {
   despesa?: Despesa | null;
   initialBancos?: { id: number; nome: string }[];
   initialFavorecidos?: Favorecido[];
-  initialPayments?: any[]; // Pagamentos pré-carregados
+  initialPayments?: PaymentUI[]; // Pagamentos pré-carregados
 }
 
 export default function DespesaDialog({

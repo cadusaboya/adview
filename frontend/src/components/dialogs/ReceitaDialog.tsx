@@ -25,6 +25,7 @@ import {
   ReceitaCreate,
   ReceitaUpdate,
 } from '@/types/receitas';
+import { PaymentUI } from '@/types/payments';
 
 // Extended interface for creating receita with payment
 interface ReceitaCreateWithPayment extends ReceitaCreate {
@@ -41,7 +42,7 @@ interface Props {
   receita?: Receita | null;
   initialBancos?: { id: number; nome: string }[];
   initialClientes?: Cliente[];
-  initialPayments?: any[];
+  initialPayments?: PaymentUI[];
 }
 
 export default function ReceitaDialog({
