@@ -14,7 +14,7 @@ import DespesaDialog from '@/components/dialogs/DespesaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
 
-import { updateDespesa, getDespesaById, getDespesas, deleteDespesa } from '@/services/despesas';
+import { updateDespesa, getDespesas, deleteDespesa } from '@/services/despesas';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
 import { getBancos } from '@/services/bancos';
@@ -218,18 +218,9 @@ export default function DespesasPagasPage() {
   // ======================
   // ✏️ EDITAR DESPESA
   // ======================
-  const handleEditDespesa = async (despesaId: number) => {
-    try {
-      setLoading(true);
-      const despesa = await getDespesaById(despesaId);
-      setEditingDespesa(despesa);
-      setOpenDialog(true);
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar despesa');
-    } finally {
-      setLoading(false);
-    }
+  const handleEditDespesa = (despesa: Despesa) => {
+    setEditingDespesa(despesa);
+    setOpenDialog(true);
   };
 
   // ======================
@@ -321,7 +312,7 @@ export default function DespesasPagasPage() {
             {
               label: 'Editar Despesa',
               icon: Pencil,
-              onClick: () => handleEditDespesa(record.id),
+              onClick: () => handleEditDespesa(record),
             },
             {
               label: 'Excluir Despesa',

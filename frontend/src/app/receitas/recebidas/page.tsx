@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 
 import { Cliente } from '@/types/clientes';
 import { Receita, ReceitaUpdate } from '@/types/receitas';
-import { getReceitaById, updateReceita, getReceitas, deleteReceita } from '@/services/receitas';
+import { updateReceita, getReceitas, deleteReceita } from '@/services/receitas';
 
 import { getClientes } from '@/services/clientes';
 import { getBancos } from '@/services/bancos';
@@ -215,18 +215,9 @@ export default function ReceitaRecebidasPage() {
   // ======================
   // ✏️ EDITAR RECEITA
   // ======================
-  const handleEditReceita = async (receitaId: number) => {
-    try {
-      setLoading(true);
-      const receita = await getReceitaById(receitaId);
-      setEditingReceita(receita);
-      setOpenDialog(true);
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar receita');
-    } finally {
-      setLoading(false);
-    }
+  const handleEditReceita = (receita: Receita) => {
+    setEditingReceita(receita);
+    setOpenDialog(true);
   };
 
   // ======================
@@ -321,7 +312,7 @@ export default function ReceitaRecebidasPage() {
             {
               label: 'Editar Receita',
               icon: Pencil,
-              onClick: () => handleEditReceita(record.id),
+              onClick: () => handleEditReceita(record),
             },
             {
               label: 'Excluir Receita',
