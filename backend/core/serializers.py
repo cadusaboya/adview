@@ -536,14 +536,20 @@ class TransferSerializer(serializers.ModelSerializer):
         )
 
     def get_valor_saida(self, obj):
-        """Retorna o total de saídas alocadas"""
+        """Retorna o total de saídas alocadas (usa annotation do ViewSet se disponível)"""
+        if hasattr(obj, 'valor_saida'):
+            return obj.valor_saida
+        # Fallback para quando não há annotation
         total = obj.allocations.filter(
             payment__tipo='S'
         ).aggregate(total=Sum('valor'))['total']
         return total or Decimal('0.00')
 
     def get_valor_entrada(self, obj):
-        """Retorna o total de entradas alocadas"""
+        """Retorna o total de entradas alocadas (usa annotation do ViewSet se disponível)"""
+        if hasattr(obj, 'valor_entrada'):
+            return obj.valor_entrada
+        # Fallback para quando não há annotation
         total = obj.allocations.filter(
             payment__tipo='E'
         ).aggregate(total=Sum('valor'))['total']
