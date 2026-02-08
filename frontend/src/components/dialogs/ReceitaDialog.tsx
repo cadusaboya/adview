@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
+import { useFormDirty } from '@/hooks/useFormDirty';
 import { receitaCreateSchema } from '@/lib/validation/schemas/receita';
 import { FormInput } from '@/components/form/FormInput';
 import { FormSelect } from '@/components/form/FormSelect';
@@ -16,10 +17,8 @@ import { applyBackendErrors } from '@/lib/validation/backendErrors';
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
 import { getBancos } from '@/services/bancos';
-import { getFuncionarios } from '@/services/funcionarios';
 import { getClientes } from '@/services/clientes';
 
-import { Funcionario } from '@/types/funcionarios';
 import { Cliente } from '@/types/clientes';
 import {
   Receita,
@@ -58,15 +57,6 @@ export default function ReceitaDialog({
     errorMessage: 'Erro ao carregar bancos',
   });
 
-  const { data: funcionarios } = useLoadAuxiliaryData({
-    loadFn: async () => {
-      const res = await getFuncionarios({ page_size: 1000 });
-      return res.results;
-    },
-    onOpen: open,
-    errorMessage: 'Erro ao carregar funcionários',
-  });
-
   const { data: clientes } = useLoadAuxiliaryData({
     loadFn: async () => {
       const res = await getClientes({ page_size: 1000 });
@@ -93,7 +83,6 @@ export default function ReceitaDialog({
       data_vencimento: '',
       tipo: 'F',
       forma_pagamento: 'P',
-      comissionado_id: null,
     },
     receitaCreateSchema
   );
@@ -104,18 +93,49 @@ export default function ReceitaDialog({
   const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
   const [observacaoPagamento, setObservacaoPagamento] = useState('');
 
+  // Initial form data for dirty checking
+  const initialFormData: ReceitaCreate = {
+    nome: '',
+    descricao: '',
+    cliente_id: 0,
+    valor: 0,
+    data_vencimento: '',
+    tipo: 'F',
+    forma_pagamento: 'P',
+  };
+
+  // Track if form has unsaved changes
+  const isDirty = useFormDirty(formData, receita ? {
+    nome: receita.nome,
+    descricao: receita.descricao,
+    cliente_id: receita.cliente?.id ?? receita.cliente_id ?? 0,
+    valor: receita.valor,
+    data_vencimento: receita.data_vencimento,
+    tipo: receita.tipo,
+    forma_pagamento: receita.forma_pagamento ?? 'P',
+  } : initialFormData);
+
+  // Handle close with confirmation
+  const handleClose = () => {
+    if (isDirty && !isSubmitting) {
+      if (!confirm('Descartar alterações não salvas?')) {
+        return;
+      }
+    }
+    onClose();
+  };
+
   // Initialize form when editing
   useEffect(() => {
     if (receita) {
       setFormData({
         nome: receita.nome,
         descricao: receita.descricao,
-        cliente_id: receita.cliente?.id ?? receita.cliente_id!,
+        cliente_id: receita.cliente?.id ?? receita.cliente_id ?? 0,
         valor: receita.valor,
         data_vencimento: receita.data_vencimento,
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento ?? 'P',
-        comissionado_id: receita.comissionado?.id ?? null,
       });
     } else {
       setFormData({
@@ -126,7 +146,6 @@ export default function ReceitaDialog({
         data_vencimento: '',
         tipo: 'F',
         forma_pagamento: 'P',
-        comissionado_id: null,
       });
       setMarcarComoPago(false);
       setDataPagamento('');
@@ -174,7 +193,7 @@ export default function ReceitaDialog({
   return (
     <DialogBase
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={receita ? 'Editar Receita' : 'Nova Receita'}
       onSubmit={handleSubmitWrapper}
       loading={isSubmitting}
@@ -287,30 +306,6 @@ export default function ReceitaDialog({
             ]}
             error={getFieldProps('forma_pagamento').error}
           />
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Comissionado</label>
-            <AntdSelect
-              showSearch
-              allowClear
-              placeholder="Selecione um comissionado"
-              value={formData.comissionado_id ?? undefined}
-              options={funcionarios?.map((f: Funcionario) => ({
-                value: f.id,
-                label: f.nome,
-              })) || []}
-              onChange={(val) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  comissionado_id: val ?? null,
-                }))
-              }
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-            />
-          </div>
         </div>
 
         {/* Marcar como pago - only when creating */}

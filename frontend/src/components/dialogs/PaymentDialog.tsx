@@ -275,7 +275,9 @@ export default function PaymentDialog({
   const loadTransfers = async () => {
     try {
       const res = await transfersService.list({ page_size: 1000 });
-      setTransfers(res.results);
+      // Filtrar transferências com status "Completo" (C)
+      const transfersFiltered = res.results.filter(t => t.status !== 'C');
+      setTransfers(transfersFiltered);
     } catch (error) {
       console.error('Erro ao carregar transferências:', error);
     }
@@ -529,7 +531,7 @@ export default function PaymentDialog({
                             }))
                           : transfers.map((t) => ({
                               value: t.id,
-                              label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${t.status_display}`,
+                              label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${new Date(t.data_transferencia).toLocaleDateString('pt-BR')}`,
                             }))
                       }
                       onChange={(val) => {

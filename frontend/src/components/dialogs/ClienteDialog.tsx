@@ -16,6 +16,7 @@ import FormaCobrancaList, {
 
 import { Cliente, ClienteCreate, ClienteUpdate } from '@/types/clientes';
 import { getFuncionarios } from '@/services/funcionarios';
+import { Funcionario } from '@/types/funcionarios';
 import { formatCurrencyInput } from "@/lib/formatters";
 
 interface ClienteDialogProps {
@@ -39,7 +40,7 @@ export default function ClienteDialog({
   } = useLoadAuxiliaryData({
     loadFn: async () => {
       const response = await getFuncionarios({ page: 1, page_size: 1000 });
-      return response.results.filter((f: any) => f.tipo === 'F' || f.tipo === 'P');
+      return response.results.filter((f: Funcionario) => f.tipo === 'F' || f.tipo === 'P');
     },
     onOpen: open,
     errorMessage: 'Erro ao carregar funcionários',
@@ -253,7 +254,7 @@ export default function ClienteDialog({
             }
             options={[
               { value: 'none', label: 'Nenhum' },
-              ...(funcionarios?.map((f: any) => ({
+              ...(funcionarios?.map((f: Funcionario) => ({
                 value: f.id.toString(),
                 label: `${f.nome} (${f.tipo === 'F' ? 'Funcionário' : 'Parceiro'})`
               })) || [])
