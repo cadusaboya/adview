@@ -95,12 +95,17 @@ function getPaymentDescription(p: Payment) {
 
 export function ClienteProfileDialog({
   clientId,
+  open: externalOpen,
+  onClose,
   children,
 }: {
   clientId: number;
-  children: React.ReactNode;
+  open?: boolean;
+  onClose?: () => void;
+  children?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const [client, setClient] = useState<Client | null>(null);
   const [pendings, setPendings] = useState<Pending[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -132,9 +137,17 @@ export function ClienteProfileDialog({
     loadData();
   }, [open, clientId]);
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen && onClose) {
+      onClose();
+    } else {
+      setInternalOpen(newOpen);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
 
       <DialogContent className="max-w-5xl p-0 overflow-hidden">
         <div className="flex flex-col max-h-[85vh]">

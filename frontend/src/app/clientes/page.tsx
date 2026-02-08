@@ -67,6 +67,10 @@ export default function ClientePage() {
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [selectedClienteId, setSelectedClienteId] = useState<number | null>(null);
 
+  // Cliente Profile Dialog state
+  const [openProfileDialog, setOpenProfileDialog] = useState(false);
+  const [profileClienteId, setProfileClienteId] = useState<number | null>(null);
+
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -295,9 +299,8 @@ export default function ClientePage() {
               label: 'Financeiro',
               icon: DollarSign,
               onClick: () => {
-                document
-                  .getElementById(`cliente-fin-${record.id}`)
-                  ?.click();
+                setProfileClienteId(record.id);
+                setOpenProfileDialog(true);
               },
             },
             {
@@ -345,7 +348,7 @@ export default function ClientePage() {
               placeholder="Buscar clientes..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-full md:w-80"
             />
             {selectedRowKeys.length > 0 && (
               <Button
@@ -407,17 +410,17 @@ export default function ClientePage() {
           cliente={editingCliente}
         />
 
-        {clientes.map((cliente) => (
+        {/* Single Profile Dialog with dynamic clientId */}
+        {profileClienteId && (
           <ClienteProfileDialog
-            key={cliente.id}
-            clientId={cliente.id}
-          >
-            <button
-              id={`cliente-fin-${cliente.id}`}
-              className="hidden"
-            />
-          </ClienteProfileDialog>
-        ))}
+            open={openProfileDialog}
+            clientId={profileClienteId}
+            onClose={() => {
+              setOpenProfileDialog(false);
+              setProfileClienteId(null);
+            }}
+          />
+        )}
 
         <RelatorioFiltrosModal
           open={openRelatorioModal}
