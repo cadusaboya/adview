@@ -25,6 +25,7 @@ import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { PaymentUI } from '@/types/payments';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
@@ -46,7 +47,7 @@ export default function ReceitaRecebidasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a receita sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
 
   // Paginação
   const [total, setTotal] = useState(0);

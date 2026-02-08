@@ -22,6 +22,7 @@ import { getAllocations } from '@/services/allocations';
 import { gerarRelatorioPDF } from '@/services/pdf';
 
 import { Despesa, DespesaUpdate } from '@/types/despesas';
+import { PaymentUI } from '@/types/payments';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -49,7 +50,7 @@ export default function DespesasPagasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a despesa sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
 
   // Paginação
   const [total, setTotal] = useState(0);

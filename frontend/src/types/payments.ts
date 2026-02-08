@@ -90,3 +90,15 @@ export interface PaymentListParams {
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
 }
+
+// =========================
+// PAYMENT UI (para PaymentsTabs)
+// =========================
+export interface PaymentUI {
+  id: number;
+  allocation_id: number;
+  data_pagamento: string;
+  conta_bancaria: number;
+  valor: number;
+  observacao: string;
+}

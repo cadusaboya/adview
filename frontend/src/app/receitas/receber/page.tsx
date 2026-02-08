@@ -30,6 +30,7 @@ import { getClientes } from '@/services/clientes';
 import { Cliente } from '@/types/clientes';
 import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
+import { PaymentUI } from '@/types/payments';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
@@ -61,7 +62,7 @@ export default function ReceitasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a receita sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

@@ -37,6 +37,7 @@ import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
 import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
+import { PaymentUI } from '@/types/payments';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -65,7 +66,7 @@ export default function DespesasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a despesa sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

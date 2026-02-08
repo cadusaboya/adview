@@ -32,6 +32,7 @@ import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
 import { Funcionario } from '@/types/funcionarios';
 import { Cliente } from '@/types/clientes';
+import { PaymentUI } from '@/types/payments';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
@@ -63,7 +64,7 @@ export default function AtivosPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a custódia sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
 
   // ======================
   // 🔄 LOAD DATA
