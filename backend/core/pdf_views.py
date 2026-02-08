@@ -48,17 +48,23 @@ def relatorio_receitas_pagas(request):
     data_inicio = request.query_params.get("data_inicio")
     data_fim = request.query_params.get("data_fim")
 
+    # Filtra payments que têm alocações com receita
     pagamentos = Payment.objects.filter(
         company=company,
-        receita__isnull=False
+        allocations__receita__isnull=False
     ).select_related(
-        "receita",
-        "receita__cliente",
         "conta_bancaria"
-    ).order_by("data_pagamento")
+    ).prefetch_related(
+        Prefetch(
+            'allocations',
+            queryset=Allocation.objects.select_related(
+                'receita__cliente'
+            ).filter(receita__isnull=False)
+        )
+    ).distinct().order_by("data_pagamento")
 
     if cliente_id:
-        pagamentos = pagamentos.filter(receita__cliente_id=cliente_id)
+        pagamentos = pagamentos.filter(allocations__receita__cliente_id=cliente_id)
     if data_inicio:
         pagamentos = pagamentos.filter(data_pagamento__gte=data_inicio)
     if data_fim:
@@ -67,15 +73,18 @@ def relatorio_receitas_pagas(request):
     rows = []
     total = Decimal("0.00")
 
+    # Itera sobre payments e suas allocations de receita
     for p in pagamentos:
-        rows.append({
-            "data": format_date_br(p.data_pagamento),
-            "cliente": truncate_text(p.receita.cliente.nome, 25),
-            "descricao": truncate_text(p.receita.nome, 35),
-            "tipo": "Recebido",
-            "valor": p.valor,
-        })
-        total += p.valor
+        for allocation in p.allocations.all():
+            if allocation.receita:
+                rows.append({
+                    "data": format_date_br(p.data_pagamento),
+                    "cliente": truncate_text(allocation.receita.cliente.nome, 25),
+                    "descricao": truncate_text(allocation.receita.nome, 35),
+                    "tipo": "Recebido",
+                    "valor": allocation.valor,
+                })
+                total += allocation.valor
 
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = "inline; filename=relatorio_receitas_pagas.pdf"
@@ -191,14 +200,14 @@ def relatorio_cliente_especifico(request):
             cliente=cliente,
             situacao__in=["A", "V"]
         ).prefetch_related(
-            "payments"
+            "allocations"
         ).order_by("data_vencimento")
 
         rows.append({"is_section": True, "section_title": "Contas a Receber"})
 
         for r in receitas_abertas:
             total_recebido = sum(
-                (p.valor for p in r.payments.all()),
+                (alloc.valor for alloc in r.allocations.all()),
                 Decimal("0.00")
             )
 
@@ -254,23 +263,25 @@ def relatorio_cliente_especifico(request):
 
     # Só mostra contas recebidas se visualizacao for 'ambas' ou 'recebidas'
     if visualizacao in ["ambas", "recebidas"]:
-        pagamentos = Payment.objects.filter(
+        # Buscar alocações de receitas deste cliente
+        allocations = Allocation.objects.filter(
             company=company,
             receita__cliente=cliente
         ).select_related(
-            "receita",
-            "conta_bancaria"
-        ).order_by("data_pagamento")
+            "payment",
+            "payment__conta_bancaria",
+            "receita"
+        ).order_by("payment__data_pagamento")
 
         rows.append({"is_section": True, "section_title": "Contas Recebidas"})
 
-        for p in pagamentos:
+        for allocation in allocations:
             rows.append({
-                "data": format_date_br(p.data_pagamento),
-                "descricao": truncate_text(p.receita.nome, 40),
-                "valor": p.valor,
+                "data": format_date_br(allocation.payment.data_pagamento),
+                "descricao": truncate_text(allocation.receita.nome, 40),
+                "valor": allocation.valor,
             })
-            total_recebido += p.valor
+            total_recebido += allocation.valor
 
         rows.append({
             "is_subtotal": True,
@@ -343,17 +354,23 @@ def relatorio_despesas_pagas(request):
     data_inicio = request.query_params.get("data_inicio")
     data_fim = request.query_params.get("data_fim")
 
+    # Filtra payments que têm alocações com despesa
     pagamentos = Payment.objects.filter(
         company=company,
-        despesa__isnull=False
+        allocations__despesa__isnull=False
     ).select_related(
-        "despesa",
-        "despesa__responsavel",
         "conta_bancaria"
-    ).order_by("data_pagamento")
+    ).prefetch_related(
+        Prefetch(
+            'allocations',
+            queryset=Allocation.objects.select_related(
+                'despesa__responsavel'
+            ).filter(despesa__isnull=False)
+        )
+    ).distinct().order_by("data_pagamento")
 
     if responsavel_id:
-        pagamentos = pagamentos.filter(despesa__responsavel_id=responsavel_id)
+        pagamentos = pagamentos.filter(allocations__despesa__responsavel_id=responsavel_id)
     if data_inicio:
         pagamentos = pagamentos.filter(data_pagamento__gte=data_inicio)
     if data_fim:
@@ -362,15 +379,18 @@ def relatorio_despesas_pagas(request):
     rows = []
     total = Decimal("0.00")
 
+    # Itera sobre payments e suas allocations de despesa
     for p in pagamentos:
-        rows.append({
-            "data": format_date_br(p.data_pagamento),
-            "responsavel": truncate_text(p.despesa.responsavel.nome, 25),
-            "descricao": truncate_text(p.despesa.nome, 35),
-            "tipo": "Pago",
-            "valor": p.valor,
-        })
-        total += p.valor
+        for allocation in p.allocations.all():
+            if allocation.despesa:
+                rows.append({
+                    "data": format_date_br(p.data_pagamento),
+                    "responsavel": truncate_text(allocation.despesa.responsavel.nome, 25),
+                    "descricao": truncate_text(allocation.despesa.nome, 35),
+                    "tipo": "Pago",
+                    "valor": allocation.valor,
+                })
+                total += allocation.valor
 
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = "inline; filename=relatorio_despesas_pagas.pdf"
@@ -429,7 +449,7 @@ def relatorio_despesas_a_pagar(request):
     ).select_related(
         "responsavel"
     ).prefetch_related(
-        "payments"
+        "allocations"
     ).order_by("data_vencimento")
 
     if responsavel_id:
@@ -446,7 +466,7 @@ def relatorio_despesas_a_pagar(request):
 
     for despesa in despesas:
         total_pago = sum(
-            (p.valor for p in despesa.payments.all()),
+            (alloc.valor for alloc in despesa.allocations.all()),
             Decimal("0.00")
         )
 
@@ -546,7 +566,7 @@ def relatorio_receitas_a_receber(request):
     ).select_related(
         "cliente"
     ).prefetch_related(
-        "payments"
+        "allocations"
     ).order_by("data_vencimento")
 
     if cliente_id:
@@ -563,7 +583,7 @@ def relatorio_receitas_a_receber(request):
 
     for receita in receitas:
         total_recebido = sum(
-            (p.valor for p in receita.payments.all()),
+            (alloc.valor for alloc in receita.allocations.all()),
             Decimal("0.00")
         )
 
@@ -667,9 +687,15 @@ def relatorio_fluxo_de_caixa(request):
         company=company,
         conta_bancaria__isnull=False
     ).select_related(
-        "conta_bancaria",
-        "receita",
-        "despesa"
+        "conta_bancaria"
+    ).prefetch_related(
+        Prefetch(
+            'allocations',
+            queryset=Allocation.objects.select_related(
+                'receita',
+                'despesa'
+            )
+        )
     ).order_by("data_pagamento")
 
     # 🔹 Filtros
@@ -685,26 +711,28 @@ def relatorio_fluxo_de_caixa(request):
     total_saida = Decimal("0.00")
 
     for p in pagamentos:
-        # 🔹 Determinar tipo de movimentação
-        if p.receita_id:
-            tipo = "Entrada"
-            total_entrada += p.valor
-            descricao = truncate_text(p.receita.nome, 40)
-        elif p.despesa_id:
-            tipo = "Saída"
-            total_saida += p.valor
-            descricao = truncate_text(p.despesa.nome, 40)
-        else:
-            # ❌ Pagamento que não representa caixa real
-            continue
+        # Processar cada alocação do pagamento
+        for allocation in p.allocations.all():
+            # 🔹 Determinar tipo de movimentação baseado na alocação
+            if allocation.receita:
+                tipo = "Entrada"
+                total_entrada += allocation.valor
+                descricao = truncate_text(allocation.receita.nome, 40)
+            elif allocation.despesa:
+                tipo = "Saída"
+                total_saida += allocation.valor
+                descricao = truncate_text(allocation.despesa.nome, 40)
+            else:
+                # ❌ Alocação que não é receita nem despesa (custodia/transferência)
+                continue
 
-        rows.append({
-            "data": format_date_br(p.data_pagamento),
-            "conta": truncate_text(p.conta_bancaria.nome, 25),
-            "descricao": descricao,
-            "tipo": tipo,
-            "valor": p.valor,
-        })
+            rows.append({
+                "data": format_date_br(p.data_pagamento),
+                "conta": truncate_text(p.conta_bancaria.nome, 25),
+                "descricao": descricao,
+                "tipo": tipo,
+                "valor": allocation.valor,
+            })
 
     # 🔹 Preparar PDF
     response = HttpResponse(content_type="application/pdf")
@@ -782,13 +810,13 @@ def relatorio_funcionario_especifico(request):
 
     rows = []
 
-    # ===================== DESPESAS A PAGAR (CORRIGIDO)
+    # ===================== DESPESAS A PAGAR
     despesas_abertas = Despesa.objects.filter(
         company=company,
         responsavel=funcionario,
         situacao__in=["A", "V"]
     ).prefetch_related(
-        "payments"
+        "allocations"
     ).order_by("data_vencimento")
 
     total_aberto = Decimal("0.00")
@@ -796,7 +824,7 @@ def relatorio_funcionario_especifico(request):
 
     for d in despesas_abertas:
         total_pago = sum(
-            (p.valor for p in d.payments.all()),
+            (alloc.valor for alloc in d.allocations.all()),
             Decimal("0.00")
         )
 
@@ -820,25 +848,27 @@ def relatorio_funcionario_especifico(request):
         "valor": total_aberto,
     })
 
-    # ===================== DESPESAS PAGAS (JÁ CORRETO)
-    pagamentos = Payment.objects.filter(
+    # ===================== DESPESAS PAGAS
+    # Buscar alocações de despesas deste funcionário
+    allocations = Allocation.objects.filter(
         company=company,
         despesa__responsavel=funcionario
     ).select_related(
-        "despesa",
-        "conta_bancaria"
-    ).order_by("data_pagamento")
+        "payment",
+        "payment__conta_bancaria",
+        "despesa"
+    ).order_by("payment__data_pagamento")
 
     total_pago = Decimal("0.00")
     rows.append({"is_section": True, "section_title": "Despesas Pagas"})
 
-    for p in pagamentos:
+    for allocation in allocations:
         rows.append({
-            "data": format_date_br(p.data_pagamento),
-            "descricao": truncate_text(p.despesa.nome, 40),
-            "valor": p.valor,
+            "data": format_date_br(allocation.payment.data_pagamento),
+            "descricao": truncate_text(allocation.despesa.nome, 40),
+            "valor": allocation.valor,
         })
-        total_pago += p.valor
+        total_pago += allocation.valor
 
     rows.append({
         "is_subtotal": True,
@@ -1184,17 +1214,24 @@ def recibo_pagamento(request):
     try:
         payment = Payment.objects.select_related(
             'company',
-            'conta_bancaria',
-            'receita',
-            'receita__cliente',
-            'despesa',
-            'despesa__responsavel'
+            'conta_bancaria'
+        ).prefetch_related(
+            Prefetch(
+                'allocations',
+                queryset=Allocation.objects.select_related(
+                    'receita__cliente',
+                    'despesa__responsavel'
+                )
+            )
         ).get(id=payment_id, company=company)
     except Payment.DoesNotExist:
         return Response({"error": "Pagamento não encontrado"}, status=404)
 
+    # Pegar a primeira alocação de receita (se existir)
+    receita_allocation = payment.allocations.filter(receita__isnull=False).first()
+
     # Validação: Apenas receitas por enquanto
-    if not payment.receita:
+    if not receita_allocation:
         return Response({"error": "Recibo disponível apenas para receitas"}, status=400)
 
     # 🔹 Criar PDF
@@ -1301,7 +1338,7 @@ def recibo_pagamento(request):
     y -= 40  # Mais espaço após data
 
     # Destinatário
-    cliente = payment.receita.cliente
+    cliente = receita_allocation.receita.cliente
     pdf.drawString(margin, y, "À/Ao")
     y -= 20
     pdf.setFont("Helvetica-Bold", 11)
@@ -1363,9 +1400,9 @@ def recibo_pagamento(request):
 
     # Primeira linha: Nome da receita
     pdf.setFont("Helvetica", 10)
-    receita_nome = payment.receita.nome or "Honorários advocatícios"
+    receita_nome = receita_allocation.receita.nome or "Honorários advocatícios"
     pdf.drawString(table_x + 10, y + 8, receita_nome)
-    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(payment.valor))
+    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(receita_allocation.valor))
 
     # Linha divisória horizontal
     pdf.line(table_x, y, table_x + table_width, y)
@@ -1375,7 +1412,7 @@ def recibo_pagamento(request):
     # Segunda linha: Total
     pdf.setFont("Helvetica-Bold", 10)
     pdf.drawString(table_x + 10, y + 8, "TOTAL")
-    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(payment.valor))
+    pdf.drawRightString(table_x + table_width - 10, y + 8, format_currency(receita_allocation.valor))
 
     # Linha inferior
     pdf.line(table_x, y, table_x + table_width, y)

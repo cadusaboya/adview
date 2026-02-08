@@ -1,10 +1,15 @@
+import logging
 from rest_framework import viewsets, permissions, status, generics, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
+
+logger = logging.getLogger(__name__)
+from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, Prefetch
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.timezone import now
 from datetime import date, datetime, timedelta
+import decimal
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
@@ -145,7 +150,9 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related(
+            'comissionado'
+        ).prefetch_related('formas_cobranca')
 
         # Search filter
         search = self.request.query_params.get('search')
@@ -449,7 +456,10 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                     # Atualiza status da receita
                     receita.atualizar_status()
                 except ContaBancaria.DoesNotExist:
-                    pass  # Silently ignore if bank account doesn't exist
+                    logger.warning(
+                        f"Conta bancária {conta_bancaria_id} não encontrada ao processar receita {receita.id}. "
+                        "Pagamento não criado."
+                    )
 
 
 class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
@@ -524,9 +534,9 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             try:
                 ano, mes = map(int, mes_str.split('-'))
                 mes_referencia = date(ano, mes, 1)
-            except:
+            except (ValueError, IndexError) as e:
                 return Response(
-                    {'erro': 'Formato de mês inválido. Use YYYY-MM'},
+                    {'erro': f'Formato de mês inválido. Use YYYY-MM. Detalhe: {str(e)}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         else:
@@ -861,7 +871,10 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                     # Atualiza status da despesa
                     despesa.atualizar_status()
                 except ContaBancaria.DoesNotExist:
-                    pass  # Silently ignore if bank account doesn't exist
+                    logger.warning(
+                        f"Conta bancária {conta_bancaria_id} não encontrada ao processar despesa {despesa.id}. "
+                        "Pagamento não criado."
+                    )
 
 
 class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
@@ -936,9 +949,9 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             try:
                 ano, mes = map(int, mes_str.split('-'))
                 mes_referencia = date(ano, mes, 1)
-            except:
+            except (ValueError, IndexError) as e:
                 return Response(
-                    {'erro': 'Formato de mês inválido. Use YYYY-MM'},
+                    {'erro': f'Formato de mês inválido. Use YYYY-MM. Detalhe: {str(e)}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         else:
@@ -1171,7 +1184,21 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        queryset = super().get_queryset().prefetch_related('allocations')
+        queryset = super().get_queryset().select_related(
+            'conta_bancaria'
+        ).prefetch_related(
+            Prefetch(
+                'allocations',
+                queryset=Allocation.objects.select_related(
+                    'receita__cliente',
+                    'despesa__responsavel',
+                    'custodia__cliente',
+                    'custodia__funcionario',
+                    'transfer__from_bank',
+                    'transfer__to_bank'
+                )
+            )
+        )
         params = self.request.query_params
 
         # Filtros por data
@@ -1215,60 +1242,65 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         from django.db.models import F
+        from django.db import transaction
 
-        payment = serializer.save(company=self.request.user.company)
+        with transaction.atomic():
+            payment = serializer.save(company=self.request.user.company)
 
-        # Atualiza saldo da conta bancária usando F() para operação atômica
-        if payment.tipo == 'E':
-            # Entrada de dinheiro (+)
-            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
-                saldo_atual=F('saldo_atual') + payment.valor
-            )
-        else:
-            # Saída de dinheiro (-)
-            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
-                saldo_atual=F('saldo_atual') - payment.valor
-            )
+            # Atualiza saldo da conta bancária usando F() para operação atômica
+            # select_for_update() garante que não haja race condition
+            if payment.tipo == 'E':
+                # Entrada de dinheiro (+)
+                ContaBancaria.objects.select_for_update().filter(
+                    pk=payment.conta_bancaria.pk
+                ).update(saldo_atual=F('saldo_atual') + payment.valor)
+            else:
+                # Saída de dinheiro (-)
+                ContaBancaria.objects.select_for_update().filter(
+                    pk=payment.conta_bancaria.pk
+                ).update(saldo_atual=F('saldo_atual') - payment.valor)
 
     def perform_update(self, serializer):
         from django.db.models import F
+        from django.db import transaction
 
-        # Guarda informações antigas antes de atualizar
-        old_payment = Payment.objects.get(pk=serializer.instance.pk)
-        old_valor = old_payment.valor
-        old_tipo = old_payment.tipo
-        old_conta = old_payment.conta_bancaria
+        with transaction.atomic():
+            # Guarda informações antigas antes de atualizar
+            old_payment = Payment.objects.select_for_update().get(pk=serializer.instance.pk)
+            old_valor = old_payment.valor
+            old_tipo = old_payment.tipo
+            old_conta = old_payment.conta_bancaria
 
-        payment = serializer.save()
+            payment = serializer.save()
 
-        # Reverte a operação antiga usando F() para operação atômica
-        if old_tipo == 'E':
-            ContaBancaria.objects.filter(pk=old_conta.pk).update(
-                saldo_atual=F('saldo_atual') - old_valor
-            )
-        else:
-            ContaBancaria.objects.filter(pk=old_conta.pk).update(
-                saldo_atual=F('saldo_atual') + old_valor
-            )
+            # Reverte a operação antiga usando F() para operação atômica
+            if old_tipo == 'E':
+                ContaBancaria.objects.select_for_update().filter(pk=old_conta.pk).update(
+                    saldo_atual=F('saldo_atual') - old_valor
+                )
+            else:
+                ContaBancaria.objects.select_for_update().filter(pk=old_conta.pk).update(
+                    saldo_atual=F('saldo_atual') + old_valor
+                )
 
-        # Aplica a operação nova usando F() para operação atômica
-        if payment.tipo == 'E':
-            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
-                saldo_atual=F('saldo_atual') + payment.valor
-            )
-        else:
-            ContaBancaria.objects.filter(pk=payment.conta_bancaria.pk).update(
-                saldo_atual=F('saldo_atual') - payment.valor
-            )
+            # Aplica a operação nova usando F() para operação atômica
+            if payment.tipo == 'E':
+                ContaBancaria.objects.select_for_update().filter(
+                    pk=payment.conta_bancaria.pk
+                ).update(saldo_atual=F('saldo_atual') + payment.valor)
+            else:
+                ContaBancaria.objects.select_for_update().filter(
+                    pk=payment.conta_bancaria.pk
+                ).update(saldo_atual=F('saldo_atual') - payment.valor)
 
-        # Atualiza status de todas as contas alocadas
-        for allocation in payment.allocations.all():
-            if allocation.receita:
-                allocation.receita.atualizar_status()
-            elif allocation.despesa:
-                allocation.despesa.atualizar_status()
-            elif allocation.custodia:
-                allocation.custodia.atualizar_status()
+            # Atualiza status de todas as contas alocadas
+            for allocation in payment.allocations.all():
+                if allocation.receita:
+                    allocation.receita.atualizar_status()
+                elif allocation.despesa:
+                    allocation.despesa.atualizar_status()
+                elif allocation.custodia:
+                    allocation.custodia.atualizar_status()
 
     @action(detail=False, methods=['post'], url_path='import-extrato')
     def import_extrato(self, request):
@@ -1395,8 +1427,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 import json
                 try:
                     force_import_lines = json.loads(force_import_lines)
-                except:
+                except json.JSONDecodeError as e:
+                    # Se não conseguir parsear o JSON, assume lista vazia
                     force_import_lines = []
+                    print(f"Aviso: Erro ao parsear force_import_lines JSON: {e}")
 
             # Se confirmed=true, significa que o usuário já viu o diálogo e escolheu
             # Neste caso, apenas importar as linhas que estão em force_import_lines
@@ -1459,8 +1493,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
 
                         try:
                             valor_num = Decimal(valor_str)
-                        except:
-                            errors.append(f'Linha {idx}: formato de valor inválido: {value_raw}')
+                        except (ValueError, decimal.InvalidOperation) as e:
+                            errors.append(f'Linha {idx}: formato de valor inválido: {value_raw} (erro: {str(e)})')
                             continue
 
                     # Quantiza para 2 casas decimais para garantir precisão
@@ -1773,11 +1807,14 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         ).order_by('data_pagamento')
 
         # Busca receitas em aberto ou vencidas no mês (não pagas)
+        # Pre-calcula total alocado para evitar N+1 queries
         receitas_abertas = Receita.objects.filter(
             company=company,
             data_vencimento__year=ano,
             data_vencimento__month=mes,
             situacao__in=['A', 'V']  # Em Aberto ou Vencida
+        ).annotate(
+            total_alocado=Coalesce(Sum('allocations__valor'), Decimal('0.00'))
         ).order_by('data_vencimento')
 
         # Debug: total de receitas no mês (qualquer situação)
@@ -1788,11 +1825,14 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         ).count()
 
         # Busca despesas em aberto ou vencidas no mês (não pagas)
+        # Pre-calcula total alocado para evitar N+1 queries
         despesas_abertas = Despesa.objects.filter(
             company=company,
             data_vencimento__year=ano,
             data_vencimento__month=mes,
             situacao__in=['A', 'V']  # Em Aberto ou Vencida
+        ).annotate(
+            total_alocado=Coalesce(Sum('allocations__valor'), Decimal('0.00'))
         ).order_by('data_vencimento')
 
         # Debug: total de despesas no mês (qualquer situação)
@@ -1803,11 +1843,20 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         ).count()
 
         # Busca custódias em aberto
+        # Pre-calcula totais de entradas e saídas para evitar N+1 queries
         custodias_abertas = Custodia.objects.filter(
             company=company,
             status='A'
         ).annotate(
-            valor_restante=F('valor_total') - F('valor_liquidado')
+            valor_restante=F('valor_total') - F('valor_liquidado'),
+            total_entradas=Coalesce(
+                Sum('allocations__valor', filter=Q(allocations__payment__tipo='E')),
+                Decimal('0.00')
+            ),
+            total_saidas=Coalesce(
+                Sum('allocations__valor', filter=Q(allocations__payment__tipo='S')),
+                Decimal('0.00')
+            )
         ).filter(
             valor_restante__gt=0
         )
@@ -1828,9 +1877,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             if payment.tipo == 'E':
                 # Entrada: busca receitas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for receita in receitas_abertas:
-                    # Calcula o valor não alocado da receita
-                    total_alocado = receita.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-                    valor_nao_alocado = receita.valor - total_alocado
+                    # Usa o total_alocado pré-calculado da annotation
+                    valor_nao_alocado = receita.valor - receita.total_alocado
 
                     # Verifica se há saldo disponível e se o valor do payment é compatível
                     if valor_nao_alocado >= payment.valor and receita.valor == payment.valor:
@@ -1861,14 +1909,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'A':  # Ativo - a receber
-                            # Calcula valor restante baseado nas allocations atuais (pode ter mudado durante esta execução)
-                            total_entradas = custodia.allocations.filter(
-                                payment__tipo='E'
-                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-
-                            total_saidas = custodia.allocations.filter(
-                                payment__tipo='S'
-                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+                            # Usa os totais pré-calculados das annotations
+                            total_entradas = custodia.total_entradas
+                            total_saidas = custodia.total_saidas
 
                             valor_liquidado = min(total_saidas, total_entradas)
                             valor_restante = custodia.valor_total - valor_liquidado
@@ -1902,9 +1945,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             elif payment.tipo == 'S':
                 # Saída: busca despesas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for despesa in despesas_abertas:
-                    # Calcula o valor não alocado da despesa
-                    total_alocado = despesa.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-                    valor_nao_alocado = despesa.valor - total_alocado
+                    # Usa o total_alocado pré-calculado da annotation
+                    valor_nao_alocado = despesa.valor - despesa.total_alocado
 
                     # Verifica se há saldo disponível e se o valor do payment é compatível
                     if valor_nao_alocado >= payment.valor and despesa.valor == payment.valor:
@@ -1935,15 +1977,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'P':  # Passivo - a pagar
-                            # Calcula valor restante baseado nas allocations atuais (pode ter mudado durante esta execução)
-                            total_entradas = custodia.allocations.filter(
-                                payment__tipo='E'
-                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-
-                            total_saidas = custodia.allocations.filter(
-                                payment__tipo='S'
-                            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-
+                            # Usa os totais pré-calculados das annotations
+                            total_entradas = custodia.total_entradas
+                            total_saidas = custodia.total_saidas
                             valor_liquidado = min(total_entradas, total_saidas)
                             valor_restante = custodia.valor_total - valor_liquidado
 
@@ -2010,8 +2046,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                             valor_liquidado = min(total_saidas, total_entradas)
                             valor_restante = custodia.valor_total - valor_liquidado
 
-                            # Só sugere se há saldo disponível suficiente
-                            if valor_restante >= payment.valor:
+                            # Só sugere se há saldo disponível suficiente E valor é exatamente igual
+                            if valor_restante >= payment.valor and valor_restante == payment.valor:
                                 contraparte = None
                                 if custodia.cliente:
                                     contraparte = custodia.cliente.nome
@@ -2060,8 +2096,8 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                             valor_liquidado = min(total_entradas, total_saidas)
                             valor_restante = custodia.valor_total - valor_liquidado
 
-                            # Só sugere se há saldo disponível suficiente
-                            if valor_restante >= payment.valor:
+                            # Só sugere se há saldo disponível suficiente E valor é exatamente igual
+                            if valor_restante >= payment.valor and valor_restante == payment.valor:
                                 contraparte = None
                                 if custodia.cliente:
                                     contraparte = custodia.cliente.nome
@@ -2324,7 +2360,18 @@ class TransferViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('from_bank', 'to_bank')
+        from django.db.models.functions import Coalesce
+
+        queryset = super().get_queryset().select_related('from_bank', 'to_bank').annotate(
+            valor_saida=Coalesce(
+                Sum('allocations__valor', filter=Q(allocations__payment__tipo='S')),
+                Decimal('0.00')
+            ),
+            valor_entrada=Coalesce(
+                Sum('allocations__valor', filter=Q(allocations__payment__tipo='E')),
+                Decimal('0.00')
+            )
+        )
 
         params = self.request.query_params
 
