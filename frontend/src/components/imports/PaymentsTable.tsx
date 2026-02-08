@@ -19,11 +19,13 @@ export default function PaymentsTable({
   contasBancarias,
   onDelete,
   onUnlink,
+  tipo,
 }: {
   payments: PaymentItem[];
   contasBancarias: { id: number; nome: string }[];
   onDelete: (id: number) => void;
   onUnlink: (id: number) => void;
+  tipo?: 'receita' | 'despesa' | 'custodia';
 }) {
   const [loadingRecibo, setLoadingRecibo] = useState<number | null>(null);
 
@@ -70,18 +72,20 @@ export default function PaymentsTable({
               <TableCell>{formatCurrencyBR(p.valor)}</TableCell>
               <TableCell>
                 <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGerarRecibo(p.id)}
-                  disabled={loadingRecibo === p.id}
-                >
-                  {loadingRecibo === p.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
-                  )}
-                </Button>
+                {tipo !== 'despesa' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGerarRecibo(p.id)}
+                    disabled={loadingRecibo === p.id}
+                  >
+                    {loadingRecibo === p.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
 
                   <Button
                     variant="outline"

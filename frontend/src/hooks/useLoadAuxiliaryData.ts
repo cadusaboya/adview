@@ -5,6 +5,7 @@ interface UseLoadAuxiliaryDataOptions<T> {
   loadFn: () => Promise<T>;
   onOpen: boolean;
   errorMessage?: string;
+  cacheData?: boolean; // Se true, não recarrega se já houver dados
 }
 
 /**
@@ -32,13 +33,15 @@ export function useLoadAuxiliaryData<T>({
   loadFn,
   onOpen,
   errorMessage = "Erro ao carregar dados",
+  cacheData = true, // Por padrão, usa cache
 }: UseLoadAuxiliaryDataOptions<T>) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (onOpen) {
+    // Só carrega se o dialog está aberto E (não tem cache OU não tem dados ainda)
+    if (onOpen && (!cacheData || !data)) {
       setLoading(true);
       setError(null);
 
@@ -55,7 +58,8 @@ export function useLoadAuxiliaryData<T>({
           setLoading(false);
         });
     }
-  }, [onOpen, errorMessage]); // Note: loadFn is intentionally not in deps to avoid re-fetching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onOpen, errorMessage, cacheData]); // Removido data e loadFn das deps para evitar loops
 
   return { data, loading, error };
 }

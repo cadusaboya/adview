@@ -255,6 +255,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     } catch {
       toast.error('Erro ao carregar pagamentos disponíveis');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, custodiaTipo, valorAberto]);
 
   // Filtrar pagamentos disponíveis com base no termo de pesquisa
@@ -371,6 +372,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
           contasBancarias={contasBancarias}
           onDelete={handleDelete}
           onUnlink={handleUnlink}
+          tipo={tipo}
         />
       </TabsContent>
 

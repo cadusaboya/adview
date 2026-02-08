@@ -63,7 +63,7 @@ export default function ConfirmDuplicatesDialog({
       open={open}
       onClose={onCancel}
       title="Possíveis Duplicatas Encontradas"
-      maxWidth="4xl"
+      size="xl"
     >
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">

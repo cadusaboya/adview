@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { Box, Collapse, ThemeIcon, UnstyledButton, rem } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { LucideIcon } from 'lucide-react';
 import { IconChevronRight } from '@tabler/icons-react';
 import Link from 'next/link';
@@ -17,8 +17,18 @@ interface LinksGroupProps {
   onToggle?: () => void;
 }
 
-export function LinksGroup({ icon: Icon, label, links, link, opened = false, onToggle }: LinksGroupProps) {
+export function LinksGroup({
+  icon: Icon,
+  label,
+  links,
+  link,
+  opened: externalOpened,
+  onToggle,
+}: LinksGroupProps) {
   const hasLinks = Array.isArray(links);
+  const [internalOpened, { toggle }] = useDisclosure(false);
+  const opened = externalOpened !== undefined ? externalOpened : internalOpened;
+  const handleToggle = onToggle || toggle;
 
   const items = (hasLinks ? links : []).map((l) => (
     <Link className={classes.link} href={l.link} key={l.label}>
@@ -29,7 +39,7 @@ export function LinksGroup({ icon: Icon, label, links, link, opened = false, onT
   if (hasLinks) {
     return (
       <>
-        <UnstyledButton onClick={onToggle} className={classes.control}>
+        <UnstyledButton onClick={handleToggle} className={classes.control}>
           <Box className={classes.mainLink}>
             <ThemeIcon
               variant="light"

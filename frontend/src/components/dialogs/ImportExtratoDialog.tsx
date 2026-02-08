@@ -124,12 +124,12 @@ export default function ImportExtratoDialog({
         onSuccess();
         handleClose();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao importar extrato:', error);
 
       const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
+        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        (error as { message?: string })?.message ||
         'Erro ao importar extrato';
 
       toast.error(errorMessage, { duration: 5000 });
@@ -173,12 +173,12 @@ export default function ImportExtratoDialog({
         onSuccess();
         handleClose();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao importar extrato:', error);
 
       const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
+        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        (error as { message?: string })?.message ||
         'Erro ao importar extrato';
 
       toast.error(errorMessage, { duration: 5000 });

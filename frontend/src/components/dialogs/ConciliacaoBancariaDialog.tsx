@@ -66,6 +66,7 @@ export default function ConciliacaoBancariaDialog({
 
   const handleConfirmarSugestoes = async () => {
     const sugestoesParaConfirmar = Object.entries(selecoes).filter(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       ([_, entidadeId]) => entidadeId !== null
     );
 
@@ -83,7 +84,9 @@ export default function ConciliacaoBancariaDialog({
         const paymentId = Number(paymentIdStr);
         const tipo = tipoSelecoes[paymentId] as 'receita' | 'despesa' | 'custodia';
 
-        if (!tipo || entidadeId === null) continue;
+        if (!tipo || entidadeId === null) {
+          continue;
+        }
 
         try {
           await confirmarSugestao(paymentId, tipo, entidadeId);

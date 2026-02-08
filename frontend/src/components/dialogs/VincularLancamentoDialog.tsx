@@ -243,7 +243,9 @@ export default function VincularLancamentoDialog({
   const loadTransfers = async () => {
     try {
       const res = await transfersService.list({ page_size: 9999 });
-      setTransfers(res.results);
+      // Filtrar transferências com status "Completo" (C)
+      const transfersFiltered = res.results.filter(t => t.status !== 'C');
+      setTransfers(transfersFiltered);
     } catch (error) {
       console.error('Erro ao carregar transferências:', error);
     }
@@ -634,7 +636,7 @@ export default function VincularLancamentoDialog({
                           }))
                         : transfers.map((t) => ({
                             value: t.id,
-                            label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatCurrencyBR(parseFloat(t.valor))} - ${t.status_display}`,
+                            label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatCurrencyBR(parseFloat(t.valor))} - ${new Date(t.data_transferencia).toLocaleDateString('pt-BR')}`,
                           }))
                     }
                     onChange={(val) => {
