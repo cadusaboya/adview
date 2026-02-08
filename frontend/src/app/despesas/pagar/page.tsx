@@ -36,6 +36,7 @@ import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
 import { getBancos } from '@/services/bancos';
+import { getAllocations } from '@/services/allocations';
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -62,6 +63,9 @@ export default function DespesasPage() {
 
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [bancosLoaded, setBancosLoaded] = useState(false);
+
+  // Pagamentos pré-carregados para a despesa sendo editada
+  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -306,7 +310,24 @@ export default function DespesasPage() {
       width: '6%',
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
-          onOpen={() => prefetchAuxiliaryData()}
+          onOpen={async () => {
+            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
+            try {
+              const res = await getAllocations({ despesa_id: record.id, page_size: 9999 });
+              setPrefetchedPayments(
+                res.results.map((alloc) => ({
+                  id: alloc.payment,
+                  allocation_id: alloc.id,
+                  data_pagamento: alloc.payment_info?.data_pagamento || '',
+                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
+                  valor: alloc.valor,
+                  observacao: alloc.observacao || '',
+                }))
+              );
+            } catch (error) {
+              console.error('Erro ao prefetch pagamentos:', error);
+            }
+          }}
           actions={[
             {
               label: 'Editar',
@@ -408,11 +429,13 @@ export default function DespesasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingDespesa(null);
+            setPrefetchedPayments([]);
             // loadDespesas() é chamado no handleSubmit após salvar com sucesso
           }}
           onSubmit={handleSubmit}
           initialBancos={bancos}
           initialFavorecidos={favorecidos}
+          initialPayments={prefetchedPayments}
         />
 
         <RelatorioFiltrosModal

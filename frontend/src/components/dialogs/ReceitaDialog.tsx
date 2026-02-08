@@ -41,6 +41,7 @@ interface Props {
   receita?: Receita | null;
   initialBancos?: { id: number; nome: string }[];
   initialClientes?: Cliente[];
+  initialPayments?: any[];
 }
 
 export default function ReceitaDialog({
@@ -50,6 +51,7 @@ export default function ReceitaDialog({
   receita,
   initialBancos,
   initialClientes,
+  initialPayments,
 }: Props) {
   // Load auxiliary data in parallel (or use initial data if provided)
   const { data: bancosFromHook, loading: loadingBancos } = useLoadAuxiliaryData({
@@ -394,6 +396,7 @@ export default function ReceitaDialog({
             entityId={receita.id}
             contasBancarias={bancos || []}
             valorAberto={receita.valor_aberto ?? receita.valor}
+            initialPayments={initialPayments}
           />
         )}
       </div>

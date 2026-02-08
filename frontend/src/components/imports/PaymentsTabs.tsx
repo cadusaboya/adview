@@ -36,11 +36,13 @@ interface Props {
   contasBancarias: { id: number; nome: string }[];
   custodiaTipo?: 'P' | 'A'; // P = Passivo, A = Ativo (apenas para custódia)
   valorAberto?: number; // Valor em aberto da entidade para filtrar pagamentos
+  initialPayments?: PaymentUI[]; // Pagamentos pré-carregados
 }
 
-export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo, valorAberto }: Props) {
-  const [payments, setPayments] = useState<PaymentUI[]>([]);
+export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodiaTipo, valorAberto, initialPayments }: Props) {
+  const [payments, setPayments] = useState<PaymentUI[]>(initialPayments || []);
   const [valorDisplay, setValorDisplay] = useState('');
+  const [isLoading, setIsLoading] = useState(!initialPayments); // Só carrega se não tem dados iniciais
 
   const [form, setForm] = useState({
     data_pagamento: '',
@@ -57,7 +59,14 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   const [searchTerm, setSearchTerm] = useState('');
 
   const loadPayments = useCallback(async () => {
+    // Se já tem dados iniciais, não precisa carregar
+    if (initialPayments) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
+      setIsLoading(true);
       // Buscar allocations ao invés de payments diretos
       const query =
         tipo === 'receita'
@@ -81,8 +90,10 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       );
     } catch {
       toast.error('Erro ao carregar pagamentos');
+    } finally {
+      setIsLoading(false);
     }
-  }, [tipo, entityId]);
+  }, [tipo, entityId, initialPayments]);
 
   useEffect(() => {
     if (entityId) loadPayments();
@@ -367,13 +378,20 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       </TabsList>
 
       <TabsContent value="pagamentos" className="min-h-[400px]">
-        <PaymentsTable
-          payments={payments}
-          contasBancarias={contasBancarias}
-          onDelete={handleDelete}
-          onUnlink={handleUnlink}
-          tipo={tipo}
-        />
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+            <p className="text-sm text-muted-foreground">Carregando pagamentos...</p>
+          </div>
+        ) : (
+          <PaymentsTable
+            payments={payments}
+            contasBancarias={contasBancarias}
+            onDelete={handleDelete}
+            onUnlink={handleUnlink}
+            tipo={tipo}
+          />
+        )}
       </TabsContent>
 
       <TabsContent value="baixa" className="min-h-[400px]">

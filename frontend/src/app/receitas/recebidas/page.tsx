@@ -21,6 +21,8 @@ import { Receita, ReceitaUpdate } from '@/types/receitas';
 import { getReceitaById, updateReceita, getReceitas, deleteReceita } from '@/services/receitas';
 
 import { getClientes } from '@/services/clientes';
+import { getBancos } from '@/services/bancos';
+import { getAllocations } from '@/services/allocations';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
@@ -37,7 +39,14 @@ export default function ReceitaRecebidasPage() {
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesLoaded, setClientesLoaded] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
+  const [bancosLoaded, setBancosLoaded] = useState(false);
+
+  // Pagamentos pré-carregados para a receita sendo editada
+  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -62,20 +71,53 @@ export default function ReceitaRecebidasPage() {
   }, [page, pageSize]);
 
   // ======================
-  // 👥 CLIENTES (RELATÓRIO)
+  // 🔄 PREFETCH ON MOUNT
   // ======================
-  const loadClientes = useCallback(async () => {
+  useEffect(() => {
+    // Carregar dados auxiliares assim que a página monta
+    prefetchAuxiliaryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Só executa uma vez na montagem
+
+  // ======================
+  // 👥 CLIENTES (LAZY)
+  // ======================
+  const loadClientes = async () => {
+    if (clientesLoaded) return;
+
     try {
       const res = await getClientes({ page_size: 1000 });
       setClientes(res.results);
+      setClientesLoaded(true);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    loadClientes();
-  }, [loadClientes]);
+  // ======================
+  // 🏦 BANCOS (LAZY)
+  // ======================
+  const loadBancos = async () => {
+    if (bancosLoaded) return;
+
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })));
+      setBancosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
+
+  // ======================
+  // 🔄 PREFETCH (quando clica para editar)
+  // ======================
+  const prefetchAuxiliaryData = async () => {
+    await Promise.all([
+      loadClientes(),
+      loadBancos(),
+    ]);
+  };
 
   // ======================
   // 🔄 LOAD RECEITAS PAGAS
@@ -257,6 +299,24 @@ export default function ReceitaRecebidasPage() {
       width: '6%',
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
+          onOpen={async () => {
+            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
+            try {
+              const res = await getAllocations({ receita_id: record.id, page_size: 9999 });
+              setPrefetchedPayments(
+                res.results.map((alloc) => ({
+                  id: alloc.payment,
+                  allocation_id: alloc.id,
+                  data_pagamento: alloc.payment_info?.data_pagamento || '',
+                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
+                  valor: alloc.valor,
+                  observacao: alloc.observacao || '',
+                }))
+              );
+            } catch (error) {
+              console.error('Erro ao prefetch pagamentos:', error);
+            }
+          }}
           actions={[
             {
               label: 'Editar Receita',
@@ -350,8 +410,12 @@ export default function ReceitaRecebidasPage() {
             onClose={() => {
               setOpenDialog(false);
               setEditingReceita(null);
+              setPrefetchedPayments([]);
             }}
             onSubmit={handleUpdateReceita}
+            initialBancos={bancos}
+            initialClientes={clientes}
+            initialPayments={prefetchedPayments}
           />
         )}
 

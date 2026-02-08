@@ -29,6 +29,7 @@ import {
 import { getClientes } from '@/services/clientes';
 import { Cliente } from '@/types/clientes';
 import { getBancos } from '@/services/bancos';
+import { getAllocations } from '@/services/allocations';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
@@ -58,6 +59,9 @@ export default function ReceitasPage() {
 
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [bancosLoaded, setBancosLoaded] = useState(false);
+
+  // Pagamentos pré-carregados para a receita sendo editada
+  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -294,7 +298,24 @@ export default function ReceitasPage() {
       width: '6%',
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
-          onOpen={() => prefetchAuxiliaryData()}
+          onOpen={async () => {
+            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
+            try {
+              const res = await getAllocations({ receita_id: record.id, page_size: 9999 });
+              setPrefetchedPayments(
+                res.results.map((alloc) => ({
+                  id: alloc.payment,
+                  allocation_id: alloc.id,
+                  data_pagamento: alloc.payment_info?.data_pagamento || '',
+                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
+                  valor: alloc.valor,
+                  observacao: alloc.observacao || '',
+                }))
+              );
+            } catch (error) {
+              console.error('Erro ao prefetch pagamentos:', error);
+            }
+          }}
           actions={[
             {
               label: 'Editar',
@@ -397,12 +418,14 @@ export default function ReceitasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
+            setPrefetchedPayments([]);
             // loadReceitas() é chamado no handleSubmit após salvar com sucesso
           }}
           receita={editingReceita}
           onSubmit={handleSubmit}
           initialBancos={bancos}
           initialClientes={clientes}
+          initialPayments={prefetchedPayments}
         />
 
 

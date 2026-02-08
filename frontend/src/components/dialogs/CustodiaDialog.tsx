@@ -33,6 +33,7 @@ interface Props {
   initialFuncionarios?: Funcionario[];
   initialClientes?: Cliente[];
   initialBancos?: { id: number; nome: string }[];
+  initialPayments?: any[];
 }
 
 export default function CustodiaDialog({
@@ -44,6 +45,7 @@ export default function CustodiaDialog({
   initialFuncionarios,
   initialClientes,
   initialBancos,
+  initialPayments,
 }: Props) {
   const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
 
@@ -330,6 +332,7 @@ export default function CustodiaDialog({
             contasBancarias={bancos || []}
             custodiaTipo={custodia.tipo}
             valorAberto={custodia.valor_total - custodia.valor_liquidado}
+            initialPayments={initialPayments}
           />
         )}
       </div>

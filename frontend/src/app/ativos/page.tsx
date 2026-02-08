@@ -29,6 +29,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { getFuncionarios } from '@/services/funcionarios';
 import { getClientes } from '@/services/clientes';
 import { getBancos } from '@/services/bancos';
+import { getAllocations } from '@/services/allocations';
 import { Funcionario } from '@/types/funcionarios';
 import { Cliente } from '@/types/clientes';
 
@@ -60,6 +61,9 @@ export default function AtivosPage() {
   const [clientesLoaded, setClientesLoaded] = useState(false);
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [bancosLoaded, setBancosLoaded] = useState(false);
+
+  // Pagamentos pré-carregados para a custódia sendo editada
+  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
 
   // ======================
   // 🔄 LOAD DATA
@@ -318,7 +322,24 @@ export default function AtivosPage() {
       width: '15%',
       render: (_: unknown, record: Custodia) => (
         <ActionsDropdown
-          onOpen={() => prefetchAuxiliaryData()}
+          onOpen={async () => {
+            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
+            try {
+              const res = await getAllocations({ custodia_id: record.id, page_size: 9999 });
+              setPrefetchedPayments(
+                res.results.map((alloc) => ({
+                  id: alloc.payment,
+                  allocation_id: alloc.id,
+                  data_pagamento: alloc.payment_info?.data_pagamento || '',
+                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
+                  valor: alloc.valor,
+                  observacao: alloc.observacao || '',
+                }))
+              );
+            } catch (error) {
+              console.error('Erro ao prefetch pagamentos:', error);
+            }
+          }}
           actions={[
             {
               label: 'Editar',
@@ -422,6 +443,7 @@ export default function AtivosPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingCustodia(null);
+            setPrefetchedPayments([]);
             loadCustodias();
           }}
           onSubmit={handleSubmit}
@@ -430,6 +452,7 @@ export default function AtivosPage() {
           initialFuncionarios={funcionarios}
           initialClientes={clientes}
           initialBancos={bancos}
+          initialPayments={prefetchedPayments}
         />
 
         <DeleteConfirmationDialog

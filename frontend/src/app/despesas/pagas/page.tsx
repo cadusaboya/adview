@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { updateDespesa, getDespesaById, getDespesas, deleteDespesa } from '@/services/despesas';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
+import { getBancos } from '@/services/bancos';
+import { getAllocations } from '@/services/allocations';
 import { gerarRelatorioPDF } from '@/services/pdf';
 
 import { Despesa, DespesaUpdate } from '@/types/despesas';
@@ -42,6 +44,12 @@ export default function DespesasPagasPage() {
   // 👥 Favorecidos (lazy)
   const [favorecidos, setFavorecidos] = useState<Favorecido[]>([]);
   const [favorecidosLoaded, setFavorecidosLoaded] = useState(false);
+
+  const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
+  const [bancosLoaded, setBancosLoaded] = useState(false);
+
+  // Pagamentos pré-carregados para a despesa sendo editada
+  const [prefetchedPayments, setPrefetchedPayments] = useState<any[]>([]);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -94,7 +102,16 @@ export default function DespesasPagasPage() {
   }, [loadData]);
 
   // ======================
-  // 👥 LOAD FAVORECIDOS
+  // 🔄 PREFETCH ON MOUNT
+  // ======================
+  useEffect(() => {
+    // Carregar dados auxiliares assim que a página monta
+    prefetchAuxiliaryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Só executa uma vez na montagem
+
+  // ======================
+  // 👥 LOAD FAVORECIDOS (LAZY)
   // ======================
   const loadFavorecidos = async () => {
     if (favorecidosLoaded) return;
@@ -106,6 +123,31 @@ export default function DespesasPagasPage() {
     } catch (error) {
       console.error('Erro ao carregar favorecidos:', error);
     }
+  };
+
+  // ======================
+  // 🏦 BANCOS (LAZY)
+  // ======================
+  const loadBancos = async () => {
+    if (bancosLoaded) return;
+
+    try {
+      const res = await getBancos({ page_size: 1000 });
+      setBancos(res.results.map((b) => ({ id: b.id, nome: b.nome })));
+      setBancosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
+
+  // ======================
+  // 🔄 PREFETCH (quando clica para editar)
+  // ======================
+  const prefetchAuxiliaryData = async () => {
+    await Promise.all([
+      loadFavorecidos(),
+      loadBancos(),
+    ]);
   };
 
   // ======================
@@ -257,6 +299,24 @@ export default function DespesasPagasPage() {
       width: '6%',
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
+          onOpen={async () => {
+            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
+            try {
+              const res = await getAllocations({ despesa_id: record.id, page_size: 9999 });
+              setPrefetchedPayments(
+                res.results.map((alloc) => ({
+                  id: alloc.payment,
+                  allocation_id: alloc.id,
+                  data_pagamento: alloc.payment_info?.data_pagamento || '',
+                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
+                  valor: alloc.valor,
+                  observacao: alloc.observacao || '',
+                }))
+              );
+            } catch (error) {
+              console.error('Erro ao prefetch pagamentos:', error);
+            }
+          }}
           actions={[
             {
               label: 'Editar Despesa',
@@ -353,8 +413,12 @@ export default function DespesasPagasPage() {
             onClose={() => {
               setOpenDialog(false);
               setEditingDespesa(null);
+              setPrefetchedPayments([]);
             }}
             onSubmit={handleUpdateDespesa}
+            initialBancos={bancos}
+            initialFavorecidos={favorecidos}
+            initialPayments={prefetchedPayments}
           />
         )}
 

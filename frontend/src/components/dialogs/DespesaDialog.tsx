@@ -38,6 +38,7 @@ interface Props {
   despesa?: Despesa | null;
   initialBancos?: { id: number; nome: string }[];
   initialFavorecidos?: Favorecido[];
+  initialPayments?: any[]; // Pagamentos pré-carregados
 }
 
 export default function DespesaDialog({
@@ -47,6 +48,7 @@ export default function DespesaDialog({
   despesa,
   initialBancos,
   initialFavorecidos,
+  initialPayments,
 }: Props) {
   // Load auxiliary data in parallel (or use initial data if provided)
   const { data: bancosFromHook, loading: loadingBancos } = useLoadAuxiliaryData({
@@ -356,6 +358,7 @@ export default function DespesaDialog({
             entityId={despesa.id}
             contasBancarias={bancos || []}
             valorAberto={despesa.valor_aberto ?? despesa.valor}
+            initialPayments={initialPayments}
           />
         )}
       </div>
