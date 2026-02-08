@@ -3,6 +3,7 @@ import { FieldValidator } from './schemas';
 /**
  * Validates that a field is not empty
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const required = (message = "Campo obrigatório"): FieldValidator<any> =>
   (value) => {
     if (value === null || value === undefined || value === "" || (typeof value === 'number' && value === 0)) {
@@ -173,7 +174,7 @@ export const pattern = (regex: RegExp, message: string): FieldValidator<string> 
  * Custom validation function
  */
 export const custom = <T>(
-  validatorFn: (value: T, allValues?: any) => boolean,
+  validatorFn: (value: T, allValues?: unknown) => boolean,
   message: string
 ): FieldValidator<T> =>
   (value, allValues) => {
@@ -184,7 +185,7 @@ export const custom = <T>(
  * Conditional validator - only validates if condition is true
  */
 export const when = <T>(
-  condition: (allValues: any) => boolean,
+  condition: (allValues: unknown) => boolean,
   validator: FieldValidator<T>
 ): FieldValidator<T> =>
   (value, allValues) => {

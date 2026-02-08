@@ -5,6 +5,7 @@ export type ValidationResult = {
 };
 
 // Field validator function type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FieldValidator<T> = (value: T, allValues?: any) => string | null;
 
 // Validation schema type
@@ -20,6 +21,7 @@ export type ValidationSchema<T> = {
  * @param schema - Validation schema with validators for each field
  * @returns ValidationResult with valid flag and errors object
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function validate<T extends Record<string, any>>(
   data: T,
   schema: ValidationSchema<T>

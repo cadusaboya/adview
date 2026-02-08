@@ -34,9 +34,13 @@ export function parseDRFErrors(error: unknown): {
       let generalError: string | null = null;
 
       // Handle detail/error at root level (general errors)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ("detail" in data && typeof (data as any).detail === "string") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         generalError = (data as any).detail;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ("error" in data && typeof (data as any).error === "string") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         generalError = (data as any).error;
       }
 

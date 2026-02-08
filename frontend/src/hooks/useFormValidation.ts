@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { validate, ValidationSchema, ValidationResult } from "@/lib/validation/schemas";
+import { validate, ValidationSchema } from "@/lib/validation/schemas";
 
 export type FormErrors = Record<string, string[]>;
 
@@ -25,6 +25,7 @@ export interface UseFormValidationReturn<T> {
   // Field helpers
   getFieldProps: (field: keyof T) => {
     value: T[keyof T];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onChange: (value: any) => void;
     onBlur: () => void;
     error: string | undefined;
@@ -46,6 +47,7 @@ export interface UseFormValidationReturn<T> {
  * );
  * ```
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useFormValidation<T extends Record<string, any>>(
   initialData: T,
   schema: ValidationSchema<T>
@@ -126,6 +128,7 @@ export function useFormValidation<T extends Record<string, any>>(
   const getFieldProps = useCallback(
     (field: keyof T) => ({
       value: formData[field],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onChange: (value: any) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
         // Clear error when user types (only if field was touched)
