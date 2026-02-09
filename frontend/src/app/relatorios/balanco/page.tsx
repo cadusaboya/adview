@@ -83,6 +83,25 @@ export default function BalancoPage() {
           }))
     : [];
 
+  /* =========================
+     CALCULAR TOTAIS AJUSTADOS (sem custódias se filtrado)
+  ========================= */
+  const totalEntradasAjustado = balancoData
+    ? agrupamento === 'tipo' && !incluirCustodias
+      ? balancoData.entradas.total -
+        (balancoData.entradas.por_tipo.find(item => item.tipo === 'Valores Reembolsados')?.valor || 0)
+      : balancoData.entradas.total
+    : 0;
+
+  const totalSaidasAjustado = balancoData
+    ? agrupamento === 'tipo' && !incluirCustodias
+      ? balancoData.saidas.total -
+        (balancoData.saidas.por_tipo.find(item => item.tipo === 'Valores Reembolsáveis')?.valor || 0)
+      : balancoData.saidas.total
+    : 0;
+
+  const resultadoAjustado = totalEntradasAjustado - totalSaidasAjustado;
+
   return (
     <div className="flex">
       <NavbarNested />
@@ -202,7 +221,7 @@ export default function BalancoPage() {
                         ))}
                         <TotalRow
                           label="Total de Entradas"
-                          value={balancoData.entradas.total}
+                          value={totalEntradasAjustado}
                           highlight={true}
                         />
                       </>
@@ -222,7 +241,7 @@ export default function BalancoPage() {
                         ))}
                         <TotalRow
                           label="Total de Saídas"
-                          value={balancoData.saidas.total}
+                          value={totalSaidasAjustado}
                         />
                       </>
                     ) : (
@@ -236,9 +255,9 @@ export default function BalancoPage() {
                   <Section title="Resultado do Período">
                     <TotalRow
                       label="Saldo do Período"
-                      value={balancoData.resultado}
-                      highlight={balancoData.resultado > 0}
-                      negative={balancoData.resultado < 0}
+                      value={resultadoAjustado}
+                      highlight={resultadoAjustado > 0}
+                      negative={resultadoAjustado < 0}
                     />
                   </Section>
                 </>
