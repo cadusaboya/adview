@@ -1870,6 +1870,12 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # Lista para armazenar sugestões de matches (apenas por valor, sem nome)
         sugestoes = []
 
+        # Dicionários para rastrear alocações em tempo real durante o loop
+        # Chave: ID da entidade, Valor: total adicional alocado neste loop
+        receitas_alocadas_no_loop = {}
+        despesas_alocadas_no_loop = {}
+        custodias_alocadas_no_loop = {}
+
         # Processa cada payment sem alocação
         for payment in payments_sem_alocacao:
             match_found = False
@@ -1877,8 +1883,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             if payment.tipo == 'E':
                 # Entrada: busca receitas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for receita in receitas_abertas:
-                    # Usa o total_alocado pré-calculado da annotation
-                    valor_nao_alocado = receita.valor - receita.total_alocado
+                    # Calcula total alocado = annotation inicial + alocações feitas neste loop
+                    total_alocado_atual = receita.total_alocado + receitas_alocadas_no_loop.get(receita.id, Decimal('0.00'))
+                    valor_nao_alocado = receita.valor - total_alocado_atual
 
                     # Verifica se há saldo disponível e se o valor do payment é compatível
                     if valor_nao_alocado >= payment.valor and receita.valor == payment.valor:
@@ -1899,6 +1906,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                     valor=payment.valor
                                 )
                                 receita.atualizar_status()
+
+                                # Atualiza o dicionário de alocações em tempo real
+                                receitas_alocadas_no_loop[receita.id] = receitas_alocadas_no_loop.get(receita.id, Decimal('0.00')) + payment.valor
+
                                 matches_receitas += 1
                                 match_found = True
                                 break  # Encontrou match válido, para de procurar
@@ -1909,9 +1920,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'A':  # Ativo - a receber
-                            # Usa os totais pré-calculados das annotations
-                            total_entradas = custodia.total_entradas
-                            total_saidas = custodia.total_saidas
+                            # Calcula totais considerando alocações feitas neste loop
+                            alocacoes_loop = custodias_alocadas_no_loop.get(custodia.id, {'entradas': Decimal('0.00'), 'saidas': Decimal('0.00')})
+                            total_entradas = custodia.total_entradas + alocacoes_loop['entradas']
+                            total_saidas = custodia.total_saidas + alocacoes_loop['saidas']
 
                             valor_liquidado = min(total_saidas, total_entradas)
                             valor_restante = custodia.valor_total - valor_liquidado
@@ -1936,6 +1948,12 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                             valor=payment.valor
                                         )
                                         custodia.atualizar_status()
+
+                                        # Atualiza o dicionário de alocações em tempo real (entrada para ativo)
+                                        if custodia.id not in custodias_alocadas_no_loop:
+                                            custodias_alocadas_no_loop[custodia.id] = {'entradas': Decimal('0.00'), 'saidas': Decimal('0.00')}
+                                        custodias_alocadas_no_loop[custodia.id]['entradas'] += payment.valor
+
                                         matches_custodias += 1
                                         match_found = True
                                         break  # Encontrou match válido, para de procurar
@@ -1945,8 +1963,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             elif payment.tipo == 'S':
                 # Saída: busca despesas com VALOR EXATO E NOME NA OBSERVAÇÃO (ambas condições obrigatórias)
                 for despesa in despesas_abertas:
-                    # Usa o total_alocado pré-calculado da annotation
-                    valor_nao_alocado = despesa.valor - despesa.total_alocado
+                    # Calcula total alocado = annotation inicial + alocações feitas neste loop
+                    total_alocado_atual = despesa.total_alocado + despesas_alocadas_no_loop.get(despesa.id, Decimal('0.00'))
+                    valor_nao_alocado = despesa.valor - total_alocado_atual
 
                     # Verifica se há saldo disponível e se o valor do payment é compatível
                     if valor_nao_alocado >= payment.valor and despesa.valor == payment.valor:
@@ -1967,6 +1986,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                     valor=payment.valor
                                 )
                                 despesa.atualizar_status()
+
+                                # Atualiza o dicionário de alocações em tempo real
+                                despesas_alocadas_no_loop[despesa.id] = despesas_alocadas_no_loop.get(despesa.id, Decimal('0.00')) + payment.valor
+
                                 matches_despesas += 1
                                 match_found = True
                                 break  # Encontrou match válido, para de procurar
@@ -1977,9 +2000,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 if not match_found:
                     for custodia in custodias_abertas:
                         if custodia.tipo == 'P':  # Passivo - a pagar
-                            # Usa os totais pré-calculados das annotations
-                            total_entradas = custodia.total_entradas
-                            total_saidas = custodia.total_saidas
+                            # Calcula totais considerando alocações feitas neste loop
+                            alocacoes_loop = custodias_alocadas_no_loop.get(custodia.id, {'entradas': Decimal('0.00'), 'saidas': Decimal('0.00')})
+                            total_entradas = custodia.total_entradas + alocacoes_loop['entradas']
+                            total_saidas = custodia.total_saidas + alocacoes_loop['saidas']
                             valor_liquidado = min(total_entradas, total_saidas)
                             valor_restante = custodia.valor_total - valor_liquidado
 
@@ -2003,6 +2027,12 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                                             valor=payment.valor
                                         )
                                         custodia.atualizar_status()
+
+                                        # Atualiza o dicionário de alocações em tempo real (saída para passivo)
+                                        if custodia.id not in custodias_alocadas_no_loop:
+                                            custodias_alocadas_no_loop[custodia.id] = {'entradas': Decimal('0.00'), 'saidas': Decimal('0.00')}
+                                        custodias_alocadas_no_loop[custodia.id]['saidas'] += payment.valor
+
                                         matches_custodias += 1
                                         match_found = True
                                         break  # Encontrou match válido, para de procurar
