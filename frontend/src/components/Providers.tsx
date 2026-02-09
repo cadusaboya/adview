@@ -16,7 +16,29 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
       getPopupContainer={(triggerNode) => triggerNode?.parentElement || document.body}
     >
-      <MantineProvider defaultColorScheme="light">
+      <MantineProvider
+        defaultColorScheme="light"
+        theme={{
+          components: {
+            ScrollArea: {
+              styles: {
+                root: {
+                  border: 'none',
+                  outline: 'none',
+                },
+                viewport: {
+                  border: 'none',
+                  outline: 'none',
+                },
+                scrollbar: {
+                  border: 'none',
+                  outline: 'none',
+                },
+              },
+            },
+          },
+        }}
+      >
         {children}
         <Toaster
           richColors

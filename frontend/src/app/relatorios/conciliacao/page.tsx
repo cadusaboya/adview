@@ -15,7 +15,6 @@ import {
   XCircle,
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Calendar,
   AlertCircle,
   Building2,
@@ -287,130 +286,102 @@ export default function RelatorioConciliacaoBancariaPage() {
                 </Card>
               </div>
 
-              {/* SALDO DO PERÍODO */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Saldo do Período
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Período: {relatorioData.periodo.data_inicio} a{" "}
-                        {relatorioData.periodo.data_fim}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p
-                        className={`text-3xl font-bold ${
-                          relatorioData.valores.saldo_periodo >= 0
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {formatCurrencyBR(relatorioData.valores.saldo_periodo)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* VINCULAÇÕES */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Resumo de Vinculações</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Receitas</p>
-                      <p className="text-lg font-semibold">
-                        {relatorioData.vinculacoes.receitas.quantidade}
-                      </p>
-                      <p className="text-sm text-green-600">
-                        {formatCurrencyBR(
-                          relatorioData.vinculacoes.receitas.valor_total
-                        )}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Despesas</p>
-                      <p className="text-lg font-semibold">
-                        {relatorioData.vinculacoes.despesas.quantidade}
-                      </p>
-                      <p className="text-sm text-red-600">
-                        {formatCurrencyBR(
-                          relatorioData.vinculacoes.despesas.valor_total
-                        )}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Custódias</p>
-                      <p className="text-lg font-semibold">
-                        {relatorioData.vinculacoes.custodias.quantidade}
-                      </p>
-                      <p className="text-sm text-blue-600">
-                        {formatCurrencyBR(
-                          relatorioData.vinculacoes.custodias.valor_total
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* RESUMO POR CONTA BANCÁRIA */}
-              {relatorioData.por_conta.length > 0 && (
+              {/* RESUMO: VINCULAÇÕES E CONTAS BANCÁRIAS LADO A LADO */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* VINCULAÇÕES */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      Resumo por Conta Bancária
-                    </CardTitle>
+                    <CardTitle>Resumo de Vinculações</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-sm text-muted-foreground border-b">
-                            <th className="text-left py-2">Conta</th>
-                            <th className="text-center py-2">Total</th>
-                            <th className="text-center py-2">Conciliados</th>
-                            <th className="text-center py-2">Pendentes</th>
-                            <th className="text-right py-2">Entradas</th>
-                            <th className="text-right py-2">Saídas</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {relatorioData.por_conta.map((conta) => (
-                            <tr key={conta.id} className="border-b text-sm">
-                              <td className="py-3 font-medium">{conta.nome}</td>
-                              <td className="text-center">
-                                {conta.total_lancamentos}
-                              </td>
-                              <td className="text-center text-green-600">
-                                {conta.conciliados}
-                              </td>
-                              <td className="text-center text-red-600">
-                                {conta.pendentes}
-                              </td>
-                              <td className="text-right text-green-600">
-                                {formatCurrencyBR(conta.entradas)}
-                              </td>
-                              <td className="text-right text-red-600">
-                                {formatCurrencyBR(conta.saidas)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Receitas</p>
+                        <p className="text-lg font-semibold">
+                          {relatorioData.vinculacoes.receitas.quantidade}
+                        </p>
+                        <p className="text-sm text-green-600">
+                          {formatCurrencyBR(
+                            relatorioData.vinculacoes.receitas.valor_total
+                          )}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Despesas</p>
+                        <p className="text-lg font-semibold">
+                          {relatorioData.vinculacoes.despesas.quantidade}
+                        </p>
+                        <p className="text-sm text-red-600">
+                          {formatCurrencyBR(
+                            relatorioData.vinculacoes.despesas.valor_total
+                          )}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Custódias</p>
+                        <p className="text-lg font-semibold">
+                          {relatorioData.vinculacoes.custodias.quantidade}
+                        </p>
+                        <p className="text-sm text-blue-600">
+                          {formatCurrencyBR(
+                            relatorioData.vinculacoes.custodias.valor_total
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              )}
+
+                {/* RESUMO POR CONTA BANCÁRIA */}
+                {relatorioData.por_conta.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5" />
+                        Resumo por Conta Bancária
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="text-sm text-muted-foreground border-b">
+                              <th className="text-left py-2">Conta</th>
+                              <th className="text-center py-2">Total</th>
+                              <th className="text-center py-2">Conciliados</th>
+                              <th className="text-center py-2">Pendentes</th>
+                              <th className="text-right py-2">Entradas</th>
+                              <th className="text-right py-2">Saídas</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {relatorioData.por_conta.map((conta) => (
+                              <tr key={conta.id} className="border-b text-sm">
+                                <td className="py-3 font-medium">{conta.nome}</td>
+                                <td className="text-center">
+                                  {conta.total_lancamentos}
+                                </td>
+                                <td className="text-center text-green-600">
+                                  {conta.conciliados}
+                                </td>
+                                <td className="text-center text-red-600">
+                                  {conta.pendentes}
+                                </td>
+                                <td className="text-right text-green-600">
+                                  {formatCurrencyBR(conta.entradas)}
+                                </td>
+                                <td className="text-right text-red-600">
+                                  {formatCurrencyBR(conta.saidas)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
 
               {/* LANÇAMENTOS PENDENTES */}
               {relatorioData.lancamentos_pendentes.length > 0 && (
@@ -494,94 +465,6 @@ export default function RelatorioConciliacaoBancariaPage() {
                         {relatorioData.total_pendentes} lançamentos pendentes
                       </p>
                     )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* LANÇAMENTOS CONCILIADOS RECENTES */}
-              {relatorioData.lancamentos_conciliados_recentes.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileCheck className="h-5 w-5 text-green-600" />
-                      Últimos Lançamentos Conciliados
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {relatorioData.lancamentos_conciliados_recentes.map(
-                        (lancamento) => (
-                          <div
-                            key={lancamento.id}
-                            className="border rounded-lg p-4 space-y-2"
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <Badge
-                                    variant={
-                                      lancamento.tipo === "Entrada"
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                    className={
-                                      lancamento.tipo === "Entrada"
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-red-100 text-red-800"
-                                    }
-                                  >
-                                    {lancamento.tipo}
-                                  </Badge>
-                                  <span className="text-sm text-muted-foreground">
-                                    {lancamento.data}
-                                  </span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {lancamento.conta_bancaria}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {lancamento.observacao || "-"}
-                                </p>
-                              </div>
-                              <p
-                                className={`text-lg font-semibold ${
-                                  lancamento.tipo === "Entrada"
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }`}
-                              >
-                                {formatCurrencyBR(lancamento.valor)}
-                              </p>
-                            </div>
-                            {lancamento.vinculos.length > 0 && (
-                              <div className="mt-2 pt-2 border-t">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">
-                                  Vinculado a:
-                                </p>
-                                <div className="space-y-1">
-                                  {lancamento.vinculos.map((vinculo, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="flex justify-between text-sm bg-muted p-2 rounded"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-xs">
-                                          {vinculo.tipo}
-                                        </Badge>
-                                        <span>{vinculo.descricao}</span>
-                                      </div>
-                                      <span className="font-medium">
-                                        {formatCurrencyBR(vinculo.valor)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      )}
-                    </div>
                   </CardContent>
                 </Card>
               )}

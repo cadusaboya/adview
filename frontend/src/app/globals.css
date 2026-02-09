@@ -299,6 +299,15 @@
   border: none !important;
 }
 
+/* Remove borders from Mantine components in navbar */
+[data-mantine-color-scheme] .mantine-ScrollArea-root,
+[data-mantine-color-scheme] .mantine-ScrollArea-viewport,
+[data-mantine-color-scheme] .mantine-ScrollArea-scrollbar {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Main content area with fixed navbar */
 .main-content-with-navbar {
   margin-left: 200px;
