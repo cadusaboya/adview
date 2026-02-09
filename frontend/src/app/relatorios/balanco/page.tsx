@@ -29,6 +29,7 @@ export default function BalancoPage() {
   const [balancoData, setBalancoData] = useState<BalancoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [agrupamento, setAgrupamento] = useState<AgrupamentoTipo>('banco');
+  const [incluirCustodias, setIncluirCustodias] = useState(true);
 
   /* =========================
      FETCH BALANÇO DATA
@@ -60,10 +61,12 @@ export default function BalancoPage() {
           label: item.banco,
           value: item.valor
         }))
-      : balancoData.entradas.por_tipo.map(item => ({
-          label: item.tipo,
-          value: item.valor
-        }))
+      : balancoData.entradas.por_tipo
+          .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsados')
+          .map(item => ({
+            label: item.tipo,
+            value: item.valor
+          }))
     : [];
 
   const saidasLineItems: LineItem[] = balancoData
@@ -72,10 +75,12 @@ export default function BalancoPage() {
           label: item.banco,
           value: item.valor
         }))
-      : balancoData.saidas.por_tipo.map(item => ({
-          label: item.tipo,
-          value: item.valor
-        }))
+      : balancoData.saidas.por_tipo
+          .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsáveis')
+          .map(item => ({
+            label: item.tipo,
+            value: item.valor
+          }))
     : [];
 
   return (
@@ -153,6 +158,22 @@ export default function BalancoPage() {
                 <option value="tipo">Tipo</option>
               </select>
             </div>
+
+            {/* INCLUIR CUSTÓDIAS - Apenas visível quando agrupar por tipo */}
+            {agrupamento === 'tipo' && (
+              <div className="flex items-center gap-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="incluirCustodias"
+                  checked={incluirCustodias}
+                  onChange={(e) => setIncluirCustodias(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="incluirCustodias" className="text-sm cursor-pointer">
+                  Incluir Custódias
+                </label>
+              </div>
+            )}
           </div>
 
           <Card>
