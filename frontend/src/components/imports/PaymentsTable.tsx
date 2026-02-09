@@ -28,6 +28,7 @@ export default function PaymentsTable({
   tipo?: 'receita' | 'despesa' | 'custodia';
 }) {
   const [loadingRecibo, setLoadingRecibo] = useState<number | null>(null);
+  const [loadingAction, setLoadingAction] = useState<number | null>(null);
 
   const handleGerarRecibo = async (paymentId: number) => {
     try {
@@ -36,7 +37,7 @@ export default function PaymentsTable({
       toast.success('Recibo gerado com sucesso!');
     } catch (error: unknown) {
       console.error(error);
-    
+
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
@@ -45,6 +46,28 @@ export default function PaymentsTable({
     }
      finally {
       setLoadingRecibo(null);
+    }
+  };
+
+  const handleUnlink = async (paymentId: number) => {
+    if (loadingAction) return;
+
+    try {
+      setLoadingAction(paymentId);
+      await onUnlink(paymentId);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleDelete = async (paymentId: number) => {
+    if (loadingAction) return;
+
+    try {
+      setLoadingAction(paymentId);
+      await onDelete(paymentId);
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -77,7 +100,7 @@ export default function PaymentsTable({
                     variant="outline"
                     size="sm"
                     onClick={() => handleGerarRecibo(p.id)}
-                    disabled={loadingRecibo === p.id}
+                    disabled={loadingRecibo === p.id || loadingAction !== null}
                   >
                     {loadingRecibo === p.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -90,19 +113,29 @@ export default function PaymentsTable({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onUnlink(p.id)}
+                    onClick={() => handleUnlink(p.id)}
                     title="Desvincular"
+                    disabled={loadingAction === p.id || loadingRecibo !== null}
                   >
-                    <Unlink className="w-4 h-4" />
+                    {loadingAction === p.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Unlink className="w-4 h-4" />
+                    )}
                   </Button>
 
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => onDelete(p.id)}
+                    onClick={() => handleDelete(p.id)}
                     title="Apagar Pagamento"
+                    disabled={loadingAction === p.id || loadingRecibo !== null}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {loadingAction === p.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </TableCell>

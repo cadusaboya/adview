@@ -43,6 +43,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   const [payments, setPayments] = useState<PaymentUI[]>(initialPayments || []);
   const [valorDisplay, setValorDisplay] = useState('');
   const [isLoading, setIsLoading] = useState(!initialPayments); // Só carrega se não tem dados iniciais
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     data_pagamento: '',
@@ -100,12 +101,15 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   }, [entityId, loadPayments]);
 
   const handleAdd = async () => {
+    if (isSubmitting) return;
+
     if (!form.data_pagamento || !form.conta_bancaria || !form.valor) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
     try {
+      setIsSubmitting(true);
       // 1. Criar Payment (neutro)
       // Determina o tipo de payment baseado na entidade:
       // - Receita: Entrada (recebimento)
@@ -178,6 +182,8 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       setValorDisplay('');
     } catch {
       toast.error('Erro ao adicionar pagamento');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -307,12 +313,15 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
 
   // Vincular um payment existente
   const handleVincular = async () => {
+    if (isSubmitting) return;
+
     if (!selectedPaymentId || !vincularValor) {
       toast.error('Selecione um pagamento e informe o valor');
       return;
     }
 
     try {
+      setIsSubmitting(true);
       const allocationPayload: {
         payment_id: number;
         valor: number;
@@ -362,6 +371,8 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       loadAvailablePayments();
     } catch {
       toast.error('Erro ao vincular pagamento');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -462,8 +473,8 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button onClick={handleAdd} size="default">
-              Adicionar Pagamento
+            <Button onClick={handleAdd} size="default" disabled={isSubmitting}>
+              {isSubmitting ? 'Adicionando...' : 'Adicionar Pagamento'}
             </Button>
           </div>
         </div>
@@ -584,11 +595,12 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                     setVincularValorDisplay('');
                     setVincularValor(0);
                   }}
+                  disabled={isSubmitting}
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleVincular} variant="default">
-                  Vincular Pagamento
+                <Button onClick={handleVincular} variant="default" disabled={isSubmitting}>
+                  {isSubmitting ? 'Vinculando...' : 'Vincular Pagamento'}
                 </Button>
               </div>
             </div>
