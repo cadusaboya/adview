@@ -41,7 +41,7 @@ export default function DialogBase({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className={`${sizeClasses[size]} ${maxHeight} flex flex-col`}>
+      <DialogContent className={`${sizeClasses[size]} ${maxHeight} min-h-[60vh] flex flex-col`}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
