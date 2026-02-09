@@ -3627,7 +3627,11 @@ def balanco_patrimonial(request):
                 tipo_despesa = allocation.despesa.tipo
                 tipo_nome = TIPO_DESPESA_MAP.get(tipo_despesa, 'Outro')
             elif allocation.custodia:
-                tipo_nome = 'Custódia'
+                # Diferenciar custódia por tipo de pagamento (entrada ou saída)
+                if tipo_pagamento == 'E':
+                    tipo_nome = 'Valores Reembolsados'
+                else:
+                    tipo_nome = 'Valores Reembolsáveis'
             else:
                 # Alocação sem vínculo definido
                 tipo_nome = 'Não Alocado'
@@ -3661,8 +3665,29 @@ def balanco_patrimonial(request):
         entradas_banco_list = [{"banco": banco, "valor": valor} for banco, valor in entradas_por_banco.items()]
         saidas_banco_list = [{"banco": banco, "valor": valor} for banco, valor in saidas_por_banco.items()]
 
-        entradas_tipo_list = [{"tipo": tipo, "valor": valor} for tipo, valor in entradas_por_tipo.items()]
-        saidas_tipo_list = [{"tipo": tipo, "valor": valor} for tipo, valor in saidas_por_tipo.items()]
+        # Ordem desejada para entradas e saídas
+        ORDEM_ENTRADAS = ['Receita Fixa', 'Receita Variável', 'Valores Reembolsados', 'Estorno', 'Não Alocado']
+        ORDEM_SAIDAS = ['Despesa Fixa', 'Despesa Variável', 'Valores Reembolsáveis', 'Comissionamento', 'Reembolso', 'Não Alocado']
+
+        # Ordenar entradas conforme ordem especificada
+        entradas_tipo_list = []
+        for tipo in ORDEM_ENTRADAS:
+            if tipo in entradas_por_tipo:
+                entradas_tipo_list.append({"tipo": tipo, "valor": entradas_por_tipo[tipo]})
+        # Adicionar tipos não mapeados ao final
+        for tipo, valor in entradas_por_tipo.items():
+            if tipo not in ORDEM_ENTRADAS:
+                entradas_tipo_list.append({"tipo": tipo, "valor": valor})
+
+        # Ordenar saídas conforme ordem especificada
+        saidas_tipo_list = []
+        for tipo in ORDEM_SAIDAS:
+            if tipo in saidas_por_tipo:
+                saidas_tipo_list.append({"tipo": tipo, "valor": saidas_por_tipo[tipo]})
+        # Adicionar tipos não mapeados ao final
+        for tipo, valor in saidas_por_tipo.items():
+            if tipo not in ORDEM_SAIDAS:
+                saidas_tipo_list.append({"tipo": tipo, "valor": valor})
 
         # 🔹 Calcular totais
         total_entradas = sum(entradas_por_banco.values())

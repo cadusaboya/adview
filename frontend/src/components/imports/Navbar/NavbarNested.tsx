@@ -94,6 +94,7 @@ const menuItems = [
 export function NavbarNested() {
   const [companyName, setCompanyName] = useState<string>('');
   const [openedItem, setOpenedItem] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const links = menuItems.map((item) => (
     <LinksGroup
@@ -116,8 +117,15 @@ export function NavbarNested() {
     loadCompany();
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -146,9 +154,14 @@ export function NavbarNested() {
             <span className={classes.companyName}>{companyName}</span>
           </div>
         )}
-        <button className={classes.logoutButton} onClick={handleLogout}>
+        <button
+          className={classes.logoutButton}
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          style={{ opacity: isLoggingOut ? 0.5 : 1, cursor: isLoggingOut ? 'not-allowed' : 'pointer' }}
+        >
           <IconLogout size={18} />
-          <span>Sair</span>
+          <span>{isLoggingOut ? 'Saindo...' : 'Sair'}</span>
         </button>
       </div>
     </nav>

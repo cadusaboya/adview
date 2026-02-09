@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -29,6 +30,8 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
 
     let hasError = false;
     if (!username) {
@@ -48,6 +51,7 @@ export default function LoginPage() {
     if (hasError) return;
 
     try {
+      setIsSubmitting(true);
       await login(username, password, rememberMe);
       toast.success("Login realizado com sucesso!");
       router.push("/dashboard");
@@ -55,6 +59,8 @@ export default function LoginPage() {
       const errorMessage = getErrorMessage(error, 'Usuário ou senha incorretos');
       toast.error(errorMessage);
       setPasswordError("Verifique suas credenciais e tente novamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -179,8 +185,9 @@ export default function LoginPage() {
               type="submit"
               variant="accent"
               className="w-full"
+              disabled={isSubmitting}
             >
-              Entrar
+              {isSubmitting ? "Entrando..." : "Entrar"}
             </Button>
           </div>
         </form>
