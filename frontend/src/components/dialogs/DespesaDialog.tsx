@@ -242,7 +242,6 @@ export default function DespesaDialog({
         {/* Descrição */}
         <FormInput
           label="Descrição"
-          required
           placeholder="Detalhes sobre a despesa"
           value={formData.descricao}
           onChange={(e) =>

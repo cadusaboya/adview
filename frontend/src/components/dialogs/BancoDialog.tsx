@@ -95,7 +95,6 @@ export default function BancoDialog({
 
           <FormInput
             label="Saldo Atual"
-            required
             type="number"
             step="0.01"
             placeholder="0.00"
@@ -110,7 +109,6 @@ export default function BancoDialog({
         {/* Linha 2 */}
         <FormInput
           label="Descrição"
-          required
           placeholder="Ex.: Conta PJ usada para despesas fixas"
           value={formData.descricao}
           onChange={(e) =>
