@@ -7,7 +7,7 @@ export const despesaRecorrenteCreateSchema: ValidationSchema<DespesaRecorrenteCr
     required("Nome é obrigatório"),
     minLength(3, "Nome deve ter pelo menos 3 caracteres"),
   ],
-  descricao: [required("Descrição é obrigatória")],
+  descricao: [], // Optional
   responsavel_id: [
     required("Responsável é obrigatório"),
     minValue(1, "Selecione um responsável"),

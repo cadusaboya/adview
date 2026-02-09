@@ -7,7 +7,7 @@ export const receitaRecorrenteCreateSchema: ValidationSchema<ReceitaRecorrenteCr
     required("Nome é obrigatório"),
     minLength(3, "Nome deve ter pelo menos 3 caracteres"),
   ],
-  descricao: [required("Descrição é obrigatória")],
+  descricao: [], // Optional
   cliente_id: [
     required("Cliente é obrigatório"),
     minValue(1, "Selecione um cliente"),
@@ -18,7 +18,6 @@ export const receitaRecorrenteCreateSchema: ValidationSchema<ReceitaRecorrenteCr
   ],
   tipo: [required("Tipo é obrigatório")],
   forma_pagamento: [], // Optional
-  comissionado_id: [], // Optional
   data_inicio: [required("Data de início é obrigatória")],
   data_fim: [], // Optional
   dia_vencimento: [

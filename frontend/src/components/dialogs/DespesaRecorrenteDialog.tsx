@@ -114,7 +114,7 @@ export default function DespesaRecorrenteDialog({
           </div>
           <FormInput label="Nome da Despesa" required placeholder="Ex: Aluguel Escritório" value={formData.nome} onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))} error={getFieldProps('nome').error} />
         </div>
-        <FormInput label="Descrição" required placeholder="Detalhes sobre a despesa recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
+        <FormInput label="Descrição" placeholder="Detalhes sobre a despesa recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Valor (R$)" required placeholder="0,00" value={valorDisplay} onChange={(e) => setValorDisplay(e.target.value)} onBlur={() => { const parsed = parseCurrencyBR(valorDisplay); setValorDisplay(parsed ? formatCurrencyInput(parsed) : ''); setFormData(prev => ({ ...prev, valor: parsed })); }} error={getFieldProps('valor').error} />
           <FormSelect label="Tipo" required value={formData.tipo} onValueChange={(val) => setFormData(prev => ({ ...prev, tipo: val as 'F' | 'V' }))} options={[{ value: 'F', label: 'Fixa' }, { value: 'V', label: 'Variável' }]} error={getFieldProps('tipo').error} />

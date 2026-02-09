@@ -19,9 +19,7 @@ import {
   ReceitaRecorrenteUpdate,
 } from '@/types/receitasRecorrentes';
 import { Cliente } from '@/types/clientes';
-import { Funcionario } from '@/types/funcionarios';
 import { getClientes } from '@/services/clientes';
-import { getFuncionarios } from '@/services/funcionarios';
 
 interface Props {
   open: boolean;
@@ -44,12 +42,6 @@ export default function ReceitaRecorrenteDialog({
     errorMessage: 'Erro ao carregar clientes',
   });
 
-  const { data: funcionarios } = useLoadAuxiliaryData({
-    loadFn: async () => (await getFuncionarios({ page_size: 1000 })).results,
-    onOpen: open,
-    errorMessage: 'Erro ao carregar funcionários',
-  });
-
   const {
     formData,
     setFormData,
@@ -64,7 +56,6 @@ export default function ReceitaRecorrenteDialog({
     valor: 0,
     tipo: 'F',
     forma_pagamento: null,
-    comissionado_id: null,
     data_inicio: '',
     dia_vencimento: 1,
   }, receitaRecorrenteCreateSchema);
@@ -78,7 +69,6 @@ export default function ReceitaRecorrenteDialog({
         valor: receita.valor,
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento,
-        comissionado_id: receita.comissionado?.id ?? null,
         data_inicio: receita.data_inicio,
         data_fim: receita.data_fim,
         dia_vencimento: receita.dia_vencimento,
@@ -93,7 +83,6 @@ export default function ReceitaRecorrenteDialog({
         valor: 0,
         tipo: 'F',
         forma_pagamento: null,
-        comissionado_id: null,
         data_inicio: '',
         dia_vencimento: 1,
       });
@@ -125,19 +114,13 @@ export default function ReceitaRecorrenteDialog({
           </div>
           <FormInput label="Nome da Receita" required placeholder="Ex: Mensalidade Consultoria" value={formData.nome} onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))} error={getFieldProps('nome').error} />
         </div>
-        <FormInput label="Descrição" required placeholder="Detalhes sobre a receita recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
+        <FormInput label="Descrição" placeholder="Detalhes sobre a receita recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Valor (R$)" required placeholder="0,00" value={valorDisplay} onChange={(e) => setValorDisplay(e.target.value)} onBlur={() => { const parsed = parseCurrencyBR(valorDisplay); setValorDisplay(parsed ? formatCurrencyInput(parsed) : ''); setFormData(prev => ({ ...prev, valor: parsed })); }} error={getFieldProps('valor').error} />
           <FormSelect label="Tipo" required value={formData.tipo} onValueChange={(val) => setFormData(prev => ({ ...prev, tipo: val as 'F' | 'V' }))} options={[{ value: 'F', label: 'Fixa' }, { value: 'V', label: 'Variável' }]} error={getFieldProps('tipo').error} />
           <FormInput label="Dia de Vencimento" required type="number" min="1" max="31" placeholder="1-31" value={formData.dia_vencimento} onChange={(e) => setFormData(prev => ({ ...prev, dia_vencimento: parseInt(e.target.value) || 1 }))} error={getFieldProps('dia_vencimento').error} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormSelect label="Forma de Pagamento" value={formData.forma_pagamento || ''} onValueChange={(val) => setFormData(prev => ({ ...prev, forma_pagamento: val ? val as 'P' | 'B' : null }))} options={[{ value: 'P', label: 'Pix' }, { value: 'B', label: 'Boleto' }]} placeholder="Selecione..." />
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Comissionado (Opcional)</label>
-            <AntdSelect allowClear placeholder="Selecione um funcionário/parceiro" value={formData.comissionado_id ?? undefined} options={funcionarios?.filter((f: Funcionario) => f.tipo === 'F' || f.tipo === 'P').map((f: Funcionario) => ({ value: f.id, label: f.nome })) || []} onChange={(val) => setFormData(prev => ({ ...prev, comissionado_id: val ?? null }))} style={{ width: '100%' }} />
-          </div>
-        </div>
+        <FormSelect label="Forma de Pagamento" value={formData.forma_pagamento || ''} onValueChange={(val) => setFormData(prev => ({ ...prev, forma_pagamento: val ? val as 'P' | 'B' : null }))} options={[{ value: 'P', label: 'Pix' }, { value: 'B', label: 'Boleto' }]} placeholder="Selecione..." />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Data de Início" required type="date" value={formData.data_inicio} onChange={(e) => setFormData(prev => ({ ...prev, data_inicio: e.target.value }))} error={getFieldProps('data_inicio').error} />
           <FormInput label="Data de Fim (Opcional)" type="date" value={formData.data_fim || ''} onChange={(e) => setFormData(prev => ({ ...prev, data_fim: e.target.value || null }))} />
