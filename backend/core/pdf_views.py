@@ -1780,68 +1780,75 @@ def relatorio_comissionamento_pdf(request):
     def format_currency_br(valor):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    # Cabeçalho usando PDFReportBase
+    # Criar instância única do report para manter o contador de páginas consistente
     report = PDFReportBase("Relatório de Comissionamento", company.name, company.logo)
-    y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
-    y -= 10
+
+    # Helper para desenhar header consistente
+    def draw_page_header():
+        """Desenha header padrão em todas as páginas."""
+        y_pos = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
+        return y_pos - 10
+
+    # Helper para desenhar cabeçalho da tabela
+    def draw_table_header(y_pos, comissionado_nome):
+        """Desenha o nome do comissionado e cabeçalho da tabela."""
+        # Nome do comissionado
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(margin, y_pos, f"Comissionado: {comissionado_nome}")
+        y_pos -= 25
+
+        # Cabeçalho da tabela
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(col_data, y_pos, "Data")
+        pdf.drawString(col_cliente, y_pos, "Cliente")
+        pdf.drawRightString(col_valor_pag + 80, y_pos, "Valor Pago")
+        pdf.drawRightString(col_percentual + 60, y_pos, "% Comissão")
+        pdf.drawRightString(col_comissao + 80, y_pos, "Valor Comissão")
+
+        y_pos -= 2
+        pdf.line(margin, y_pos, width - margin, y_pos)
+        y_pos -= 15
+        return y_pos
+
+    # Definir colunas (uma vez)
+    col_data = margin
+    col_cliente = col_data + 80
+    col_valor_pag = col_cliente + 200
+    col_percentual = col_valor_pag + 100
+    col_comissao = col_percentual + 80
 
     # Iterar por comissionado
     total_geral = Decimal('0.00')
+    primeira_pagina = True
 
     for data in comissionados_data.values():
         comissionado = data['comissionado']
         pagamentos = data['pagamentos']
 
-        # Verificar espaço para nova seção
-        if y < 200:
+        # Iniciar nova página para cada comissionado (exceto o primeiro)
+        if not primeira_pagina:
+            report.draw_footer(pdf, width)
             pdf.showPage()
-            y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
-            y -= 10
 
-        # Nome do comissionado
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(margin, y, f"Comissionado: {comissionado.nome}")
-        y -= 20
+        primeira_pagina = False
 
-        # Cabeçalho da tabela
-        pdf.setFont("Helvetica-Bold", 9)
-        col_data = margin
-        col_cliente = col_data + 80
-        col_valor_pag = col_cliente + 200
-        col_percentual = col_valor_pag + 100
-        col_comissao = col_percentual + 80
+        # Desenhar header da página
+        y = draw_page_header()
 
-        pdf.drawString(col_data, y, "Data")
-        pdf.drawString(col_cliente, y, "Cliente")
-        pdf.drawRightString(col_valor_pag + 80, y, "Valor Pago")
-        pdf.drawRightString(col_percentual + 60, y, "% Comissão")
-        pdf.drawRightString(col_comissao + 80, y, "Valor Comissão")
-
-        y -= 2
-        pdf.line(margin, y, width - margin, y)
-        y -= 15
+        # Desenhar cabeçalho da tabela
+        y = draw_table_header(y, comissionado.nome)
 
         # Dados da tabela
         pdf.setFont("Helvetica", 9)
         total_comissionado = Decimal('0.00')
 
         for pag in sorted(pagamentos, key=lambda x: x['data']):
-            # Verificar espaço
-            if y < 100:
+            # Verificar se precisa de nova página
+            if y < 80:
+                report.draw_footer(pdf, width)
                 pdf.showPage()
-                y = report.draw_header(pdf, width, height, f"Comissionado: {comissionado.nome} (continuação)")
-                y -= 10
-
-                # Redesenhar cabeçalho da tabela
-                pdf.setFont("Helvetica-Bold", 9)
-                pdf.drawString(col_data, y, "Data")
-                pdf.drawString(col_cliente, y, "Cliente")
-                pdf.drawRightString(col_valor_pag + 80, y, "Valor Pago")
-                pdf.drawRightString(col_percentual + 60, y, "% Comissão")
-                pdf.drawRightString(col_comissao + 80, y, "Valor Comissão")
-                y -= 2
-                pdf.line(margin, y, width - margin, y)
-                y -= 15
+                y = draw_page_header()
+                y = draw_table_header(y, comissionado.nome)
                 pdf.setFont("Helvetica", 9)
 
             pdf.drawString(col_data, y, format_date_br(pag['data']))
@@ -1869,24 +1876,22 @@ def relatorio_comissionamento_pdf(request):
 
         total_geral += total_comissionado
 
-        # Adicionar footer e quebrar página para cada comissionado
-        report.draw_footer(pdf, width)
-        pdf.showPage()
+    # Adicionar footer na última página do último comissionado
+    report.draw_footer(pdf, width)
 
     # Total geral (se houver múltiplos comissionados)
     if len(comissionados_data) > 1:
-        # Nova página para o total geral
-        y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
+        pdf.showPage()
+        y = draw_page_header()
         y -= 20
 
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(margin, y, "TOTAL GERAL:")
-        col_comissao = width - margin - 130
         pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_geral))
 
         report.draw_footer(pdf, width)
-        pdf.showPage()
 
+    pdf.showPage()
     pdf.save()
 
     return response
