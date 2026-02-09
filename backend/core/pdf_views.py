@@ -1868,20 +1868,25 @@ def relatorio_comissionamento_pdf(request):
         pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_comissionado))
 
         total_geral += total_comissionado
-        y -= 30
+
+        # Adicionar footer e quebrar página para cada comissionado
+        report.draw_footer(pdf, width)
+        pdf.showPage()
 
     # Total geral (se houver múltiplos comissionados)
     if len(comissionados_data) > 1:
-        if y < 100:
-            pdf.showPage()
-            y = height - margin
+        # Nova página para o total geral
+        y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
+        y -= 20
 
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(margin, y, "TOTAL GERAL:")
         col_comissao = width - margin - 130
         pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_geral))
 
-    pdf.showPage()
+        report.draw_footer(pdf, width)
+        pdf.showPage()
+
     pdf.save()
 
     return response
