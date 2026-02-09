@@ -76,10 +76,12 @@ export async function getDREConsolidado(
 export interface BalancoData {
   entradas: {
     por_banco: Array<{ banco: string; valor: number }>;
+    por_tipo: Array<{ tipo: string; valor: number }>;
     total: number;
   };
   saidas: {
     por_banco: Array<{ banco: string; valor: number }>;
+    por_tipo: Array<{ tipo: string; valor: number }>;
     total: number;
   };
   resultado: number;

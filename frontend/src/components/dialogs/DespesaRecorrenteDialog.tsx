@@ -95,7 +95,6 @@ export default function DespesaRecorrenteDialog({
       try {
         await onSubmit(data);
         onClose();
-        toast.success(despesa ? 'Despesa recorrente atualizada com sucesso' : 'Despesa recorrente criada com sucesso');
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) toast.error(generalError);

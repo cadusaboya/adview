@@ -165,9 +165,6 @@ export default function DespesaDialog({
 
         await onSubmit(payload);
         onClose();
-        toast.success(
-          despesa ? 'Despesa atualizada com sucesso' : 'Despesa criada com sucesso'
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

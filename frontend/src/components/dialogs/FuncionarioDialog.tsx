@@ -87,12 +87,6 @@ export default function FuncionarioDialog({
       try {
         await onSubmit(data);
         onClose();
-        const entityName = isFornecedor ? 'Fornecedor' : 'Funcionário';
-        toast.success(
-          funcionario
-            ? `${entityName} atualizado com sucesso`
-            : `${entityName} criado com sucesso`
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

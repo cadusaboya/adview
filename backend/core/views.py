@@ -1235,8 +1235,16 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(valor__icontains=search) |
                 Q(observacao__icontains=search) |
-                Q(data_pagamento__icontains=search)
-            )
+                Q(data_pagamento__icontains=search) |
+                # Filtro por nome do banco
+                Q(conta_bancaria__nome__icontains=search) |
+                # Filtro por entidades vinculadas
+                Q(allocations__receita__nome__icontains=search) |
+                Q(allocations__despesa__nome__icontains=search) |
+                Q(allocations__custodia__nome__icontains=search) |
+                Q(allocations__transfer__from_bank__nome__icontains=search) |
+                Q(allocations__transfer__to_bank__nome__icontains=search)
+            ).distinct()
 
         return queryset.order_by('-data_pagamento', '-id')
 
@@ -3490,7 +3498,9 @@ def dre_consolidado(request):
 @permission_classes([IsAuthenticated])
 def balanco_patrimonial(request):
     """
-    Retorna o Fluxo de Caixa Realizado (Regime de Caixa) com entradas e saídas por banco.
+    Retorna o Fluxo de Caixa Realizado (Regime de Caixa) com dois agrupamentos:
+    - Por banco (padrão)
+    - Por tipo (Receita Fixa, Despesa Variável, Custódia, etc.)
 
     Considera TODOS os pagamentos (vinculados ou não a receitas/despesas),
     excluindo apenas transferências entre contas (pois se anulam).
@@ -3502,17 +3512,13 @@ def balanco_patrimonial(request):
     Retorna:
     {
         "entradas": {
-            "por_banco": [
-                {"banco": "Itaú PJ", "valor": 50000.00},
-                {"banco": "Nubank", "valor": 20000.00}
-            ],
+            "por_banco": [...],
+            "por_tipo": [...],
             "total": 70000.00
         },
         "saidas": {
-            "por_banco": [
-                {"banco": "Itaú PJ", "valor": 30000.00},
-                {"banco": "Nubank", "valor": 10000.00}
-            ],
+            "por_banco": [...],
+            "por_tipo": [...],
             "total": 40000.00
         },
         "resultado": 30000.00
@@ -3558,12 +3564,39 @@ def balanco_patrimonial(request):
             data_pagamento__lte=data_fim
         ).exclude(
             id__in=payment_ids_com_transferencia
-        ).select_related('conta_bancaria')
+        ).select_related('conta_bancaria').prefetch_related('allocations__receita', 'allocations__despesa', 'allocations__custodia')
 
-        # 🔹 Agrupar entradas e saídas por banco
+        # 🔹 Buscar todas as alocações dos pagamentos do mês (exceto transferências)
+        allocations = Allocation.objects.filter(
+            payment__company=request.user.company,
+            payment__data_pagamento__gte=data_inicio,
+            payment__data_pagamento__lte=data_fim,
+            transfer__isnull=True
+        ).select_related('payment', 'payment__conta_bancaria', 'receita', 'despesa', 'custodia')
+
+        # 🔹 Dicionários para agrupamentos
+        # Por banco
         entradas_por_banco = {}
         saidas_por_banco = {}
 
+        # Por tipo
+        entradas_por_tipo = {}
+        saidas_por_tipo = {}
+
+        # Mapas de nomes para tipos
+        TIPO_RECEITA_MAP = {
+            'F': 'Receita Fixa',
+            'V': 'Receita Variável',
+            'E': 'Estorno',
+        }
+        TIPO_DESPESA_MAP = {
+            'F': 'Despesa Fixa',
+            'V': 'Despesa Variável',
+            'C': 'Comissionamento',
+            'R': 'Reembolso',
+        }
+
+        # 🔹 Processar pagamentos para agrupamento por banco
         for pagamento in pagamentos:
             banco_nome = pagamento.conta_bancaria.nome
             valor = float(pagamento.valor)
@@ -3577,9 +3610,59 @@ def balanco_patrimonial(request):
                     saidas_por_banco[banco_nome] = 0
                 saidas_por_banco[banco_nome] += valor
 
+        # 🔹 Processar alocações para agrupamento por tipo
+        # Rastrear pagamentos que foram alocados
+        pagamentos_alocados = set()
+
+        for allocation in allocations:
+            valor = float(allocation.valor)
+            tipo_pagamento = allocation.payment.tipo
+            pagamentos_alocados.add(allocation.payment.id)
+
+            # Determinar tipo
+            if allocation.receita:
+                tipo_receita = allocation.receita.tipo
+                tipo_nome = TIPO_RECEITA_MAP.get(tipo_receita, 'Outro')
+            elif allocation.despesa:
+                tipo_despesa = allocation.despesa.tipo
+                tipo_nome = TIPO_DESPESA_MAP.get(tipo_despesa, 'Outro')
+            elif allocation.custodia:
+                tipo_nome = 'Custódia'
+            else:
+                # Alocação sem vínculo definido
+                tipo_nome = 'Não Alocado'
+
+            # Agrupar por tipo
+            if tipo_pagamento == 'E':
+                if tipo_nome not in entradas_por_tipo:
+                    entradas_por_tipo[tipo_nome] = 0
+                entradas_por_tipo[tipo_nome] += valor
+            elif tipo_pagamento == 'S':
+                if tipo_nome not in saidas_por_tipo:
+                    saidas_por_tipo[tipo_nome] = 0
+                saidas_por_tipo[tipo_nome] += valor
+
+        # 🔹 Adicionar pagamentos não alocados
+        for pagamento in pagamentos:
+            if pagamento.id not in pagamentos_alocados:
+                valor = float(pagamento.valor)
+                tipo_nome = 'Não Alocado'
+
+                if pagamento.tipo == 'E':
+                    if tipo_nome not in entradas_por_tipo:
+                        entradas_por_tipo[tipo_nome] = 0
+                    entradas_por_tipo[tipo_nome] += valor
+                elif pagamento.tipo == 'S':
+                    if tipo_nome not in saidas_por_tipo:
+                        saidas_por_tipo[tipo_nome] = 0
+                    saidas_por_tipo[tipo_nome] += valor
+
         # 🔹 Converter dicionários em listas
-        entradas_list = [{"banco": banco, "valor": valor} for banco, valor in entradas_por_banco.items()]
-        saidas_list = [{"banco": banco, "valor": valor} for banco, valor in saidas_por_banco.items()]
+        entradas_banco_list = [{"banco": banco, "valor": valor} for banco, valor in entradas_por_banco.items()]
+        saidas_banco_list = [{"banco": banco, "valor": valor} for banco, valor in saidas_por_banco.items()]
+
+        entradas_tipo_list = [{"tipo": tipo, "valor": valor} for tipo, valor in entradas_por_tipo.items()]
+        saidas_tipo_list = [{"tipo": tipo, "valor": valor} for tipo, valor in saidas_por_tipo.items()]
 
         # 🔹 Calcular totais
         total_entradas = sum(entradas_por_banco.values())
@@ -3589,11 +3672,13 @@ def balanco_patrimonial(request):
         # 🔹 Retornar dados formatados
         return Response({
             'entradas': {
-                'por_banco': entradas_list,
+                'por_banco': entradas_banco_list,
+                'por_tipo': entradas_tipo_list,
                 'total': total_entradas
             },
             'saidas': {
-                'por_banco': saidas_list,
+                'por_banco': saidas_banco_list,
+                'por_tipo': saidas_tipo_list,
                 'total': total_saidas
             },
             'resultado': resultado

@@ -85,9 +85,6 @@ export default function TransferDialog({ open, onClose, onSubmit, transfer }: Tr
       try {
         await onSubmit(data);
         onClose();
-        toast.success(
-          transfer ? "Transferência atualizada com sucesso" : "Transferência criada com sucesso"
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

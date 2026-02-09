@@ -203,9 +203,6 @@ export default function ReceitaDialog({
 
         await onSubmit(payload);
         onClose();
-        toast.success(
-          receita ? 'Receita atualizada com sucesso' : 'Receita criada com sucesso'
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

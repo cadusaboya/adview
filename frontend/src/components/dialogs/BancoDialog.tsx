@@ -61,9 +61,6 @@ export default function BancoDialog({
       try {
         await onSubmit(data);
         onClose();
-        toast.success(
-          banco ? 'Conta bancária atualizada com sucesso' : 'Conta bancária criada com sucesso'
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

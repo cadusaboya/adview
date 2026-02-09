@@ -182,9 +182,6 @@ export default function CustodiaDialog({
 
         await onSubmit(payload);
         onClose();
-        toast.success(
-          custodia ? 'Custódia atualizada com sucesso' : 'Custódia criada com sucesso'
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

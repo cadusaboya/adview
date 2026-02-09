@@ -141,9 +141,6 @@ export default function ClienteDialog({
         };
         await onSubmit(payload);
         onClose();
-        toast.success(
-          cliente ? 'Cliente atualizado com sucesso' : 'Cliente criado com sucesso'
-        );
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
         if (generalError) {

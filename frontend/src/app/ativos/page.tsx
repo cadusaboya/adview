@@ -9,7 +9,6 @@ import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import GenericTable from '@/components/imports/GenericTable';
 import CustodiaDialog from '@/components/dialogs/CustodiaDialog';
 import { Input } from '@/components/ui/input';
-import { Select } from 'antd';
 
 import {
   getCustodias,
@@ -46,7 +45,6 @@ export default function AtivosPage() {
   const [editingCustodia, setEditingCustodia] = useState<Custodia | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
-  const [statusFilter, setStatusFilter] = useState<string>('nao_liquidado');
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -77,20 +75,12 @@ export default function AtivosPage() {
         page_size: number;
         search: string;
         tipo: 'A' | 'P';
-        status?: string;
       } = {
         page,
         page_size: pageSize,
         search: debouncedSearch,
         tipo: 'A',
       };
-
-      // Aplicar filtro de status
-      if (statusFilter === 'nao_liquidado') {
-        params.status = 'A,P'; // Aberto e Parcial
-      } else if (statusFilter !== 'todos') {
-        params.status = statusFilter;
-      }
 
       const res = await getCustodias(params);
       setCustodias(res.results);
@@ -101,7 +91,7 @@ export default function AtivosPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, statusFilter]);
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadCustodias();
@@ -116,10 +106,10 @@ export default function AtivosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Só executa uma vez na montagem
 
-  // Reset page when search or status filter changes
+  // Reset page when search changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch]);
 
   // Clear selection when page or pageSize changes
   useEffect(() => {
@@ -381,19 +371,6 @@ export default function AtivosPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-80"
-            />
-
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              className="w-48"
-              options={[
-                { value: 'nao_liquidado', label: 'Não Liquidados' },
-                { value: 'todos', label: 'Todos' },
-                { value: 'A', label: 'Aberto' },
-                { value: 'P', label: 'Parcial' },
-                { value: 'L', label: 'Liquidado' },
-              ]}
             />
 
             {selectedRowKeys.length > 0 && (

@@ -14,6 +14,8 @@ type LineItem = {
   value: number;
 };
 
+type AgrupamentoTipo = 'banco' | 'tipo';
+
 export default function BalancoPage() {
   /* =========================
     FILTRO (MÊS / ANO)
@@ -26,6 +28,7 @@ export default function BalancoPage() {
   ========================= */
   const [balancoData, setBalancoData] = useState<BalancoData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [agrupamento, setAgrupamento] = useState<AgrupamentoTipo>('banco');
 
   /* =========================
      FETCH BALANÇO DATA
@@ -52,17 +55,27 @@ export default function BalancoPage() {
      PREPARAR DADOS PARA EXIBIÇÃO
   ========================= */
   const entradasLineItems: LineItem[] = balancoData
-    ? balancoData.entradas.por_banco.map(item => ({
-        label: item.banco,
-        value: item.valor
-      }))
+    ? agrupamento === 'banco'
+      ? balancoData.entradas.por_banco.map(item => ({
+          label: item.banco,
+          value: item.valor
+        }))
+      : balancoData.entradas.por_tipo.map(item => ({
+          label: item.tipo,
+          value: item.valor
+        }))
     : [];
 
   const saidasLineItems: LineItem[] = balancoData
-    ? balancoData.saidas.por_banco.map(item => ({
-        label: item.banco,
-        value: item.valor
-      }))
+    ? agrupamento === 'banco'
+      ? balancoData.saidas.por_banco.map(item => ({
+          label: item.banco,
+          value: item.valor
+        }))
+      : balancoData.saidas.por_tipo.map(item => ({
+          label: item.tipo,
+          value: item.valor
+        }))
     : [];
 
   return (
@@ -82,7 +95,7 @@ export default function BalancoPage() {
             </div>
           </div>
 
-          <div className="flex gap-4 items-end">
+          <div className="flex gap-4 items-end flex-wrap">
             {/* MÊS */}
             <div className="flex flex-col gap-1">
               <label className="text-sm text-muted-foreground">Mês</label>
@@ -125,6 +138,19 @@ export default function BalancoPage() {
                     {y}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* AGRUPAMENTO */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-muted-foreground">Agrupar por</label>
+              <select
+                value={agrupamento}
+                onChange={(e) => setAgrupamento(e.target.value as AgrupamentoTipo)}
+                className="border rounded-md px-3 py-2 text-sm"
+              >
+                <option value="banco">Banco</option>
+                <option value="tipo">Tipo</option>
               </select>
             </div>
           </div>
