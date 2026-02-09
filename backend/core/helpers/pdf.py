@@ -58,40 +58,66 @@ def shorten_text_by_width(text: str, max_width: float, pdf_canvas,
 
 class PDFReportBase:
     """Classe base para geração de relatórios em PDF com padrão consistente."""
-    
-    def __init__(self, title: str, company_name: str = "Vincor"):
+
+    def __init__(self, title: str, company_name: str = "Vincor", company_logo=None):
         self.title = title
         self.company_name = company_name
+        self.company_logo = company_logo
         self.margin = 40
         self.page_count = 1
-        
-    def draw_header(self, pdf: canvas.Canvas, width: float, height: float, 
+
+    def draw_header(self, pdf: canvas.Canvas, width: float, height: float,
                    subtitle: str = "", date_range: str = ""):
-        """Desenha cabeçalho padrão do relatório."""
-        # Título da empresa
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawCentredString(width / 2, height - 40, self.company_name)
-        
+        """Desenha cabeçalho padrão do relatório com logo da empresa."""
+        y = height - 40
+
+        # Logo da empresa (se existir)
+        if self.company_logo:
+            try:
+                from reportlab.lib.utils import ImageReader
+                logo_path = self.company_logo.path
+                # Logo centralizada no topo
+                logo_width = 120
+                logo_height = 60
+                logo_x = (width - logo_width) / 2
+                pdf.drawImage(logo_path, logo_x, y - 60, width=logo_width,
+                            height=logo_height, preserveAspectRatio=True, mask='auto')
+                y -= 70
+            except Exception:
+                # Se falhar ao carregar logo, usa texto
+                pdf.setFont("Helvetica-Bold", 14)
+                pdf.drawCentredString(width / 2, y, self.company_name)
+                y -= 20
+        else:
+            # Título da empresa (sem logo)
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawCentredString(width / 2, y, self.company_name)
+            y -= 20
+
         # Título do relatório
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawCentredString(width / 2, height - 60, self.title)
-        
+        pdf.drawCentredString(width / 2, y, self.title)
+        y -= 20
+
         # Subtítulo (se houver)
         if subtitle:
             pdf.setFont("Helvetica", 10)
-            pdf.drawCentredString(width / 2, height - 80, subtitle)
-        
+            pdf.drawCentredString(width / 2, y, subtitle)
+            y -= 20
+
         # Data/período
         if date_range:
             pdf.setFont("Helvetica", 9)
-            pdf.drawString(self.margin, height - 110, f"Período: {date_range}")
-        
+            pdf.drawString(self.margin, y, f"Período: {date_range}")
+            y -= 15
+
         # Data de geração
         pdf.setFont("Helvetica", 8)
-        pdf.drawString(self.margin, height - 125, 
+        pdf.drawString(self.margin, y,
                       f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}")
-        
-        return height - 150
+        y -= 15
+
+        return y
     
     def draw_table_header(self, pdf: canvas.Canvas, y: float, columns: list, 
                          width: float, height: float):

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal, Form, DatePicker, Select, Button, Input } from 'antd';
+import { Modal, Form, DatePicker, Select, Button, Input, Checkbox } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
@@ -35,7 +35,8 @@ export interface RelatorioFiltros {
   tipo?: string;
   percentual_multa?: number | string;
   percentual_juros?: number | string;
-  visualizacao?: 'ambas' | 'recebidas' | 'a_receber';
+  visualizacao?: 'ambas' | 'recebidas' | 'a_receber' | 'pagas' | 'a_pagar';
+  incluir_custodias?: boolean;
 }
 
 // 🔹 Payload de recibo
@@ -53,7 +54,8 @@ interface RelatorioFormValues {
   tipo?: string;
   percentual_multa?: number | string;
   percentual_juros?: number | string;
-  visualizacao?: 'ambas' | 'recebidas' | 'a_receber';
+  visualizacao?: 'ambas' | 'recebidas' | 'a_receber' | 'pagas' | 'a_pagar';
+  incluir_custodias?: boolean;
 }
 
 export default function RelatorioFiltrosModal({
@@ -74,8 +76,9 @@ export default function RelatorioFiltrosModal({
   const mostrarCliente = ['receitas-pagas', 'receitas-a-receber'].includes(tipoRelatorio);
   const mostrarConta = tipoRelatorio === 'fluxo-de-caixa';
   const mostrarTipo = ['receitas-pagas', 'despesas-pagas', 'despesas-a-pagar', 'receitas-a-receber'].includes(tipoRelatorio);
-  const mostrarDatas = tipoRelatorio !== 'cliente-especifico';
-  const mostrarVisualizacao = tipoRelatorio === 'cliente-especifico';
+  const mostrarDatas = !['cliente-especifico', 'funcionario-especifico'].includes(tipoRelatorio);
+  const mostrarVisualizacao = ['cliente-especifico', 'funcionario-especifico'].includes(tipoRelatorio);
+  const mostrarCustodias = ['cliente-especifico', 'funcionario-especifico'].includes(tipoRelatorio);
 
   const handleSubmit = async (values: RelatorioFormValues) => {
     try {
@@ -123,6 +126,10 @@ export default function RelatorioFiltrosModal({
 
       if (values.visualizacao) {
         filtros.visualizacao = values.visualizacao;
+      }
+
+      if (values.incluir_custodias !== undefined) {
+        filtros.incluir_custodias = values.incluir_custodias;
       }
 
       await onGenerate(filtros);
@@ -292,11 +299,19 @@ export default function RelatorioFiltrosModal({
           >
             <Select
               placeholder="Selecione o tipo de visualização"
-              options={[
-                { value: 'ambas', label: 'Ambas (Recebidas e A Receber)' },
-                { value: 'recebidas', label: 'Apenas Contas Recebidas' },
-                { value: 'a_receber', label: 'Apenas Contas a Receber' },
-              ]}
+              options={
+                tipoRelatorio === 'cliente-especifico'
+                  ? [
+                      { value: 'ambas', label: 'Ambas (Recebidas e A Receber)' },
+                      { value: 'recebidas', label: 'Apenas Contas Recebidas' },
+                      { value: 'a_receber', label: 'Apenas Contas a Receber' },
+                    ]
+                  : [
+                      { value: 'ambas', label: 'Ambas (Pagas e A Pagar)' },
+                      { value: 'pagas', label: 'Apenas Despesas Pagas' },
+                      { value: 'a_pagar', label: 'Apenas Despesas a Pagar' },
+                    ]
+              }
             />
           </Form.Item>
         )}
@@ -329,6 +344,18 @@ export default function RelatorioFiltrosModal({
               />
             </Form.Item>
           </>
+        )}
+
+        {mostrarCustodias && (
+          <Form.Item
+            name="incluir_custodias"
+            valuePropName="checked"
+            initialValue={true}
+          >
+            <Checkbox>
+              Incluir custódias no relatório
+            </Checkbox>
+          </Form.Item>
         )}
 
         <div className="bg-blue-50 p-3 rounded border border-blue-200 text-sm text-blue-700">

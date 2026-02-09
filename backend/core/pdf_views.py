@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, date
 from django.db.models import Sum, Q, F, DecimalField, Prefetch
 from django.db.models.functions import Coalesce
 
-from .models import Receita, Despesa, Payment, ContaBancaria, Cliente, Funcionario, Company, Allocation
+from .models import Receita, Despesa, Payment, ContaBancaria, Cliente, Funcionario, Company, Allocation, Custodia
 from .helpers.pdf import (
     PDFReportBase, format_currency, format_date, truncate_text, TableBuilder
 )
@@ -93,7 +93,7 @@ def relatorio_receitas_pagas(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Receitas Recebidas", company.name)
+    report = PDFReportBase("Relatório de Receitas Recebidas", company.name, company.logo)
     y = report.draw_header(pdf, width, height)
 
     columns = [
@@ -183,6 +183,7 @@ def relatorio_cliente_especifico(request):
     percentual_multa = Decimal(request.query_params.get("percentual_multa", "0"))
     percentual_juros = Decimal(request.query_params.get("percentual_juros", "0"))
     visualizacao = request.query_params.get("visualizacao", "ambas")  # ambas, recebidas, a_receber
+    incluir_custodias = request.query_params.get("incluir_custodias", "true").lower() == "true"
     hoje = date.today()
 
     rows = []
@@ -289,6 +290,99 @@ def relatorio_cliente_especifico(request):
             "valor": total_recebido,
         })
 
+    # ===================== MOVIMENTAÇÕES DE CUSTÓDIA (se habilitado)
+    if incluir_custodias:
+        total_custodia_recebida = Decimal("0.00")
+        total_custodia_repassada = Decimal("0.00")
+
+        # Buscar alocações de payments para custódias deste cliente
+        allocations_custodia = Allocation.objects.filter(
+            company=company,
+            custodia__cliente=cliente
+        ).select_related(
+            "payment",
+            "payment__conta_bancaria",
+            "custodia"
+        ).order_by("payment__data_pagamento")
+
+        if allocations_custodia.exists():
+            rows.append({"is_section": True, "section_title": "Movimentações de Custódia"})
+
+            for allocation in allocations_custodia:
+                payment = allocation.payment
+                custodia = allocation.custodia
+
+                if payment.tipo == 'E':  # Recebimento
+                    tipo_mov = "Recebida"
+                    total_custodia_recebida += allocation.valor
+                else:  # Repasse/Saída
+                    tipo_mov = "Repassada"
+                    total_custodia_repassada += allocation.valor
+
+                rows.append({
+                    "data": format_date_br(payment.data_pagamento),
+                    "descricao": truncate_text(f"{custodia.nome} ({tipo_mov})", 40),
+                    "valor": allocation.valor,
+                })
+
+            rows.append({
+                "is_subtotal": True,
+                "label": "Total Custódia Recebida",
+                "valor": total_custodia_recebida,
+            })
+
+            rows.append({
+                "is_subtotal": True,
+                "label": "Total Custódia Repassada",
+                "valor": total_custodia_repassada,
+            })
+
+        # ===================== CUSTÓDIAS EM ABERTO
+        total_custodia_passivo = Decimal("0.00")
+        total_custodia_ativo = Decimal("0.00")
+
+        # Buscar custódias do cliente
+        custodias = Custodia.objects.filter(
+            company=company,
+            cliente=cliente
+        ).order_by('criado_em')
+
+        custodias_abertas = []
+        for custodia in custodias:
+            valor_aberto = custodia.valor_total - custodia.valor_liquidado
+            if valor_aberto > 0:
+                custodias_abertas.append((custodia, valor_aberto))
+
+        if custodias_abertas:
+            rows.append({"is_section": True, "section_title": "Custódias em Aberto"})
+
+            for custodia, valor_aberto in custodias_abertas:
+                tipo_custodia = "A Repassar" if custodia.tipo == 'P' else "A Receber"
+                rows.append({
+                    "data": format_date_br(custodia.criado_em.date()),
+                    "descricao": truncate_text(f"{custodia.nome} ({tipo_custodia})", 40),
+                    "valor": valor_aberto,
+                })
+
+                if custodia.tipo == 'P':
+                    total_custodia_passivo += valor_aberto
+                else:
+                    total_custodia_ativo += valor_aberto
+
+            if total_custodia_passivo > 0:
+                rows.append({
+                    "is_subtotal": True,
+                    "label": "Total a Repassar",
+                    "valor": total_custodia_passivo,
+                })
+
+            if total_custodia_ativo > 0:
+                rows.append({
+                    "is_subtotal": True,
+                    "label": "Total a Receber",
+                    "valor": total_custodia_ativo,
+                })
+
     # ===================== PDF
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f"inline; filename=relatorio_cliente_{cliente_id}.pdf"
@@ -297,7 +391,7 @@ def relatorio_cliente_especifico(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Cliente", company.name)
+    report = PDFReportBase("Relatório de Cliente", company.name, company.logo)
     y = report.draw_header(pdf, width, height, f"Cliente: {cliente.nome}")
 
     columns = [
@@ -399,7 +493,7 @@ def relatorio_despesas_pagas(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Despesas Pagas", company.name)
+    report = PDFReportBase("Relatório de Despesas Pagas", company.name, company.logo)
     y = report.draw_header(pdf, width, height)
 
     columns = [
@@ -500,7 +594,7 @@ def relatorio_despesas_a_pagar(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Despesas a Pagar", company.name)
+    report = PDFReportBase("Relatório de Despesas a Pagar", company.name, company.logo)
 
     date_range = ""
     if data_inicio and data_fim:
@@ -617,7 +711,7 @@ def relatorio_receitas_a_receber(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Receitas a Receber", company.name)
+    report = PDFReportBase("Relatório de Receitas a Receber", company.name, company.logo)
 
     date_range = ""
     if data_inicio and data_fim:
@@ -693,7 +787,10 @@ def relatorio_fluxo_de_caixa(request):
             'allocations',
             queryset=Allocation.objects.select_related(
                 'receita',
-                'despesa'
+                'despesa',
+                'custodia',
+                'custodia__cliente',
+                'custodia__funcionario'
             )
         )
     ).order_by("data_pagamento")
@@ -709,6 +806,8 @@ def relatorio_fluxo_de_caixa(request):
     rows = []
     total_entrada = Decimal("0.00")
     total_saida = Decimal("0.00")
+    total_custodia_entrada = Decimal("0.00")
+    total_custodia_saida = Decimal("0.00")
 
     for p in pagamentos:
         # Processar cada alocação do pagamento
@@ -722,8 +821,23 @@ def relatorio_fluxo_de_caixa(request):
                 tipo = "Saída"
                 total_saida += allocation.valor
                 descricao = truncate_text(allocation.despesa.nome, 40)
+            elif allocation.custodia:
+                # 🔹 Custódia: determina tipo baseado no tipo do payment
+                custodia = allocation.custodia
+                pessoa_nome = custodia.cliente.nome if custodia.cliente else (
+                    custodia.funcionario.nome if custodia.funcionario else "N/A"
+                )
+
+                if p.tipo == 'E':  # Entrada
+                    tipo = "Custódia (Entrada)"
+                    total_custodia_entrada += allocation.valor
+                else:  # Saída
+                    tipo = "Custódia (Saída)"
+                    total_custodia_saida += allocation.valor
+
+                descricao = truncate_text(f"{custodia.nome} - {pessoa_nome}", 40)
             else:
-                # ❌ Alocação que não é receita nem despesa (custodia/transferência)
+                # ❌ Transferência - ignora no fluxo de caixa
                 continue
 
             rows.append({
@@ -742,7 +856,7 @@ def relatorio_fluxo_de_caixa(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Fluxo de Caixa", company.name)
+    report = PDFReportBase("Relatório de Fluxo de Caixa", company.name, company.logo)
 
     date_range = ""
     if data_inicio and data_fim:
@@ -780,6 +894,16 @@ def relatorio_fluxo_de_caixa(request):
     pdf.drawString(columns[-1]["x"], y, format_currency(total_saida))
     y -= 15
 
+    # Totais de custódia
+    if total_custodia_entrada > 0 or total_custodia_saida > 0:
+        pdf.drawString(columns[-2]["x"], y, "Custódias (Entrada):")
+        pdf.drawString(columns[-1]["x"], y, format_currency(total_custodia_entrada))
+        y -= 15
+
+        pdf.drawString(columns[-2]["x"], y, "Custódias (Saída):")
+        pdf.drawString(columns[-1]["x"], y, format_currency(total_custodia_saida))
+        y -= 15
+
     saldo = total_entrada - total_saida
     pdf.drawString(columns[-2]["x"], y, "Saldo do Período:")
     pdf.drawString(columns[-1]["x"], y, format_currency(saldo))
@@ -808,73 +932,174 @@ def relatorio_funcionario_especifico(request):
     if not funcionario:
         return Response({"error": "Funcionário não encontrado"}, status=404)
 
+    # Parâmetros de filtro
+    incluir_custodias = request.query_params.get("incluir_custodias", "true").lower() == "true"
+    visualizacao = request.query_params.get("visualizacao", "ambas")  # ambas, pagas, a_pagar
+
     rows = []
 
     # ===================== DESPESAS A PAGAR
-    despesas_abertas = Despesa.objects.filter(
-        company=company,
-        responsavel=funcionario,
-        situacao__in=["A", "V"]
-    ).prefetch_related(
-        "allocations"
-    ).order_by("data_vencimento")
+    # Só mostra despesas a pagar se visualizacao for 'ambas' ou 'a_pagar'
+    if visualizacao in ["ambas", "a_pagar"]:
+        despesas_abertas = Despesa.objects.filter(
+            company=company,
+            responsavel=funcionario,
+            situacao__in=["A", "V"]
+        ).prefetch_related(
+            "allocations"
+        ).order_by("data_vencimento")
 
-    total_aberto = Decimal("0.00")
-    rows.append({"is_section": True, "section_title": "Despesas a Pagar"})
+        total_aberto = Decimal("0.00")
+        rows.append({"is_section": True, "section_title": "Despesas a Pagar"})
 
-    for d in despesas_abertas:
-        total_pago = sum(
-            (alloc.valor for alloc in d.allocations.all()),
-            Decimal("0.00")
-        )
+        for d in despesas_abertas:
+            total_pago = sum(
+                (alloc.valor for alloc in d.allocations.all()),
+                Decimal("0.00")
+            )
 
-        valor_aberto = d.valor - total_pago
+            valor_aberto = d.valor - total_pago
 
-        # ❌ Não mostrar despesas quitadas
-        if valor_aberto <= 0:
-            continue
+            # ❌ Não mostrar despesas quitadas
+            if valor_aberto <= 0:
+                continue
+
+            rows.append({
+                "data": format_date_br(d.data_vencimento),
+                "descricao": truncate_text(d.nome, 40),
+                "valor": valor_aberto,
+            })
+
+            total_aberto += valor_aberto
 
         rows.append({
-            "data": format_date_br(d.data_vencimento),
-            "descricao": truncate_text(d.nome, 40),
-            "valor": valor_aberto,
+            "is_subtotal": True,
+            "label": "Total a Pagar",
+            "valor": total_aberto,
         })
-
-        total_aberto += valor_aberto
-
-    rows.append({
-        "is_subtotal": True,
-        "label": "Total a Pagar",
-        "valor": total_aberto,
-    })
 
     # ===================== DESPESAS PAGAS
-    # Buscar alocações de despesas deste funcionário
-    allocations = Allocation.objects.filter(
-        company=company,
-        despesa__responsavel=funcionario
-    ).select_related(
-        "payment",
-        "payment__conta_bancaria",
-        "despesa"
-    ).order_by("payment__data_pagamento")
+    # Só mostra despesas pagas se visualizacao for 'ambas' ou 'pagas'
+    if visualizacao in ["ambas", "pagas"]:
+        # Buscar alocações de despesas deste funcionário
+        allocations = Allocation.objects.filter(
+            company=company,
+            despesa__responsavel=funcionario
+        ).select_related(
+            "payment",
+            "payment__conta_bancaria",
+            "despesa"
+        ).order_by("payment__data_pagamento")
 
-    total_pago = Decimal("0.00")
-    rows.append({"is_section": True, "section_title": "Despesas Pagas"})
+        total_pago = Decimal("0.00")
+        rows.append({"is_section": True, "section_title": "Despesas Pagas"})
 
-    for allocation in allocations:
+        for allocation in allocations:
+            rows.append({
+                "data": format_date_br(allocation.payment.data_pagamento),
+                "descricao": truncate_text(allocation.despesa.nome, 40),
+                "valor": allocation.valor,
+            })
+            total_pago += allocation.valor
+
         rows.append({
-            "data": format_date_br(allocation.payment.data_pagamento),
-            "descricao": truncate_text(allocation.despesa.nome, 40),
-            "valor": allocation.valor,
+            "is_subtotal": True,
+            "label": "Total Pago",
+            "valor": total_pago,
         })
-        total_pago += allocation.valor
 
-    rows.append({
-        "is_subtotal": True,
-        "label": "Total Pago",
-        "valor": total_pago,
-    })
+    # ===================== MOVIMENTAÇÕES DE CUSTÓDIA (se habilitado)
+    if incluir_custodias:
+        total_custodia_recebida = Decimal("0.00")
+        total_custodia_repassada = Decimal("0.00")
+
+        # Buscar alocações de payments para custódias deste funcionário
+        allocations_custodia = Allocation.objects.filter(
+            company=company,
+            custodia__funcionario=funcionario
+        ).select_related(
+            "payment",
+            "payment__conta_bancaria",
+            "custodia"
+        ).order_by("payment__data_pagamento")
+
+        if allocations_custodia.exists():
+            rows.append({"is_section": True, "section_title": "Movimentações de Custódia"})
+
+            for allocation in allocations_custodia:
+                payment = allocation.payment
+                custodia = allocation.custodia
+
+                if payment.tipo == 'E':  # Recebimento
+                    tipo_mov = "Recebida"
+                    total_custodia_recebida += allocation.valor
+                else:  # Repasse/Saída
+                    tipo_mov = "Repassada"
+                    total_custodia_repassada += allocation.valor
+
+                rows.append({
+                    "data": format_date_br(payment.data_pagamento),
+                    "descricao": truncate_text(f"{custodia.nome} ({tipo_mov})", 40),
+                    "valor": allocation.valor,
+                })
+
+            rows.append({
+                "is_subtotal": True,
+                "label": "Total Custódia Recebida",
+                "valor": total_custodia_recebida,
+            })
+
+            rows.append({
+                "is_subtotal": True,
+                "label": "Total Custódia Repassada",
+                "valor": total_custodia_repassada,
+            })
+
+        # ===================== CUSTÓDIAS EM ABERTO
+        total_custodia_passivo = Decimal("0.00")
+        total_custodia_ativo = Decimal("0.00")
+
+        # Buscar custódias do funcionário
+        custodias = Custodia.objects.filter(
+            company=company,
+            funcionario=funcionario
+        ).order_by('criado_em')
+
+        custodias_abertas = []
+        for custodia in custodias:
+            valor_aberto = custodia.valor_total - custodia.valor_liquidado
+            if valor_aberto > 0:
+                custodias_abertas.append((custodia, valor_aberto))
+
+        if custodias_abertas:
+            rows.append({"is_section": True, "section_title": "Custódias em Aberto"})
+
+            for custodia, valor_aberto in custodias_abertas:
+                tipo_custodia = "A Repassar" if custodia.tipo == 'P' else "A Receber"
+                rows.append({
+                    "data": format_date_br(custodia.criado_em.date()),
+                    "descricao": truncate_text(f"{custodia.nome} ({tipo_custodia})", 40),
+                    "valor": valor_aberto,
+                })
+
+                if custodia.tipo == 'P':
+                    total_custodia_passivo += valor_aberto
+                else:
+                    total_custodia_ativo += valor_aberto
+
+            if total_custodia_passivo > 0:
+                rows.append({
+                    "is_subtotal": True,
+                    "label": "Total a Repassar",
+                    "valor": total_custodia_passivo,
+                })
+
+            if total_custodia_ativo > 0:
+                rows.append({
+                    "is_subtotal": True,
+                    "label": "Total a Receber",
+                    "valor": total_custodia_ativo,
+                })
 
     # ===================== PDF
     response = HttpResponse(content_type="application/pdf")
@@ -884,7 +1109,7 @@ def relatorio_funcionario_especifico(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Funcionário / Fornecedor", company.name)
+    report = PDFReportBase("Relatório de Funcionário / Fornecedor", company.name, company.logo)
     y = report.draw_header(pdf, width, height, funcionario.nome)
 
     columns = [
@@ -1017,7 +1242,7 @@ def relatorio_dre_consolidado(request):
     margin = 40
     
     # 🔹 Header
-    report = PDFReportBase("Demonstração do Resultado (DRE)", company.name)
+    report = PDFReportBase("Demonstração do Resultado (DRE)", company.name, company.logo)
     y = report.draw_header(pdf, width, height, f"Período: {str(mes).zfill(2)}/{ano}")
     
     # 🔹 Dados da DRE
@@ -1555,16 +1780,10 @@ def relatorio_comissionamento_pdf(request):
     def format_currency_br(valor):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    # Cabeçalho
-    y = height - margin
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(margin, y, company.name)
-
-    y -= 25
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(margin, y, f"Relatório de Comissionamento - {mes:02d}/{ano}")
-
-    y -= 30
+    # Cabeçalho usando PDFReportBase
+    report = PDFReportBase("Relatório de Comissionamento", company.name, company.logo)
+    y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
+    y -= 10
 
     # Iterar por comissionado
     total_geral = Decimal('0.00')
@@ -1576,13 +1795,8 @@ def relatorio_comissionamento_pdf(request):
         # Verificar espaço para nova seção
         if y < 200:
             pdf.showPage()
-            y = height - margin
-            pdf.setFont("Helvetica-Bold", 16)
-            pdf.drawString(margin, y, company.name)
-            y -= 25
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(margin, y, f"Relatório de Comissionamento - {mes:02d}/{ano}")
-            y -= 30
+            y = report.draw_header(pdf, width, height, f"Período: {mes:02d}/{ano}")
+            y -= 10
 
         # Nome do comissionado
         pdf.setFont("Helvetica-Bold", 12)
@@ -1615,15 +1829,10 @@ def relatorio_comissionamento_pdf(request):
             # Verificar espaço
             if y < 100:
                 pdf.showPage()
-                y = height - margin
-                pdf.setFont("Helvetica-Bold", 16)
-                pdf.drawString(margin, y, company.name)
-                y -= 25
-                pdf.setFont("Helvetica-Bold", 12)
-                pdf.drawString(margin, y, f"Comissionado: {comissionado.nome} (continuação)")
-                y -= 25
+                y = report.draw_header(pdf, width, height, f"Comissionado: {comissionado.nome} (continuação)")
+                y -= 10
 
-                # Redesenhar cabeçalho
+                # Redesenhar cabeçalho da tabela
                 pdf.setFont("Helvetica-Bold", 9)
                 pdf.drawString(col_data, y, "Data")
                 pdf.drawString(col_cliente, y, "Cliente")
