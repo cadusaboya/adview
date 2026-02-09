@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "antd";
 import { Transfer, TransferCreate, TransferUpdate } from "@/types/transfer";
@@ -11,6 +11,7 @@ import { FormInput } from "@/components/form/FormInput";
 import { FormSelect } from "@/components/form/FormSelect";
 import { FormTextarea } from "@/components/form/FormTextarea";
 import { applyBackendErrors } from "@/lib/validation/backendErrors";
+import { formatCurrencyInput, parseCurrencyBR } from "@/lib/formatters";
 
 interface TransferDialogProps {
   open: boolean;
@@ -20,6 +21,8 @@ interface TransferDialogProps {
 }
 
 export default function TransferDialog({ open, onClose, onSubmit, transfer }: TransferDialogProps) {
+  const [valorDisplay, setValorDisplay] = useState('');
+
   // Load bancos with new hook
   const {
     data: bancos,
@@ -62,6 +65,7 @@ export default function TransferDialog({ open, onClose, onSubmit, transfer }: Tr
         data_transferencia: transfer.data_transferencia,
         descricao: transfer.descricao || "",
       });
+      setValorDisplay(formatCurrencyInput(parseFloat(transfer.valor) || 0));
     } else {
       setFormData({
         from_bank_id: 0,
@@ -70,6 +74,7 @@ export default function TransferDialog({ open, onClose, onSubmit, transfer }: Tr
         data_transferencia: new Date().toISOString().split("T")[0],
         descricao: "",
       });
+      setValorDisplay('');
     }
   }, [transfer, setFormData]);
 
@@ -143,15 +148,16 @@ export default function TransferDialog({ open, onClose, onSubmit, transfer }: Tr
 
           {/* Valor */}
           <FormInput
-            type="number"
-            step="0.01"
-            label="Valor"
+            label="Valor (R$)"
             required
-            value={formData.valor}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, valor: e.target.value }))
-            }
-            placeholder="0.00"
+            placeholder="0,00"
+            value={valorDisplay}
+            onChange={(e) => setValorDisplay(e.target.value)}
+            onBlur={() => {
+              const parsed = parseCurrencyBR(valorDisplay);
+              setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+              setFormData((prev) => ({ ...prev, valor: String(parsed || 0) }));
+            }}
             error={getFieldProps("valor").error}
           />
 

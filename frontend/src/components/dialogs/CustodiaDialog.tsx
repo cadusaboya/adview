@@ -10,6 +10,7 @@ import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
 import { custodiaCreateSchema } from '@/lib/validation/schemas/custodia';
 import { FormInput } from '@/components/form/FormInput';
 import { applyBackendErrors } from '@/lib/validation/backendErrors';
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getFuncionarios } from '@/services/funcionarios';
@@ -49,6 +50,7 @@ export default function CustodiaDialog({
   initialPayments,
 }: Props) {
   const [pessoaTipo, setPessoaTipo] = useState<'cliente' | 'funcionario' | null>(null);
+  const [valorDisplay, setValorDisplay] = useState('');
 
   // Load auxiliary data in parallel (or use initial data if provided)
   const { data: funcionariosFromHook, loading: loadingFuncionarios } = useLoadAuxiliaryData({
@@ -126,6 +128,7 @@ export default function CustodiaDialog({
         funcionario_id: custodia.funcionario?.id ?? null,
         valor_total: custodia.valor_total,
       });
+      setValorDisplay(formatCurrencyInput(custodia.valor_total));
 
       // Determinar tipo de pessoa
       if (custodia.cliente) {
@@ -141,6 +144,7 @@ export default function CustodiaDialog({
         funcionario_id: null,
         valor_total: 0,
       });
+      setValorDisplay('');
       setPessoaTipo(null);
     }
   }, [custodia, open, setFormData]);
@@ -220,15 +224,16 @@ export default function CustodiaDialog({
           />
 
           <FormInput
-            label="Valor Total"
+            label="Valor Total (R$)"
             required
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formData.valor_total}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, valor_total: parseFloat(e.target.value) || 0 }))
-            }
+            placeholder="0,00"
+            value={valorDisplay}
+            onChange={(e) => setValorDisplay(e.target.value)}
+            onBlur={() => {
+              const parsed = parseCurrencyBR(valorDisplay);
+              setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+              setFormData((prev) => ({ ...prev, valor_total: parsed }));
+            }}
             error={getFieldProps('valor_total').error}
           />
         </div>

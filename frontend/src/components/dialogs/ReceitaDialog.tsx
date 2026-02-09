@@ -13,6 +13,7 @@ import { receitaCreateSchema } from '@/lib/validation/schemas/receita';
 import { FormInput } from '@/components/form/FormInput';
 import { FormSelect } from '@/components/form/FormSelect';
 import { applyBackendErrors } from '@/lib/validation/backendErrors';
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 
@@ -113,6 +114,9 @@ export default function ReceitaDialog({
   const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
   const [observacaoPagamento, setObservacaoPagamento] = useState('');
 
+  // Valor display state
+  const [valorDisplay, setValorDisplay] = useState('');
+
   // Initial form data for dirty checking
   const initialFormData: ReceitaCreate = {
     nome: '',
@@ -157,6 +161,7 @@ export default function ReceitaDialog({
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento ?? 'P',
       });
+      setValorDisplay(formatCurrencyInput(receita.valor));
     } else {
       setFormData({
         nome: '',
@@ -167,6 +172,7 @@ export default function ReceitaDialog({
         tipo: 'F',
         forma_pagamento: 'P',
       });
+      setValorDisplay('');
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -275,13 +281,14 @@ export default function ReceitaDialog({
           <FormInput
             label="Valor (R$)"
             required
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formData.valor}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))
-            }
+            placeholder="0,00"
+            value={valorDisplay}
+            onChange={(e) => setValorDisplay(e.target.value)}
+            onBlur={() => {
+              const parsed = parseCurrencyBR(valorDisplay);
+              setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+              setFormData((prev) => ({ ...prev, valor: parsed }));
+            }}
             error={getFieldProps('valor').error}
           />
 

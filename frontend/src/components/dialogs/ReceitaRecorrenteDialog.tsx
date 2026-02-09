@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DialogBase from './DialogBase';
 import { Select as AntdSelect } from 'antd';
@@ -11,6 +11,7 @@ import { receitaRecorrenteCreateSchema } from '@/lib/validation/schemas/receitaR
 import { FormInput } from '@/components/form/FormInput';
 import { FormSelect } from '@/components/form/FormSelect';
 import { applyBackendErrors } from '@/lib/validation/backendErrors';
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import {
   ReceitaRecorrente,
@@ -35,6 +36,8 @@ export default function ReceitaRecorrenteDialog({
   onSubmit,
   receita,
 }: Props) {
+  const [valorDisplay, setValorDisplay] = useState('');
+
   const { data: clientes } = useLoadAuxiliaryData({
     loadFn: async () => (await getClientes({ page_size: 1000 })).results,
     onOpen: open,
@@ -81,6 +84,7 @@ export default function ReceitaRecorrenteDialog({
         dia_vencimento: receita.dia_vencimento,
         status: receita.status,
       });
+      setValorDisplay(formatCurrencyInput(receita.valor));
     } else {
       setFormData({
         nome: '',
@@ -93,6 +97,7 @@ export default function ReceitaRecorrenteDialog({
         data_inicio: '',
         dia_vencimento: 1,
       });
+      setValorDisplay('');
     }
   }, [receita, open, setFormData]);
 
@@ -123,7 +128,7 @@ export default function ReceitaRecorrenteDialog({
         </div>
         <FormInput label="Descrição" required placeholder="Detalhes sobre a receita recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FormInput label="Valor (R$)" required type="number" step="0.01" placeholder="0.00" value={formData.valor} onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))} error={getFieldProps('valor').error} />
+          <FormInput label="Valor (R$)" required placeholder="0,00" value={valorDisplay} onChange={(e) => setValorDisplay(e.target.value)} onBlur={() => { const parsed = parseCurrencyBR(valorDisplay); setValorDisplay(parsed ? formatCurrencyInput(parsed) : ''); setFormData(prev => ({ ...prev, valor: parsed })); }} error={getFieldProps('valor').error} />
           <FormSelect label="Tipo" required value={formData.tipo} onValueChange={(val) => setFormData(prev => ({ ...prev, tipo: val as 'F' | 'V' }))} options={[{ value: 'F', label: 'Fixa' }, { value: 'V', label: 'Variável' }]} error={getFieldProps('tipo').error} />
           <FormInput label="Dia de Vencimento" required type="number" min="1" max="31" placeholder="1-31" value={formData.dia_vencimento} onChange={(e) => setFormData(prev => ({ ...prev, dia_vencimento: parseInt(e.target.value) || 1 }))} error={getFieldProps('dia_vencimento').error} />
         </div>

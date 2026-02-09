@@ -12,6 +12,7 @@ import { despesaCreateSchema } from '@/lib/validation/schemas/despesa';
 import { FormInput } from '@/components/form/FormInput';
 import { FormSelect } from '@/components/form/FormSelect';
 import { applyBackendErrors } from '@/lib/validation/backendErrors';
+import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
@@ -109,6 +110,9 @@ export default function DespesaDialog({
   const [contaBancariaId, setContaBancariaId] = useState<number | undefined>();
   const [observacaoPagamento, setObservacaoPagamento] = useState('');
 
+  // Valor display state
+  const [valorDisplay, setValorDisplay] = useState('');
+
   // Initialize form when editing
   useEffect(() => {
     if (despesa) {
@@ -120,6 +124,7 @@ export default function DespesaDialog({
         data_vencimento: despesa.data_vencimento,
         tipo: despesa.tipo,
       });
+      setValorDisplay(formatCurrencyInput(despesa.valor));
     } else {
       setFormData({
         nome: '',
@@ -129,6 +134,7 @@ export default function DespesaDialog({
         data_vencimento: '',
         tipo: 'F',
       });
+      setValorDisplay('');
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -253,13 +259,14 @@ export default function DespesaDialog({
           <FormInput
             label="Valor (R$)"
             required
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formData.valor}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))
-            }
+            placeholder="0,00"
+            value={valorDisplay}
+            onChange={(e) => setValorDisplay(e.target.value)}
+            onBlur={() => {
+              const parsed = parseCurrencyBR(valorDisplay);
+              setValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+              setFormData((prev) => ({ ...prev, valor: parsed }));
+            }}
             error={getFieldProps('valor').error}
           />
 
