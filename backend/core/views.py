@@ -2631,26 +2631,28 @@ def dashboard_view(request):
     # 💰 FLUXO DE CAIXA REALIZADO (ÚLTIMOS 30 DIAS)
     # ======================================================
 
-    # Receitas dos últimos 30 dias (dinheiro que entrou via alocações)
+    # Entradas dos últimos 30 dias (todos os pagamentos tipo 'E', exceto transferências)
     receitas_30_dias = (
-        Allocation.objects.filter(
+        Payment.objects.filter(
             company=company,
-            receita__isnull=False,
-            payment__data_pagamento__gte=data_30_dias_atras,
-            payment__data_pagamento__lte=hoje
+            tipo='E',
+            data_pagamento__gte=data_30_dias_atras,
+            data_pagamento__lte=hoje
         )
+        .exclude(allocations__transfer__isnull=False)
         .aggregate(total=Sum('valor'))['total']
         or Decimal('0.00')
     )
 
-    # Despesas dos últimos 30 dias (dinheiro que saiu via alocações)
+    # Saídas dos últimos 30 dias (todos os pagamentos tipo 'S', exceto transferências)
     despesas_30_dias = (
-        Allocation.objects.filter(
+        Payment.objects.filter(
             company=company,
-            despesa__isnull=False,
-            payment__data_pagamento__gte=data_30_dias_atras,
-            payment__data_pagamento__lte=hoje
+            tipo='S',
+            data_pagamento__gte=data_30_dias_atras,
+            data_pagamento__lte=hoje
         )
+        .exclude(allocations__transfer__isnull=False)
         .aggregate(total=Sum('valor'))['total']
         or Decimal('0.00')
     )
@@ -2796,23 +2798,25 @@ def dashboard_view(request):
         ) - timedelta(days=1)
 
         receita = (
-            Allocation.objects.filter(
+            Payment.objects.filter(
                 company=company,
-                receita__isnull=False,
-                payment__data_pagamento__gte=mes_inicio,
-                payment__data_pagamento__lte=mes_fim
+                tipo='E',
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
             )
+            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
 
         despesa = (
-            Allocation.objects.filter(
+            Payment.objects.filter(
                 company=company,
-                despesa__isnull=False,
-                payment__data_pagamento__gte=mes_inicio,
-                payment__data_pagamento__lte=mes_fim
+                tipo='S',
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
             )
+            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
@@ -2837,23 +2841,25 @@ def dashboard_view(request):
         ) - timedelta(days=1)
 
         receita_mes = (
-            Allocation.objects.filter(
+            Payment.objects.filter(
                 company=company,
-                receita__isnull=False,
-                payment__data_pagamento__gte=mes_inicio,
-                payment__data_pagamento__lte=mes_fim
+                tipo='E',
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
             )
+            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
 
         despesa_mes = (
-            Allocation.objects.filter(
+            Payment.objects.filter(
                 company=company,
-                despesa__isnull=False,
-                payment__data_pagamento__gte=mes_inicio,
-                payment__data_pagamento__lte=mes_fim
+                tipo='S',
+                data_pagamento__gte=mes_inicio,
+                data_pagamento__lte=mes_fim
             )
+            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
@@ -3486,6 +3492,9 @@ def balanco_patrimonial(request):
     """
     Retorna o Fluxo de Caixa Realizado (Regime de Caixa) com entradas e saídas por banco.
 
+    Considera TODOS os pagamentos (vinculados ou não a receitas/despesas),
+    excluindo apenas transferências entre contas (pois se anulam).
+
     Query Parameters:
     - mes: Mês (1-12)
     - ano: Ano (YYYY)
@@ -3532,11 +3541,23 @@ def balanco_patrimonial(request):
             data_fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
         data_fim = (datetime.strptime(data_fim, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        # 🔹 Buscar todos os pagamentos do mês
+        # 🔹 Buscar todos os pagamentos do mês, excluindo transferências
+        # (Transferências se anulam: saída de uma conta = entrada em outra)
+        # Primeiro, obter os IDs dos pagamentos que são transferências
+        payment_ids_com_transferencia = Allocation.objects.filter(
+            payment__company=request.user.company,
+            payment__data_pagamento__gte=data_inicio,
+            payment__data_pagamento__lte=data_fim,
+            transfer__isnull=False
+        ).values_list('payment_id', flat=True)
+
+        # Agora buscar pagamentos excluindo os que são transferências
         pagamentos = Payment.objects.filter(
             company=request.user.company,
             data_pagamento__gte=data_inicio,
             data_pagamento__lte=data_fim
+        ).exclude(
+            id__in=payment_ids_com_transferencia
         ).select_related('conta_bancaria')
 
         # 🔹 Agrupar entradas e saídas por banco

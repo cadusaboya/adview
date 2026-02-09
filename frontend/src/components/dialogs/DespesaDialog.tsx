@@ -186,7 +186,7 @@ export default function DespesaDialog({
       onSubmit={handleSubmitWrapper}
       loading={isSubmitting}
       size="lg"
-      maxHeight="max-h-[75vh]"
+      maxHeight="max-h-[90vh]"
       compact
     >
       {isLoadingAuxData ? (

@@ -395,10 +395,12 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
       </TabsContent>
 
       <TabsContent value="baixa" className="min-h-[400px]">
-        <div className="border rounded-md p-4 space-y-4">
+        <div className="border rounded-md p-4 space-y-4 bg-muted/30">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm">Data do Pagamento</label>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Data do Pagamento <span className="text-red-500">*</span>
+              </label>
               <Input
                 type="date"
                 value={form.data_pagamento}
@@ -408,8 +410,10 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
               />
             </div>
 
-            <div>
-              <label className="text-sm">Conta Bancária</label>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Conta Bancária <span className="text-red-500">*</span>
+              </label>
               <Select
                 value={form.conta_bancaria}
                 onValueChange={(val) =>
@@ -429,8 +433,10 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
               </Select>
             </div>
 
-            <div>
-              <label className="text-sm">Valor</label>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Valor <span className="text-red-500">*</span>
+              </label>
               <Input
                 placeholder="0,00"
                 value={valorDisplay}
@@ -444,8 +450,8 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
             </div>
           </div>
 
-          <div>
-            <label className="text-sm">Observação</label>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Observação</label>
             <Input
               placeholder="Observações sobre o pagamento (opcional)"
               value={form.observacao}
@@ -455,105 +461,105 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
             />
           </div>
 
-          <div className="flex justify-end">
-            <Button onClick={handleAdd}>Adicionar Pagamento</Button>
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleAdd} size="default">
+              Adicionar Pagamento
+            </Button>
           </div>
         </div>
       </TabsContent>
 
-      <TabsContent value="vincular" className="min-h-[400px]">
-        <div className="border rounded-md p-4 space-y-4">
-          <div className="text-sm text-muted-foreground mb-4">
-            Selecione um pagamento já existente para vincular a esta {tipo === 'receita' ? 'receita' : tipo === 'despesa' ? 'despesa' : 'custódia'}
-          </div>
+      <TabsContent value="vincular" className="min-h-[400px] space-y-4">
+        {/* Campo de pesquisa */}
+        <div>
+          <Input
+            placeholder="Pesquisar por data, valor ou observação..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
-          {/* Campo de pesquisa */}
-          <div>
-            <Input
-              placeholder="Pesquisar por data, valor ou observação..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-md"
-            />
-          </div>
-
-          {/* Lista de pagamentos disponíveis */}
-          <div className="border rounded-md overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-muted sticky top-0">
+        {/* Lista de pagamentos disponíveis */}
+        <div className="border rounded-md max-h-[300px] overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-muted sticky top-0 z-10">
+              <tr>
+                <th className="text-left p-3 text-xs font-semibold">Selecionar</th>
+                <th className="text-left p-3 text-xs font-semibold">Data</th>
+                <th className="text-left p-3 text-xs font-semibold">Conta</th>
+                <th className="text-right p-3 text-xs font-semibold">Valor Total</th>
+                <th className="text-right p-3 text-xs font-semibold">Valor Disponível</th>
+                <th className="text-left p-3 text-xs font-semibold">Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAvailablePayments.length === 0 ? (
                 <tr>
-                  <th className="text-left p-2 text-xs">Selecionar</th>
-                  <th className="text-left p-2 text-xs">Data</th>
-                  <th className="text-left p-2 text-xs">Conta</th>
-                  <th className="text-right p-2 text-xs">Valor Total</th>
-                  <th className="text-right p-2 text-xs">Valor Disponível</th>
-                  <th className="text-left p-2 text-xs">Observação</th>
+                  <td colSpan={6} className="text-center p-8 text-sm text-muted-foreground">
+                    {searchTerm ? 'Nenhum pagamento encontrado' : 'Nenhum pagamento disponível'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredAvailablePayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center p-4 text-sm text-muted-foreground">
-                      {searchTerm ? 'Nenhum pagamento encontrado' : 'Nenhum pagamento disponível'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAvailablePayments.map((payment) => {
-                    const valorAlocado = payment.allocations_info?.reduce((sum, alloc) => sum + alloc.valor, 0) || 0;
-                    const valorDisponivel = payment.valor - valorAlocado;
+              ) : (
+                filteredAvailablePayments.map((payment) => {
+                  const valorAlocado = payment.allocations_info?.reduce((sum, alloc) => sum + alloc.valor, 0) || 0;
+                  const valorDisponivel = payment.valor - valorAlocado;
 
-                    return (
-                      <tr
-                        key={payment.id}
-                        className={`hover:bg-muted/50 cursor-pointer ${
-                          selectedPaymentId === payment.id ? 'bg-primary/10' : ''
-                        }`}
-                        onClick={() => {
-                          setSelectedPaymentId(payment.id);
-                          setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
-                          setVincularValor(valorDisponivel);
-                        }}
-                      >
-                        <td className="p-2">
-                          <input
-                            type="radio"
-                            checked={selectedPaymentId === payment.id}
-                            onChange={() => {
-                              setSelectedPaymentId(payment.id);
-                              setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
-                              setVincularValor(valorDisponivel);
-                            }}
-                            className="cursor-pointer"
-                          />
-                        </td>
-                        <td className="p-2 text-sm">
-                          {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="p-2 text-sm">
-                          {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}
-                        </td>
-                        <td className="p-2 text-sm text-right font-medium">
-                          {formatCurrencyBR(payment.valor)}
-                        </td>
-                        <td className="p-2 text-sm text-right font-semibold text-green-600">
-                          {formatCurrencyBR(valorDisponivel)}
-                        </td>
-                        <td className="p-2 text-sm text-muted-foreground">
-                          {payment.observacao || '-'}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                  return (
+                    <tr
+                      key={payment.id}
+                      className={`hover:bg-muted/50 cursor-pointer transition-colors ${
+                        selectedPaymentId === payment.id ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedPaymentId(payment.id);
+                        setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
+                        setVincularValor(valorDisponivel);
+                      }}
+                    >
+                      <td className="p-3">
+                        <input
+                          type="radio"
+                          checked={selectedPaymentId === payment.id}
+                          onChange={() => {
+                            setSelectedPaymentId(payment.id);
+                            setVincularValorDisplay(formatCurrencyInput(valorDisponivel));
+                            setVincularValor(valorDisponivel);
+                          }}
+                          className="cursor-pointer w-4 h-4"
+                        />
+                      </td>
+                      <td className="p-3 text-sm whitespace-nowrap">
+                        {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="p-3 text-sm">
+                        {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}
+                      </td>
+                      <td className="p-3 text-sm text-right font-medium">
+                        {formatCurrencyBR(payment.valor)}
+                      </td>
+                      <td className="p-3 text-sm text-right font-semibold text-green-600">
+                        {formatCurrencyBR(valorDisponivel)}
+                      </td>
+                      <td className="p-3 text-sm text-muted-foreground max-w-[200px] truncate" title={payment.observacao || '-'}>
+                        {payment.observacao || '-'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Formulário de vinculação */}
-          {selectedPaymentId && (
-            <div className="space-y-4 pt-4 border-t">
+        {/* Formulário de vinculação */}
+        {selectedPaymentId && (
+          <div className="space-y-4 pt-4 border-t-2 border-primary/20 bg-muted/30 p-4 rounded-md">
+            <h4 className="text-sm font-semibold">Vincular Pagamento Selecionado</h4>
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="text-sm font-medium">Valor a vincular (R$)</label>
+                <label className="text-sm font-medium block mb-1.5">
+                  Valor a vincular (R$) <span className="text-red-500">*</span>
+                </label>
                 <Input
                   placeholder="0,00"
                   value={vincularValorDisplay}
@@ -563,13 +569,14 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                     setVincularValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
                     setVincularValor(parsed);
                   }}
+                  className="max-w-xs"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1.5">
                   Você pode vincular um valor parcial do pagamento
                 </p>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -580,11 +587,13 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleVincular}>Vincular Pagamento</Button>
+                <Button onClick={handleVincular} variant="default">
+                  Vincular Pagamento
+                </Button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </TabsContent>
 
       <DeleteConfirmationDialog
