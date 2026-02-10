@@ -74,14 +74,6 @@ class Cliente(models.Model):
     telefone = models.CharField(max_length=20, blank=True, null=True)
     aniversario = models.DateField(blank=True, null=True)
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)
-    comissionado = models.ForeignKey(
-        'Funcionario',
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        limit_choices_to={'tipo__in': ['F', 'P']},
-        verbose_name='Funcionário Comissionado'
-    )
 
     def __str__(self):
         return self.nome
@@ -104,6 +96,27 @@ class FormaCobranca(models.Model):
         elif self.formato == 'E':
             return f"Êxito {self.descricao}: {self.percentual_exito}%"
         return "Forma de Cobrança"
+
+
+class ClienteComissao(models.Model):
+    """Regra de comissão de um cliente para um funcionário/parceiro."""
+    cliente = models.ForeignKey('Cliente', on_delete=models.CASCADE, related_name='comissoes')
+    funcionario = models.ForeignKey(
+        'Funcionario',
+        on_delete=models.CASCADE,
+        limit_choices_to={'tipo__in': ['F', 'P']},
+        verbose_name='Comissionado'
+    )
+    percentual = models.DecimalField(max_digits=5, decimal_places=2, help_text='Percentual de comissão (%)')
+
+    class Meta:
+        unique_together = ('cliente', 'funcionario')
+        verbose_name = 'Comissão do Cliente'
+        verbose_name_plural = 'Comissões do Cliente'
+
+    def __str__(self):
+        return f'{self.funcionario.nome} — {self.percentual}% ({self.cliente.nome})'
+
 
 class Funcionario(models.Model):
     TIPO_CHOICES = (
@@ -169,6 +182,26 @@ class Receita(models.Model):
         self.save()
 
 
+class ReceitaComissao(models.Model):
+    """Regra de comissão específica de uma Receita (sobrescreve as do cliente)."""
+    receita = models.ForeignKey('Receita', on_delete=models.CASCADE, related_name='comissoes')
+    funcionario = models.ForeignKey(
+        'Funcionario',
+        on_delete=models.CASCADE,
+        limit_choices_to={'tipo__in': ['F', 'P']},
+        verbose_name='Comissionado'
+    )
+    percentual = models.DecimalField(max_digits=5, decimal_places=2, help_text='Percentual de comissão (%)')
+
+    class Meta:
+        unique_together = ('receita', 'funcionario')
+        verbose_name = 'Comissão da Receita'
+        verbose_name_plural = 'Comissões da Receita'
+
+    def __str__(self):
+        return f'{self.funcionario.nome} — {self.percentual}% ({self.receita.nome})'
+
+
 class ReceitaRecorrente(models.Model):
     """Receitas que se repetem mensalmente (honorários fixos, mensalidades, etc.)"""
 
@@ -231,6 +264,26 @@ class ReceitaRecorrente(models.Model):
         verbose_name = 'Receita Recorrente'
         verbose_name_plural = 'Receitas Recorrentes'
         ordering = ['nome']
+
+
+class ReceitaRecorrenteComissao(models.Model):
+    """Regra de comissão específica de uma ReceitaRecorrente (sobrescreve as do cliente)."""
+    receita_recorrente = models.ForeignKey('ReceitaRecorrente', on_delete=models.CASCADE, related_name='comissoes')
+    funcionario = models.ForeignKey(
+        'Funcionario',
+        on_delete=models.CASCADE,
+        limit_choices_to={'tipo__in': ['F', 'P']},
+        verbose_name='Comissionado'
+    )
+    percentual = models.DecimalField(max_digits=5, decimal_places=2, help_text='Percentual de comissão (%)')
+
+    class Meta:
+        unique_together = ('receita_recorrente', 'funcionario')
+        verbose_name = 'Comissão da Receita Recorrente'
+        verbose_name_plural = 'Comissões da Receita Recorrente'
+
+    def __str__(self):
+        return f'{self.funcionario.nome} — {self.percentual}% ({self.receita_recorrente.nome})'
 
 
 class Despesa(models.Model):

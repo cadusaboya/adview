@@ -1735,32 +1735,47 @@ def relatorio_comissionamento_pdf(request):
         receita__isnull=False,
         payment__data_pagamento__month=mes,
         payment__data_pagamento__year=ano
-    ).select_related('payment', 'receita__cliente__comissionado', 'receita__cliente')
+    ).prefetch_related(
+        'receita__comissoes__funcionario',
+        'receita__cliente__comissoes__funcionario'
+    ).select_related('payment', 'receita__cliente')
 
-    # Filtrar por funcionário se especificado
-    if funcionario_id:
-        allocations = allocations.filter(receita__cliente__comissionado_id=funcionario_id)
+    # Filtrar apenas alocações com pelo menos uma regra de comissão
+    from django.db.models import Q
+    allocations = allocations.filter(
+        Q(receita__comissoes__isnull=False) |
+        Q(receita__comissoes__isnull=True, receita__cliente__comissoes__isnull=False)
+    ).distinct()
 
-    # Filtrar apenas alocações de clientes com comissionado
-    allocations = allocations.filter(receita__cliente__comissionado__isnull=False)
+    # Filtrar por funcionário se especificado (no nível Python, após prefetch)
+    filter_func_id = int(funcionario_id) if funcionario_id else None
 
-    # Agrupar por comissionado
+    # Agrupar por comissionado, expandindo as regras de cada alocação
     comissionados_data = {}
     for allocation in allocations:
-        comissionado = allocation.receita.cliente.comissionado
-        if comissionado.id not in comissionados_data:
-            comissionados_data[comissionado.id] = {
-                'comissionado': comissionado,
-                'pagamentos': []
-            }
+        regras = list(allocation.receita.comissoes.all())
+        if not regras:
+            regras = list(allocation.receita.cliente.comissoes.all())
 
-        comissionados_data[comissionado.id]['pagamentos'].append({
-            'data': allocation.payment.data_pagamento,
-            'cliente': allocation.receita.cliente.nome,
-            'valor_pagamento': allocation.valor,
-            'percentual': company.percentual_comissao or Decimal('20.00'),
-            'valor_comissao': allocation.valor * ((company.percentual_comissao or Decimal('20.00')) / Decimal('100.00'))
-        })
+        for regra in regras:
+            comissionado = regra.funcionario
+            if filter_func_id and comissionado.id != filter_func_id:
+                continue
+
+            if comissionado.id not in comissionados_data:
+                comissionados_data[comissionado.id] = {
+                    'comissionado': comissionado,
+                    'pagamentos': []
+                }
+
+            percentual_efetivo = regra.percentual
+            comissionados_data[comissionado.id]['pagamentos'].append({
+                'data': allocation.payment.data_pagamento,
+                'cliente': allocation.receita.cliente.nome,
+                'valor_pagamento': allocation.valor,
+                'percentual': percentual_efetivo,
+                'valor_comissao': allocation.valor * (percentual_efetivo / Decimal('100.00'))
+            })
 
     if not comissionados_data:
         return Response(

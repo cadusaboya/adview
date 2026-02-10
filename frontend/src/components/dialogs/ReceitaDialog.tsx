@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select as AntdSelect } from 'antd';
 import { toast } from 'sonner';
 
+
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
 import { useFormDirty } from '@/hooks/useFormDirty';
@@ -16,9 +17,11 @@ import { applyBackendErrors } from '@/lib/validation/backendErrors';
 import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
+import ComissaoList, { ComissaoItem } from '@/components/dialogs/ComissaoList';
 
 import { getBancos } from '@/services/bancos';
 import { getClientes } from '@/services/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
 
 import { Cliente } from '@/types/clientes';
 import {
@@ -74,6 +77,15 @@ export default function ReceitaDialog({
     errorMessage: 'Erro ao carregar clientes',
   });
 
+  const { data: funcionarios } = useLoadAuxiliaryData({
+    loadFn: async () => {
+      const res = await getFuncionarios({ page_size: 1000 });
+      return res.results;
+    },
+    onOpen: open,
+    errorMessage: 'Erro ao carregar funcionários',
+  });
+
   // Use initial data if provided, otherwise use hook data
   const bancos = initialBancos || bancosFromHook;
   const clientes = initialClientes || clientesFromHook;
@@ -107,6 +119,9 @@ export default function ReceitaDialog({
     },
     receitaCreateSchema
   );
+
+  // Regras de comissão específicas da receita
+  const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
   // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
@@ -161,6 +176,13 @@ export default function ReceitaDialog({
         tipo: receita.tipo,
         forma_pagamento: receita.forma_pagamento ?? 'P',
       });
+      setComissoes(
+        (receita.comissoes || []).map((c) => ({
+          id: String(c.id ?? crypto.randomUUID()),
+          funcionario_id: c.funcionario_id,
+          percentual: c.percentual,
+        }))
+      );
       setValorDisplay(formatCurrencyInput(receita.valor));
     } else {
       setFormData({
@@ -172,6 +194,7 @@ export default function ReceitaDialog({
         tipo: 'F',
         forma_pagamento: 'P',
       });
+      setComissoes([]);
       setValorDisplay('');
       setMarcarComoPago(false);
       setDataPagamento('');
@@ -181,14 +204,21 @@ export default function ReceitaDialog({
   }, [receita, open, setFormData]);
 
   const handleSubmitWrapper = async () => {
+    const comissoesPayload = comissoes
+      .filter((c) => c.funcionario_id !== null && c.percentual !== '' && c.percentual !== 0)
+      .map((c) => ({
+        funcionario_id: c.funcionario_id as number,
+        percentual: Number(c.percentual),
+      }));
+
     await handleSubmit(async (data) => {
       try {
         let payload: ReceitaUpdate | ReceitaCreate | ReceitaCreateWithPayment;
 
         if (receita) {
-          payload = { ...data } as ReceitaUpdate;
+          payload = { ...data, comissoes: comissoesPayload } as ReceitaUpdate;
         } else {
-          payload = { ...data } as ReceitaCreate;
+          payload = { ...data, comissoes: comissoesPayload } as ReceitaCreate;
 
           // Add payment data if checkbox is checked
           if (marcarComoPago) {
@@ -319,8 +349,8 @@ export default function ReceitaDialog({
           />
         </div>
 
-        {/* Forma / Comissionado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Forma de Pagamento */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormSelect
             label="Forma de Pagamento"
             value={formData.forma_pagamento || ''}
@@ -337,6 +367,14 @@ export default function ReceitaDialog({
             error={getFieldProps('forma_pagamento').error}
           />
         </div>
+
+        {/* Regras de comissão */}
+        <ComissaoList
+          comissoes={comissoes}
+          setComissoes={setComissoes}
+          funcionarios={funcionarios || []}
+          emptyHint="Sem regras específicas — usará as regras do cliente"
+        />
 
         {/* Marcar como pago - only when creating */}
         {!receita && (

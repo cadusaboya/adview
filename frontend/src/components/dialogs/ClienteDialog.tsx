@@ -13,6 +13,7 @@ import { applyBackendErrors } from '@/lib/validation/backendErrors';
 import FormaCobrancaList, {
   FormaCobrancaItem,
 } from "@/components/dialogs/FormaCobrancaList";
+import ComissaoList, { ComissaoItem } from "@/components/dialogs/ComissaoList";
 
 import { Cliente, ClienteCreate, ClienteUpdate } from '@/types/clientes';
 import { getFuncionarios } from '@/services/funcionarios';
@@ -33,6 +34,7 @@ export default function ClienteDialog({
   cliente,
 }: ClienteDialogProps) {
   const [formas, setFormas] = useState<FormaCobrancaItem[]>([]);
+  const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
   // Load funcionários
   const {
@@ -63,7 +65,7 @@ export default function ClienteDialog({
       aniversario: null,
       tipo: "",
       formas_cobranca: [],
-      comissionado_id: null,
+      comissoes: [],
     },
     clienteCreateSchema
   );
@@ -79,7 +81,7 @@ export default function ClienteDialog({
         aniversario: cliente.aniversario || null,
         tipo: cliente.tipo,
         formas_cobranca: [],
-        comissionado_id: cliente.comissionado_id || null,
+        comissoes: [],
       });
 
       setFormas(
@@ -110,6 +112,14 @@ export default function ClienteDialog({
           };
         })
       );
+
+      setComissoes(
+        (cliente.comissoes || []).map((c) => ({
+          id: String(c.id ?? crypto.randomUUID()),
+          funcionario_id: c.funcionario_id,
+          percentual: c.percentual,
+        }))
+      );
     } else {
       setFormData({
         nome: "",
@@ -119,9 +129,10 @@ export default function ClienteDialog({
         aniversario: null,
         tipo: "",
         formas_cobranca: [],
-        comissionado_id: null,
+        comissoes: [],
       });
       setFormas([]);
+      setComissoes([]);
     }
   }, [cliente, open, setFormData]);
 
@@ -133,11 +144,19 @@ export default function ClienteDialog({
       percentual_exito: f.formato === "E" ? f.valor : null,
     }));
 
+    const comissoesPayload = comissoes
+      .filter((c) => c.funcionario_id !== null && c.percentual !== '' && c.percentual !== 0)
+      .map((c) => ({
+        funcionario_id: c.funcionario_id as number,
+        percentual: Number(c.percentual),
+      }));
+
     await handleSubmit(async (data) => {
       try {
         const payload = {
           ...data,
           formas_cobranca: formasPayload,
+          comissoes: comissoesPayload,
         };
         await onSubmit(payload);
         onClose();
@@ -238,28 +257,12 @@ export default function ClienteDialog({
           />
         </div>
 
-        {/* Linha 3 - Comissionado */}
-        <div className="grid grid-cols-1">
-          <FormSelect
-            label="Comissionado"
-            value={formData.comissionado_id?.toString() || "none"}
-            onValueChange={(val) =>
-              setFormData((prev) => ({
-                ...prev,
-                comissionado_id: val === "none" ? null : Number(val)
-              }))
-            }
-            options={[
-              { value: 'none', label: 'Nenhum' },
-              ...(funcionarios?.map((f: Funcionario) => ({
-                value: f.id.toString(),
-                label: `${f.nome} (${f.tipo === 'F' ? 'Funcionário' : 'Parceiro'})`
-              })) || [])
-            ]}
-            placeholder="Nenhum"
-            error={getFieldProps('comissionado_id').error}
-          />
-        </div>
+        {/* Regras de comissão */}
+        <ComissaoList
+          comissoes={comissoes}
+          setComissoes={setComissoes}
+          funcionarios={funcionarios || []}
+        />
 
         {/* Formas de cobrança */}
         <FormaCobrancaList formas={formas} setFormas={setFormas} />

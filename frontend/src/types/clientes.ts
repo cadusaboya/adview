@@ -7,6 +7,8 @@ export interface FormaCobranca {
     percentual_exito?: number | null;
   }
   
+import { ComissaoRegra } from './comissoes';
+
   export interface Cliente {
     id: number;
     nome: string;
@@ -16,26 +18,18 @@ export interface FormaCobranca {
     aniversario?: string;
     tipo: string;
 
-    // 🔥 ADICIONAR ISTO
     formas_cobranca?: FormaCobranca[];
-
-    // Comissionamento
-    comissionado_id?: number | null;
-    comissionado?: {
-      id: number;
-      nome: string;
-      tipo: string;
-    } | null;
+    comissoes?: ComissaoRegra[];
   }
-  
+
 
   export type FormaCobrancaPayload = {
     formato: "M" | "E";
     descricao?: string;
     valor_mensal?: number | null;
     percentual_exito?: number | null;
-  };  
-  
+  };
+
   // 🔹 Payload de criação (o que o usuário envia)
   export type ClienteCreate = {
     nome: string;
@@ -45,9 +39,9 @@ export interface FormaCobranca {
     aniversario?: string | null;
     tipo: string;
     formas_cobranca?: FormaCobrancaPayload[];
-    comissionado_id?: number | null;
+    comissoes?: { funcionario_id: number; percentual: number }[];
   };
-  
+
   // 🔹 Payload de atualização (edição parcial)
   export type ClienteUpdate = Partial<ClienteCreate>;
   

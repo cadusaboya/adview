@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Sum
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment, Custodia, Transfer, Allocation
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, FormaCobranca, ContaBancaria, Payment, Custodia, Transfer, Allocation, ClienteComissao, ReceitaComissao, ReceitaRecorrenteComissao
 from decimal import Decimal
 
 
@@ -41,25 +41,54 @@ class FormaCobrancaSerializer(serializers.ModelSerializer):
         fields = ('id', 'formato', 'descricao', 'valor_mensal', 'percentual_exito')
 
 
+# 🔹 Comissao serializers (compartilhados)
+class ClienteComissaoSerializer(serializers.ModelSerializer):
+    funcionario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
+        source='funcionario'
+    )
+    funcionario_nome = serializers.CharField(source='funcionario.nome', read_only=True)
+
+    class Meta:
+        model = ClienteComissao
+        fields = ('id', 'funcionario_id', 'funcionario_nome', 'percentual')
+
+
+class ReceitaComissaoSerializer(serializers.ModelSerializer):
+    funcionario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
+        source='funcionario'
+    )
+    funcionario_nome = serializers.CharField(source='funcionario.nome', read_only=True)
+
+    class Meta:
+        model = ReceitaComissao
+        fields = ('id', 'funcionario_id', 'funcionario_nome', 'percentual')
+
+
+class ReceitaRecorrenteComissaoSerializer(serializers.ModelSerializer):
+    funcionario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
+        source='funcionario'
+    )
+    funcionario_nome = serializers.CharField(source='funcionario.nome', read_only=True)
+
+    class Meta:
+        model = ReceitaRecorrenteComissao
+        fields = ('id', 'funcionario_id', 'funcionario_nome', 'percentual')
+
+
 # 🔹 Cliente
 class ClienteSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     formas_cobranca = FormaCobrancaSerializer(many=True)
+    comissoes = ClienteComissaoSerializer(many=True, default=[])
 
     cpf = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
     telefone = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     aniversario = serializers.DateField(required=False, allow_null=True)
-
-    # Comissionamento
-    comissionado_id = serializers.PrimaryKeyRelatedField(
-        queryset=Funcionario.objects.filter(tipo__in=['F', 'P']),
-        source='comissionado',
-        required=False,
-        allow_null=True
-    )
-    comissionado = serializers.SerializerMethodField()
 
     class Meta:
         model = Cliente
@@ -74,29 +103,23 @@ class ClienteSerializer(serializers.ModelSerializer):
             'tipo_display',
             'company',
             'formas_cobranca',
-            'comissionado_id',
-            'comissionado',
+            'comissoes',
         )
-        read_only_fields = ('company', 'tipo_display', 'comissionado')
-
-    def get_comissionado(self, obj):
-        if obj.comissionado:
-            return {
-                'id': obj.comissionado.id,
-                'nome': obj.comissionado.nome,
-                'tipo': obj.comissionado.tipo
-            }
-        return None
+        read_only_fields = ('company', 'tipo_display')
 
     def create(self, validated_data):
         formas_data = validated_data.pop('formas_cobranca')
+        comissoes_data = validated_data.pop('comissoes', [])
         cliente = Cliente.objects.create(**validated_data)
         for forma in formas_data:
             FormaCobranca.objects.create(cliente=cliente, **forma)
+        for c in comissoes_data:
+            ClienteComissao.objects.create(cliente=cliente, **c)
         return cliente
 
     def update(self, instance, validated_data):
         formas_data = validated_data.pop('formas_cobranca', None)
+        comissoes_data = validated_data.pop('comissoes', None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -106,6 +129,11 @@ class ClienteSerializer(serializers.ModelSerializer):
             instance.formas_cobranca.all().delete()
             for forma in formas_data:
                 FormaCobranca.objects.create(cliente=instance, **forma)
+
+        if comissoes_data is not None:
+            instance.comissoes.all().delete()
+            for c in comissoes_data:
+                ClienteComissao.objects.create(cliente=instance, **c)
 
         return instance
 
@@ -146,11 +174,32 @@ class ReceitaSerializer(serializers.ModelSerializer):
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     situacao_display = serializers.CharField(source='get_situacao_display', read_only=True)
 
+    # Regras de comissão específicas (opcionais, substituem as do cliente)
+    comissoes = ReceitaComissaoSerializer(many=True, default=[])
+
     class Meta:
         model = Receita
         fields = '__all__'
         read_only_fields = ('company', 'cliente',
                             'forma_pagamento_display', 'tipo_display', 'situacao_display')
+
+    def create(self, validated_data):
+        comissoes_data = validated_data.pop('comissoes', [])
+        receita = Receita.objects.create(**validated_data)
+        for c in comissoes_data:
+            ReceitaComissao.objects.create(receita=receita, **c)
+        return receita
+
+    def update(self, instance, validated_data):
+        comissoes_data = validated_data.pop('comissoes', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if comissoes_data is not None:
+            instance.comissoes.all().delete()
+            for c in comissoes_data:
+                ReceitaComissao.objects.create(receita=instance, **c)
+        return instance
 
     def validate(self, data):
         situacao = data.get('situacao')
@@ -207,10 +256,31 @@ class ReceitaRecorrenteSerializer(serializers.ModelSerializer):
         write_only=True
     )
 
+    # Regras de comissão específicas (opcionais, substituem as do cliente)
+    comissoes = ReceitaRecorrenteComissaoSerializer(many=True, default=[])
+
     class Meta:
         model = ReceitaRecorrente
         fields = '__all__'
         read_only_fields = ('company', 'cliente')
+
+    def create(self, validated_data):
+        comissoes_data = validated_data.pop('comissoes', [])
+        recorrente = ReceitaRecorrente.objects.create(**validated_data)
+        for c in comissoes_data:
+            ReceitaRecorrenteComissao.objects.create(receita_recorrente=recorrente, **c)
+        return recorrente
+
+    def update(self, instance, validated_data):
+        comissoes_data = validated_data.pop('comissoes', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if comissoes_data is not None:
+            instance.comissoes.all().delete()
+            for c in comissoes_data:
+                ReceitaRecorrenteComissao.objects.create(receita_recorrente=instance, **c)
+        return instance
 
     def validate_dia_vencimento(self, value):
         """Valida que dia está entre 1 e 31"""

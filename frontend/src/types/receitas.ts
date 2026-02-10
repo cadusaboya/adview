@@ -1,3 +1,5 @@
+import { ComissaoRegra } from './comissoes';
+
 export interface Receita {
   id: number;
   nome: string;
@@ -10,6 +12,7 @@ export interface Receita {
   tipo: 'F' | 'V' | 'E';
   forma_pagamento?: 'P' | 'B';
   situacao: 'A' | 'P' | 'V';
+  comissoes?: ComissaoRegra[];
 }
 
 export type ReceitaCreate = {
@@ -20,6 +23,7 @@ export type ReceitaCreate = {
   data_vencimento: string;
   tipo: 'F' | 'V' | 'E';
   forma_pagamento?: 'P' | 'B';
+  comissoes?: { funcionario_id: number; percentual: number }[];
 };
 
 export type ReceitaUpdate = Partial<ReceitaCreate>;

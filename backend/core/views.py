@@ -150,9 +150,7 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related(
-            'comissionado'
-        ).prefetch_related('formas_cobranca')
+        queryset = super().get_queryset().prefetch_related('formas_cobranca', 'comissoes__funcionario')
 
         # Search filter
         search = self.request.query_params.get('search')
@@ -226,31 +224,40 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
             receita__isnull=False,
             payment__data_pagamento__month=mes,
             payment__data_pagamento__year=ano
-        ).select_related('receita__cliente__comissionado', 'payment')
+        ).prefetch_related(
+            'receita__comissoes__funcionario',
+            'receita__cliente__comissoes__funcionario'
+        ).select_related('payment', 'receita__cliente')
+
+        # Percentual padrão da company (usado somente se a regra não definir o seu)
+        percentual_default = request.user.company.percentual_comissao or Decimal('20.00')
 
         # Agrupar por comissionado
         comissionados_dict = {}
         for allocation in allocations:
-            comissionado = allocation.receita.cliente.comissionado
-            if comissionado:
-                if comissionado.id not in comissionados_dict:
-                    comissionados_dict[comissionado.id] = {
-                        'comissionado': comissionado,
-                        'total_pagamentos': Decimal('0.00')
-                    }
-                comissionados_dict[comissionado.id]['total_pagamentos'] += allocation.valor
+            # Regras efetivas: da receita se existirem, senão do cliente
+            regras = list(allocation.receita.comissoes.all())
+            if not regras:
+                regras = list(allocation.receita.cliente.comissoes.all())
 
-        # Criar despesas de comissão
-        percentual_comissao = request.user.company.percentual_comissao or Decimal('20.00')
-        percentual = percentual_comissao / Decimal('100.00')
+            for regra in regras:
+                func = regra.funcionario
+                percentual = regra.percentual / Decimal('100.00')
+                valor_comissao_alloc = allocation.valor * percentual
+
+                if func.id not in comissionados_dict:
+                    comissionados_dict[func.id] = {
+                        'comissionado': func,
+                        'valor_comissao': Decimal('0.00')
+                    }
+                comissionados_dict[func.id]['valor_comissao'] += valor_comissao_alloc
 
         comissionados_resultado = []
         total_comissoes = Decimal('0.00')
 
         for data in comissionados_dict.values():
             comissionado = data['comissionado']
-            total_pagamentos = data['total_pagamentos']
-            valor_comissao = total_pagamentos * percentual
+            valor_comissao = data['valor_comissao']
 
             if valor_comissao > 0:
                 # Atualiza se existe, cria se não existe
@@ -598,6 +605,15 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
                     situacao='A',
                     forma_pagamento=recorrente.forma_pagamento
                 )
+
+                # Copia regras de comissão da recorrente para a receita gerada
+                from core.models import ReceitaComissao
+                for regra in recorrente.comissoes.all():
+                    ReceitaComissao.objects.create(
+                        receita=receita,
+                        funcionario=regra.funcionario,
+                        percentual=regra.percentual
+                    )
 
                 criadas += 1
                 detalhes.append({
