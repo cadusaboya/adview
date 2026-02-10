@@ -13,6 +13,8 @@ import { FormSelect } from '@/components/form/FormSelect';
 import { applyBackendErrors } from '@/lib/validation/backendErrors';
 import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 
+import ComissaoList, { ComissaoItem } from '@/components/dialogs/ComissaoList';
+
 import {
   ReceitaRecorrente,
   ReceitaRecorrenteCreate,
@@ -20,6 +22,7 @@ import {
 } from '@/types/receitasRecorrentes';
 import { Cliente } from '@/types/clientes';
 import { getClientes } from '@/services/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
 
 interface Props {
   open: boolean;
@@ -35,11 +38,18 @@ export default function ReceitaRecorrenteDialog({
   receita,
 }: Props) {
   const [valorDisplay, setValorDisplay] = useState('');
+  const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
   const { data: clientes } = useLoadAuxiliaryData({
     loadFn: async () => (await getClientes({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar clientes',
+  });
+
+  const { data: funcionarios } = useLoadAuxiliaryData({
+    loadFn: async () => (await getFuncionarios({ page_size: 1000 })).results,
+    onOpen: open,
+    errorMessage: 'Erro ao carregar funcionários',
   });
 
   const {
@@ -74,6 +84,13 @@ export default function ReceitaRecorrenteDialog({
         dia_vencimento: receita.dia_vencimento,
         status: receita.status,
       });
+      setComissoes(
+        (receita.comissoes || []).map((c) => ({
+          id: String(c.id ?? crypto.randomUUID()),
+          funcionario_id: c.funcionario_id,
+          percentual: c.percentual,
+        }))
+      );
       setValorDisplay(formatCurrencyInput(receita.valor));
     } else {
       setFormData({
@@ -86,14 +103,22 @@ export default function ReceitaRecorrenteDialog({
         data_inicio: '',
         dia_vencimento: 1,
       });
+      setComissoes([]);
       setValorDisplay('');
     }
   }, [receita, open, setFormData]);
 
   const handleSubmitWrapper = async () => {
+    const comissoesPayload = comissoes
+      .filter((c) => c.funcionario_id !== null && c.percentual !== '' && c.percentual !== 0)
+      .map((c) => ({
+        funcionario_id: c.funcionario_id as number,
+        percentual: Number(c.percentual),
+      }));
+
     await handleSubmit(async (data) => {
       try {
-        await onSubmit(data);
+        await onSubmit({ ...data, comissoes: comissoesPayload });
         onClose();
       } catch (error) {
         const generalError = applyBackendErrors(setFieldError, error);
@@ -120,12 +145,22 @@ export default function ReceitaRecorrenteDialog({
           <FormSelect label="Tipo" required value={formData.tipo} onValueChange={(val) => setFormData(prev => ({ ...prev, tipo: val as 'F' | 'V' }))} options={[{ value: 'F', label: 'Fixa' }, { value: 'V', label: 'Variável' }]} error={getFieldProps('tipo').error} />
           <FormInput label="Dia de Vencimento" required type="number" min="1" max="31" placeholder="1-31" value={formData.dia_vencimento} onChange={(e) => setFormData(prev => ({ ...prev, dia_vencimento: parseInt(e.target.value) || 1 }))} error={getFieldProps('dia_vencimento').error} />
         </div>
-        <FormSelect label="Forma de Pagamento" value={formData.forma_pagamento || ''} onValueChange={(val) => setFormData(prev => ({ ...prev, forma_pagamento: val ? val as 'P' | 'B' : null }))} options={[{ value: 'P', label: 'Pix' }, { value: 'B', label: 'Boleto' }]} placeholder="Selecione..." />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <FormSelect label="Forma de Pagamento" value={formData.forma_pagamento || ''} onValueChange={(val) => setFormData(prev => ({ ...prev, forma_pagamento: val ? val as 'P' | 'B' : null }))} options={[{ value: 'P', label: 'Pix' }, { value: 'B', label: 'Boleto' }]} placeholder="Selecione..." />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Data de Início" required type="date" value={formData.data_inicio} onChange={(e) => setFormData(prev => ({ ...prev, data_inicio: e.target.value }))} error={getFieldProps('data_inicio').error} />
           <FormInput label="Data de Fim (Opcional)" type="date" value={formData.data_fim || ''} onChange={(e) => setFormData(prev => ({ ...prev, data_fim: e.target.value || null }))} />
           <FormSelect label="Status" value={formData.status || 'A'} onValueChange={(val) => setFormData(prev => ({ ...prev, status: val as 'A' | 'P' }))} options={[{ value: 'A', label: 'Ativa' }, { value: 'P', label: 'Pausada' }]} />
         </div>
+
+        {/* Regras de comissão */}
+        <ComissaoList
+          comissoes={comissoes}
+          setComissoes={setComissoes}
+          funcionarios={funcionarios || []}
+          emptyHint="Sem regras específicas — usará as regras do cliente"
+        />
       </div>
     </DialogBase>
   );

@@ -1,3 +1,5 @@
+import { ComissaoRegra } from './comissoes';
+
 export interface ReceitaRecorrente {
   id: number;
   nome: string;
@@ -23,6 +25,8 @@ export interface ReceitaRecorrente {
   status: 'A' | 'P';
   status_display: string;
 
+  comissoes?: ComissaoRegra[];
+
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +42,7 @@ export type ReceitaRecorrenteCreate = {
   data_fim?: string | null;
   dia_vencimento: number;
   status?: 'A' | 'P';
+  comissoes?: { funcionario_id: number; percentual: number }[];
 };
 
 export type ReceitaRecorrenteUpdate = Partial<ReceitaRecorrenteCreate>;

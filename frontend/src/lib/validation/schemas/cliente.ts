@@ -15,6 +15,5 @@ export const clienteCreateSchema: ValidationSchema<ClienteCreate> = {
   telefone: [phone() as any], // Type cast needed for optional field
   tipo: [required("Tipo de cliente é obrigatório")],
   aniversario: [], // Optional
-  comissionado_id: [], // Optional
-  // Note: formas_cobranca validation handled in component
+  // Note: formas_cobranca and comissoes validation handled in component
 };
