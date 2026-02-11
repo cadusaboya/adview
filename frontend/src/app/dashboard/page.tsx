@@ -11,7 +11,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ComposedChart,
   Line,
@@ -24,7 +23,6 @@ import {
   Cake,
   CreditCard,
   Clock,
-  XCircle,
 } from 'lucide-react';
 import { getDashboardData } from "@/services/relatorios";
 import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
