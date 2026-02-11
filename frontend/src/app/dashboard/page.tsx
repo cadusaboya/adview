@@ -125,7 +125,7 @@ const Card: React.FC<{
   className?: string;
 }> = ({ children, className = '' }) => (
   <div
-    className={`bg-white rounded-lg shadow-md border border-gray-200 p-6 ${className}`}
+    className={`bg-white rounded-lg shadow-md border border-gray-200 px-6 pt-5 pb-3 ${className}`}
   >
     {children}
   </div>
@@ -139,13 +139,15 @@ const StatCard: React.FC<{
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
   trendLabel?: string;
+  subtitle?: string;
+  large?: boolean;
   color?: 'primary' | 'accent' | 'secondary' | 'warning';
-}> = ({ title, value, icon, trend, trendValue, trendLabel, color = 'primary' }) => {
+}> = ({ title, value, icon, trend, trendValue, trendLabel, subtitle, large, color = 'primary' }) => {
   const colorClasses = {
-    primary: 'bg-white border-navy/20',
-    accent:  'bg-white border-gold/40',
+    primary:   'bg-white border-navy/20',
+    accent:    'bg-white border-gold/40',
     secondary: 'bg-white border-slate/30',
-    warning: 'bg-white border-warning/40',
+    warning:   'bg-white border-warning/40',
   };
 
   const iconColorClasses = {
@@ -156,36 +158,35 @@ const StatCard: React.FC<{
   };
 
   return (
-    <Card className={`${colorClasses[color]} border-2 relative`}>
+    <Card className={`${colorClasses[color]} border-2`}>
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-2xl font-bold text-navy">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-500 mb-1 whitespace-nowrap">{title}</p>
+          <p className={`font-bold text-navy leading-tight whitespace-nowrap ${large ? 'text-2xl' : 'text-xl'}`}>
             {typeof value === 'number'
               ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               : value}
           </p>
+          {subtitle && (
+            <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+          )}
         </div>
-        <div className={`p-3 rounded-lg ${iconColorClasses[color]}`}>
-          {icon}
+        <div className="flex flex-col items-end shrink-0 ml-3 gap-1">
+          <div className={`p-2 rounded-lg ${iconColorClasses[color]}`}>
+            {icon}
+          </div>
+          {trend && trendValue && (
+            <div className="flex items-center">
+              {trend === 'up' && <TrendingUp className="w-3 h-3 text-slate mr-0.5" />}
+              {trend === 'down' && <TrendingDown className="w-3 h-3 text-slate mr-0.5" />}
+              <span className="text-[10px] font-semibold text-slate">{trendValue}</span>
+              {trendLabel && (
+                <span className="text-[10px] text-gray-400 ml-0.5">{trendLabel}</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      {trend && trendValue && (
-        <div className="absolute bottom-3 right-3 flex items-center">
-          {trend === 'up' && (
-            <TrendingUp className="w-3 h-3 text-slate mr-1" />
-          )}
-          {trend === 'down' && (
-            <TrendingDown className="w-3 h-3 text-slate mr-1" />
-          )}
-          <span className="text-[10px] font-semibold text-slate">
-            {trendValue}
-          </span>
-          {trendLabel && (
-            <span className="text-[10px] text-gray-500 ml-1">{trendLabel}</span>
-          )}
-        </div>
-      )}
     </Card>
   );
 };
@@ -314,64 +315,39 @@ export default function DashboardPage() {
           </div>
 
           {/* Financial Summary Cards - Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <div className="lg:col-span-2">
+              <StatCard
+                title="Saldo em Caixa"
+                value={data.saldoTotal}
+                icon={<DollarSign className="w-6 h-6" />}
+                color="primary"
+                trend={variacaoSaldo > 0 ? 'up' : variacaoSaldo < 0 ? 'down' : 'neutral'}
+                trendValue={`${variacaoPercentual}%`}
+                trendLabel="vs 30 dias"
+              />
+            </div>
             <StatCard
-              title="Saldo Total"
-              value={data.saldoTotal}
-              icon={<DollarSign className="w-6 h-6" />}
-              color="primary"
-              trend={variacaoSaldo > 0 ? 'up' : variacaoSaldo < 0 ? 'down' : 'neutral'}
-              trendValue={`${variacaoPercentual}%`}
-              trendLabel="vs 30 dias"
-            />
-            <StatCard
-              title="Fluxo de Caixa Realizado"
+              title="Resultado (30 dias)"
               value={data.fluxoCaixaRealizado}
               icon={<CreditCard className="w-6 h-6" />}
               color="primary"
               trend={data.fluxoCaixaRealizado > 0 ? 'up' : 'down'}
             />
             <StatCard
-              title="Receitas Projetadas"
+              title="A Receber"
               value={data.receitasProjetadas}
               icon={<TrendingUp className="w-6 h-6" />}
               color="accent"
             />
             <StatCard
-              title="Despesas Projetadas"
+              title="A Pagar"
               value={data.despesasProjetadas}
               icon={<TrendingDown className="w-6 h-6" />}
               color="secondary"
             />
           </div>
 
-          {/* Alerts Row - Despesas e Receitas Vencidas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard
-              title="Qtd. Despesas Vencidas"
-              value={data.despesasVencidas.toString()}
-              icon={<AlertCircle className="w-6 h-6" />}
-              color="warning"
-            />
-            <StatCard
-              title="Valor Despesas Vencidas"
-              value={data.valorDespesasVencidas}
-              icon={<TrendingDown className="w-6 h-6" />}
-              color="warning"
-            />
-            <StatCard
-              title="Qtd. Receitas Vencidas"
-              value={data.receitasVencidas.toString()}
-              icon={<XCircle className="w-6 h-6" />}
-              color="warning"
-            />
-            <StatCard
-              title="Valor Receitas Vencidas"
-              value={data.valorReceitasVencidas}
-              icon={<TrendingUp className="w-6 h-6" />}
-              color="warning"
-            />
-          </div>
 
           {/* Aniversariantes Details */}
           {totalAniversariantes > 0 && (
@@ -412,6 +388,57 @@ export default function DashboardPage() {
             </Card>
           )}
 
+          {/* Quick Actions - Receitas e Despesas Lado a Lado */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Receitas Próximas */}
+            <Card>
+              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-gold" />
+                Receitas Próximas do Vencimento
+              </h2>
+              <Table
+                headers={['Nome', 'Cliente', 'Valor', 'Vencimento']}
+                rows={data.receitasProximas.map((receita) => [
+                    receita.nome,
+                    receita.cliente,
+                    <span
+                    key={`valor-${receita.id}`}
+                    className="whitespace-nowrap font-medium"
+                    >
+                    R$ {receita.valor.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                    })}
+                    </span>,
+                    formatDateBR(receita.dataVencimento),
+                ])}
+              />
+            </Card>
+
+            {/* Despesas Próximas */}
+            <Card>
+              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-slate" />
+                Despesas Próximas do Vencimento
+              </h2>
+              <Table
+                headers={['Nome', 'Responsável', 'Valor', 'Vencimento']}
+                rows={data.despesasProximas.map((despesa) => [
+                    despesa.nome,
+                    despesa.responsavel,
+                    <span
+                    key={`valor-${despesa.id}`}
+                    className="whitespace-nowrap font-medium"
+                    >
+                    R$ {despesa.valor.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                    })}
+                    </span>,
+                    formatDateBR(despesa.dataVencimento),
+                ])}
+              />
+            </Card>
+          </div>
+
           {/* Charts Section - Row 1 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Receita vs Despesa Chart */}
@@ -431,33 +458,32 @@ export default function DashboardPage() {
                 </select>
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.receitaVsDespesaData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <BarChart data={data.receitaVsDespesaData} barCategoryGap="30%">
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
                   <XAxis
                     dataKey="mes"
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    tickLine={{ stroke: '#d1d5db' }}
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    tickLine={{ stroke: '#d1d5db' }}
-                    tickFormatter={(value) =>
-                      `R$ ${(value / 1000).toFixed(0)}k`
-                    }
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                    width={40}
                   />
                   <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
                     formatter={(value) =>
-                      `R$ ${Number(value).toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                      })}`
+                      `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                     }
                   />
-                  <Legend />
                   {receitaDespesaFiltro !== 'despesas' && (
-                    <Bar dataKey="receita" fill="#D4AF37" name="Receita" />
+                    <Bar dataKey="receita" fill="#D4AF37" name="Receita" radius={[3, 3, 0, 0]} />
                   )}
                   {receitaDespesaFiltro !== 'receitas' && (
-                    <Bar dataKey="despesa" fill="#64748B" name="Despesa" />
+                    <Bar dataKey="despesa" fill="#64748B" name="Despesa" radius={[3, 3, 0, 0]} />
                   )}
                 </BarChart>
               </ResponsiveContainer>
@@ -469,46 +495,46 @@ export default function DashboardPage() {
                 Fluxo de Caixa Realizado (Últimos 6 Meses)
               </h2>
               <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={data.fluxoCaixaData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <ComposedChart data={data.fluxoCaixaData} barCategoryGap="30%">
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
                   <XAxis
                     dataKey="mes"
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    tickLine={{ stroke: '#d1d5db' }}
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    tickLine={{ stroke: '#d1d5db' }}
-                    tickFormatter={(value) =>
-                      `R$ ${(value / 1000).toFixed(0)}k`
-                    }
-                  />
-                  <Tooltip
-                    formatter={(value) =>
-                      `R$ ${Number(value).toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                      })}`
-                    }
-                  />
-                  <Legend />
-                  <Bar dataKey="receita" fill="#D4AF37" name="Entradas" />
-                  <Bar dataKey="despesa" fill="#64748B" name="Saídas" />
-                  <Line
-                    type="monotone"
-                    dataKey="fluxo"
-                    stroke="#0A192F"
-                    strokeWidth={2}
-                    name="Fluxo Líquido"
-                    yAxisId="right"
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                    width={40}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    tickLine={{ stroke: '#d1d5db' }}
-                    tickFormatter={(value) =>
-                      `R$ ${(value / 1000).toFixed(0)}k`
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                    width={40}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    formatter={(value) =>
+                      `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                     }
+                  />
+                  <Bar dataKey="receita" fill="#D4AF37" name="Entradas" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="despesa" fill="#64748B" name="Saídas" radius={[3, 3, 0, 0]} />
+                  <Line
+                    type="monotone"
+                    dataKey="fluxo"
+                    stroke="#0A192F"
+                    strokeWidth={3}
+                    dot={false}
+                    name="Fluxo Líquido"
+                    yAxisId="right"
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -604,56 +630,6 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Quick Actions - Receitas e Despesas Lado a Lado */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Receitas Próximas */}
-            <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-gold" />
-                Receitas Próximas do Vencimento
-              </h2>
-              <Table
-                headers={['Nome', 'Cliente', 'Valor', 'Vencimento']}
-                rows={data.receitasProximas.map((receita) => [
-                    receita.nome,
-                    receita.cliente,
-                    <span
-                    key={`valor-${receita.id}`}
-                    className="whitespace-nowrap font-medium"
-                    >
-                    R$ {receita.valor.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                    })}
-                    </span>,
-                    formatDateBR(receita.dataVencimento),
-                ])}
-              />
-            </Card>
-
-            {/* Despesas Próximas */}
-            <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-slate" />
-                Despesas Próximas do Vencimento
-              </h2>
-              <Table
-                headers={['Nome', 'Responsável', 'Valor', 'Vencimento']}
-                rows={data.despesasProximas.map((despesa) => [
-                    despesa.nome,
-                    despesa.responsavel,
-                    <span
-                    key={`valor-${despesa.id}`}
-                    className="whitespace-nowrap font-medium"
-                    >
-                    R$ {despesa.valor.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                    })}
-                    </span>,
-                    formatDateBR(despesa.dataVencimento),
-                ])}
-              />
-            </Card>
-          </div>
         </div>
       </div>
     </div>
