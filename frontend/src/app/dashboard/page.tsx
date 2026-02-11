@@ -304,18 +304,15 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <NavbarNested />
-      <div className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
+      <div className="main-content-with-navbar bg-muted min-h-screen w-full px-6 pt-4 pb-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-serif font-bold text-navy">Dashboard</h1>
-            <p className="text-gray-600 mt-2">
-              Bem-vindo! Aqui está um resumo da sua situação financeira.
-            </p>
+          <div className="mb-4">
+            <h1 className="text-2xl font-serif font-bold text-navy">Dashboard</h1>
           </div>
 
           {/* Financial Summary Cards - Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
             <div className="lg:col-span-2">
               <StatCard
                 title="Saldo em Caixa"
@@ -389,10 +386,10 @@ export default function DashboardPage() {
           )}
 
           {/* Quick Actions - Receitas e Despesas Lado a Lado */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             {/* Receitas Próximas */}
             <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center">
                 <Clock className="w-5 h-5 mr-2 text-gold" />
                 Receitas Próximas do Vencimento
               </h2>
@@ -416,7 +413,7 @@ export default function DashboardPage() {
 
             {/* Despesas Próximas */}
             <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center">
                 <Clock className="w-5 h-5 mr-2 text-slate" />
                 Despesas Próximas do Vencimento
               </h2>
@@ -440,10 +437,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Charts Section - Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             {/* Receita vs Despesa Chart */}
             <Card>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-gray-900">
                   Receita vs Despesa (Últimos 6 Meses)
                 </h2>
@@ -459,7 +456,7 @@ export default function DashboardPage() {
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.receitaVsDespesaData} barCategoryGap="30%">
-                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <CartesianGrid vertical={false} stroke="#000000" strokeOpacity={0.05} />
                   <XAxis
                     dataKey="mes"
                     tick={{ fill: '#9ca3af', fontSize: 12 }}
@@ -491,12 +488,12 @@ export default function DashboardPage() {
 
             {/* Fluxo de Caixa Realizado */}
             <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-3">
                 Fluxo de Caixa Realizado (Últimos 6 Meses)
               </h2>
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={data.fluxoCaixaData} barCategoryGap="30%">
-                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <CartesianGrid vertical={false} stroke="#000000" strokeOpacity={0.05} />
                   <XAxis
                     dataKey="mes"
                     tick={{ fill: '#9ca3af', fontSize: 12 }}
