@@ -758,14 +758,13 @@ def relatorio_receitas_a_receber(request):
 @permission_classes([IsAuthenticated])
 def relatorio_fluxo_de_caixa(request):
     """
-    Relatório de Fluxo de Caixa
-    Baseado exclusivamente em pagamentos que movimentam conta bancária.
+    Relatório de Fluxo de Caixa Realizado
+    Layout dia-a-dia com saldo inicial/final, espelhando a visão da tela.
 
-    Filtros:
-    - conta_bancaria_id
-    - data_inicio
-    - data_fim
+    Filtros: conta_bancaria_id, data_inicio, data_fim
     """
+    from reportlab.lib import colors
+    from collections import defaultdict
 
     try:
         company = get_company_from_request(request)
@@ -776,7 +775,7 @@ def relatorio_fluxo_de_caixa(request):
     data_inicio = request.query_params.get("data_inicio")
     data_fim = request.query_params.get("data_fim")
 
-    # 🔹 SOMENTE pagamentos que movimentam conta bancária
+    # ── Pagamentos do período ─────────────────────────────────────────────────
     pagamentos = Payment.objects.filter(
         company=company,
         conta_bancaria__isnull=False
@@ -793,9 +792,8 @@ def relatorio_fluxo_de_caixa(request):
                 'custodia__funcionario'
             )
         )
-    ).order_by("data_pagamento")
+    ).order_by("data_pagamento", "id")
 
-    # 🔹 Filtros
     if conta_bancaria_id:
         pagamentos = pagamentos.filter(conta_bancaria_id=conta_bancaria_id)
     if data_inicio:
@@ -803,52 +801,71 @@ def relatorio_fluxo_de_caixa(request):
     if data_fim:
         pagamentos = pagamentos.filter(data_pagamento__lte=data_fim)
 
-    rows = []
+    # ── Agrupar transações por dia ────────────────────────────────────────────
+    by_date = defaultdict(list)   # "DD/MM/YYYY" -> list of dicts
     total_entrada = Decimal("0.00")
-    total_saida = Decimal("0.00")
-    total_custodia_entrada = Decimal("0.00")
-    total_custodia_saida = Decimal("0.00")
+    total_saida   = Decimal("0.00")
 
     for p in pagamentos:
-        # Processar cada alocação do pagamento
+        date_str = format_date_br(p.data_pagamento)
         for allocation in p.allocations.all():
-            # 🔹 Determinar tipo de movimentação baseado na alocação
             if allocation.receita:
                 tipo = "Entrada"
+                descricao = truncate_text(allocation.receita.nome, 38)
                 total_entrada += allocation.valor
-                descricao = truncate_text(allocation.receita.nome, 40)
+                is_entrada = True
             elif allocation.despesa:
                 tipo = "Saída"
+                descricao = truncate_text(allocation.despesa.nome, 38)
                 total_saida += allocation.valor
-                descricao = truncate_text(allocation.despesa.nome, 40)
+                is_entrada = False
             elif allocation.custodia:
-                # 🔹 Custódia: determina tipo baseado no tipo do payment
                 custodia = allocation.custodia
-                pessoa_nome = custodia.cliente.nome if custodia.cliente else (
-                    custodia.funcionario.nome if custodia.funcionario else "N/A"
+                pessoa = (
+                    custodia.cliente.nome if custodia.cliente
+                    else custodia.funcionario.nome if custodia.funcionario
+                    else "N/A"
                 )
-
-                if p.tipo == 'E':  # Entrada
-                    tipo = "Custódia (Entrada)"
-                    total_custodia_entrada += allocation.valor
-                else:  # Saída
-                    tipo = "Custódia (Saída)"
-                    total_custodia_saida += allocation.valor
-
-                descricao = truncate_text(f"{custodia.nome} - {pessoa_nome}", 40)
+                is_entrada = (p.tipo == 'E')
+                tipo = "Custódia Ent." if is_entrada else "Custódia Saí."
+                descricao = truncate_text(f"{custodia.nome} – {pessoa}", 38)
+                if is_entrada:
+                    total_entrada += allocation.valor
+                else:
+                    total_saida += allocation.valor
             else:
-                # ❌ Transferência - ignora no fluxo de caixa
-                continue
+                continue   # transferência interna – ignora
 
-            rows.append({
-                "data": format_date_br(p.data_pagamento),
-                "conta": truncate_text(p.conta_bancaria.nome, 25),
-                "descricao": descricao,
-                "tipo": tipo,
-                "valor": allocation.valor,
+            by_date[date_str].append({
+                "conta":      truncate_text(p.conta_bancaria.nome, 20),
+                "descricao":  descricao,
+                "tipo":       tipo,
+                "valor":      allocation.valor,
+                "is_entrada": is_entrada,
             })
 
-    # 🔹 Preparar PDF
+    # ── Saldo inicial / final ─────────────────────────────────────────────────
+    bancos = ContaBancaria.objects.filter(company=company)
+    if conta_bancaria_id:
+        bancos = bancos.filter(id=conta_bancaria_id)
+    saldo_atual = bancos.aggregate(total=Sum('saldo_atual'))['total'] or Decimal("0.00")
+
+    impacto_futuro = Decimal("0.00")
+    if data_fim:
+        futuros = Payment.objects.filter(
+            company=company,
+            conta_bancaria__isnull=False,
+            data_pagamento__gt=data_fim
+        )
+        if conta_bancaria_id:
+            futuros = futuros.filter(conta_bancaria_id=conta_bancaria_id)
+        for fp in futuros:
+            impacto_futuro += fp.valor if fp.tipo == 'E' else -fp.valor
+
+    saldo_final   = saldo_atual - impacto_futuro
+    saldo_inicial = saldo_final - total_entrada + total_saida
+
+    # ── Montar PDF ────────────────────────────────────────────────────────────
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = "inline; filename=relatorio_fluxo_caixa.pdf"
 
@@ -856,57 +873,175 @@ def relatorio_fluxo_de_caixa(request):
     width, height = landscape(A4)
     margin = 40
 
-    report = PDFReportBase("Relatório de Fluxo de Caixa", company.name, company.logo)
+    # Paleta de cores
+    COLOR_HDR_BG   = colors.HexColor("#1E3A5F")
+    COLOR_HDR_FG   = colors.white
+    COLOR_DAY_BG   = colors.HexColor("#EFF6FF")
+    COLOR_DAY_FG   = colors.HexColor("#1E40AF")
+    COLOR_SALDO_BG = colors.HexColor("#ECFDF5")
+    COLOR_GREEN    = colors.HexColor("#15803D")
+    COLOR_RED      = colors.HexColor("#B91C1C")
+    COLOR_ZEBRA    = colors.HexColor("#F9FAFB")
+    COLOR_SEP      = colors.HexColor("#CBD5E1")
+    COLOR_SUBTLE   = colors.HexColor("#6B7280")
+
+    report = PDFReportBase("Relatório de Fluxo de Caixa Realizado", company.name, company.logo)
 
     date_range = ""
     if data_inicio and data_fim:
         date_range = f"{data_inicio} a {data_fim}"
     elif data_inicio:
         date_range = f"A partir de {data_inicio}"
+    elif data_fim:
+        date_range = f"Até {data_fim}"
 
     y = report.draw_header(pdf, width, height, "", date_range)
+    y -= 8
 
-    # 🔹 Colunas
-    columns = [
-        {"label": "Data", "key": "data", "x": margin},
-        {"label": "Conta Bancária", "key": "conta", "x": margin + 120},
-        {"label": "Descrição", "key": "descricao", "x": margin + 300},
-        {"label": "Tipo", "key": "tipo", "x": width - 220},
-        {"label": "Valor", "key": "valor", "x": width - 100, "is_amount": True},
-    ]
+    # Posições de coluna
+    col_data    = margin
+    col_conta   = margin + 90
+    col_desc    = margin + 220
+    col_tipo    = width - 285
+    col_entrada = width - 185
+    col_saida   = width - 95
+    col_saldo   = width - margin + 5   # drawRightString
 
-    y = report.draw_table_header(pdf, y, columns, width, height)
+    ROW_H = 14
+    DAY_H = 16
 
-    # 🔹 Linhas
-    for row in rows:
-        y = report.check_page_break(pdf, y, width, height, columns)
-        y = report.draw_row(pdf, y, row, columns)
+    # ── helpers locais ────────────────────────────────────────────────────────
 
-    # 🔹 Totais finais
+    def draw_col_header(y_pos):
+        pdf.setFillColor(COLOR_HDR_BG)
+        pdf.rect(margin - 2, y_pos - 4, width - 2 * margin + 4, 16,
+                 fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(COLOR_HDR_FG)
+        pdf.drawString(col_data,  y_pos, "Data")
+        pdf.drawString(col_conta, y_pos, "Conta")
+        pdf.drawString(col_desc,  y_pos, "Descrição")
+        pdf.drawString(col_tipo,  y_pos, "Tipo")
+        pdf.drawRightString(col_entrada, y_pos, "Entradas")
+        pdf.drawRightString(col_saida,   y_pos, "Saídas")
+        pdf.drawRightString(col_saldo,   y_pos, "Saldo")
+        pdf.setFillColor(colors.black)
+        return y_pos - 20
+
+    def check_break(y_pos, needed=ROW_H + 2):
+        if y_pos < margin + needed + 20:
+            report.draw_footer(pdf, width)
+            pdf.showPage()
+            report.page_count += 1
+            return draw_col_header(height - 50)
+        return y_pos
+
+    def draw_saldo_row(y_pos, label, valor):
+        pdf.setFillColor(COLOR_SALDO_BG)
+        pdf.rect(margin - 2, y_pos - 4, width - 2 * margin + 4, DAY_H,
+                 fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.setFillColor(COLOR_GREEN)
+        pdf.drawString(col_data, y_pos, label)
+        pdf.setFillColor(COLOR_GREEN if valor >= 0 else COLOR_RED)
+        pdf.drawRightString(col_saldo, y_pos, format_currency(valor))
+        pdf.setFillColor(colors.black)
+        return y_pos - DAY_H - 3
+
+    # ── Cabeçalho de colunas ──────────────────────────────────────────────────
+    y = draw_col_header(y)
+
+    # ── Saldo inicial ─────────────────────────────────────────────────────────
+    y = draw_saldo_row(y, "Saldo Inicial do Período", saldo_inicial)
+
+    # ── Dias ──────────────────────────────────────────────────────────────────
+    saldo_corrente = saldo_inicial
+
+    for date_str, txns in by_date.items():
+        y = check_break(y, DAY_H + min(len(txns), 3) * ROW_H + 6)
+
+        dia_entrada = sum(t["valor"] for t in txns if t["is_entrada"])
+        dia_saida   = sum(t["valor"] for t in txns if not t["is_entrada"])
+        saldo_corrente = saldo_corrente + dia_entrada - dia_saida
+
+        # Linha-resumo do dia
+        pdf.setFillColor(COLOR_DAY_BG)
+        pdf.rect(margin - 2, y - 4, width - 2 * margin + 4, DAY_H,
+                 fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.setFillColor(COLOR_DAY_FG)
+        pdf.drawString(col_data, y, date_str)
+        pdf.setFillColor(COLOR_GREEN)
+        pdf.drawRightString(col_entrada, y,
+                            format_currency(dia_entrada) if dia_entrada else "—")
+        pdf.setFillColor(COLOR_RED)
+        pdf.drawRightString(col_saida, y,
+                            format_currency(dia_saida) if dia_saida else "—")
+        pdf.setFillColor(COLOR_GREEN if saldo_corrente >= 0 else COLOR_RED)
+        pdf.drawRightString(col_saldo, y, format_currency(saldo_corrente))
+        pdf.setFillColor(colors.black)
+        y -= DAY_H + 2
+
+        # Linhas de detalhe
+        for i, txn in enumerate(txns):
+            y = check_break(y)
+            if i % 2 == 0:
+                pdf.setFillColor(COLOR_ZEBRA)
+                pdf.rect(margin - 2, y - 3, width - 2 * margin + 4, ROW_H,
+                         fill=True, stroke=False)
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(COLOR_SUBTLE)
+            pdf.drawString(col_conta, y, txn["conta"])
+            pdf.setFillColor(colors.black)
+            pdf.drawString(col_desc,  y, txn["descricao"])
+            pdf.setFillColor(COLOR_GREEN if txn["is_entrada"] else COLOR_RED)
+            pdf.drawString(col_tipo, y, txn["tipo"])
+            if txn["is_entrada"]:
+                pdf.drawRightString(col_entrada, y, format_currency(txn["valor"]))
+            else:
+                pdf.drawRightString(col_saida, y, format_currency(txn["valor"]))
+            pdf.setFillColor(colors.black)
+            y -= ROW_H
+
+        # Separador de dia
+        pdf.setStrokeColor(COLOR_SEP)
+        pdf.setLineWidth(0.4)
+        pdf.line(margin, y, width - margin, y)
+        y -= 4
+
+    # ── Saldo final ───────────────────────────────────────────────────────────
+    y = check_break(y, DAY_H + 8)
+    y = draw_saldo_row(y, "Saldo Final do Período", saldo_final)
+
+    # ── Resumo ────────────────────────────────────────────────────────────────
+    y = check_break(y, 55)
+    y -= 6
+    pdf.setStrokeColor(COLOR_SEP)
+    pdf.setLineWidth(0.8)
+    pdf.line(margin, y, width - margin, y)
+    y -= 14
+
+    def summary_line(y_pos, label, valor, bold=False, cor=colors.black):
+        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", 9)
+        pdf.setFillColor(COLOR_SUBTLE)
+        pdf.drawString(col_tipo, y_pos, label)
+        pdf.setFillColor(cor)
+        pdf.drawRightString(col_saldo, y_pos, format_currency(valor))
+        pdf.setFillColor(colors.black)
+        return y_pos - 13
+
+    y = summary_line(y, "Total de Entradas:", total_entrada, cor=COLOR_GREEN)
+    y = summary_line(y, "Total de Saídas:",   total_saida,   cor=COLOR_RED)
+    y -= 4
+    pdf.setStrokeColor(COLOR_SEP)
+    pdf.setLineWidth(0.4)
+    pdf.line(col_tipo, y, width - margin, y)
     y -= 10
-    pdf.setFont("Helvetica-Bold", 9)
-
-    pdf.drawString(columns[-2]["x"], y, "Total Entradas:")
-    pdf.drawString(columns[-1]["x"], y, format_currency(total_entrada))
-    y -= 15
-
-    pdf.drawString(columns[-2]["x"], y, "Total Saídas:")
-    pdf.drawString(columns[-1]["x"], y, format_currency(total_saida))
-    y -= 15
-
-    # Totais de custódia
-    if total_custodia_entrada > 0 or total_custodia_saida > 0:
-        pdf.drawString(columns[-2]["x"], y, "Custódias (Entrada):")
-        pdf.drawString(columns[-1]["x"], y, format_currency(total_custodia_entrada))
-        y -= 15
-
-        pdf.drawString(columns[-2]["x"], y, "Custódias (Saída):")
-        pdf.drawString(columns[-1]["x"], y, format_currency(total_custodia_saida))
-        y -= 15
-
-    saldo = total_entrada - total_saida
-    pdf.drawString(columns[-2]["x"], y, "Saldo do Período:")
-    pdf.drawString(columns[-1]["x"], y, format_currency(saldo))
+    saldo_periodo = total_entrada - total_saida
+    summary_line(
+        y, "Saldo do Período:", saldo_periodo, bold=True,
+        cor=COLOR_GREEN if saldo_periodo >= 0 else COLOR_RED
+    )
 
     report.draw_footer(pdf, width)
     pdf.showPage()
@@ -1169,22 +1304,20 @@ def get_company_from_request(request):
 def relatorio_dre_consolidado(request):
     """
     Gera relatório de DRE consolidado em PDF
-    
+
     Query Parameters:
     - mes: Mês (1-12)
     - ano: Ano (YYYY)
     """
-    
+
     try:
         company = get_company_from_request(request)
     except PermissionError as e:
         return Response({"error": str(e)}, status=403)
-    
-    # 🔹 Pegar parâmetros de mês e ano
+
     mes = request.query_params.get('mes')
     ano = request.query_params.get('ano')
-    
-    # 🔹 Se não tiver mês/ano, usar mês atual
+
     if not mes or not ano:
         hoje = datetime.now()
         mes = hoje.month
@@ -1192,144 +1325,167 @@ def relatorio_dre_consolidado(request):
     else:
         mes = int(mes)
         ano = int(ano)
-    
-    # 🔹 Calcular data de início e fim do mês
+
     data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
-    # Último dia do mês
     if mes == 12:
         data_fim = f"{ano + 1}-01-01"
     else:
         data_fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
     data_fim = (datetime.strptime(data_fim, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    # 🔹 Filtrar receitas por período do mês
+
     receitas = Receita.objects.filter(
         company=company,
         data_vencimento__gte=data_inicio,
         data_vencimento__lte=data_fim
     )
-    
-    # 🔹 Filtrar despesas por período do mês
     despesas = Despesa.objects.filter(
         company=company,
         data_vencimento__gte=data_inicio,
         data_vencimento__lte=data_fim
     )
-    
-    # 🔹 Agrupar receitas por tipo
-    receitas_fixas = receitas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+
+    receitas_fixas    = receitas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
     receitas_variaveis = receitas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
-    estornos = receitas.filter(tipo='E').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
-    
-    total_receitas = float(receitas_fixas) + float(receitas_variaveis) + float(estornos)
-    
-    # 🔹 Agrupar despesas por tipo
-    despesas_fixas = despesas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    estornos          = receitas.filter(tipo='E').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    total_receitas    = float(receitas_fixas) + float(receitas_variaveis) + float(estornos)
+
+    despesas_fixas    = despesas.filter(tipo='F').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
     despesas_variaveis = despesas.filter(tipo='V').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
-    comissoes = despesas.filter(tipo='C').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
-    
-    total_despesas = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes)
-    
-    # 🔹 Calcular resultado
+    comissoes         = despesas.filter(tipo='C').aggregate(Sum('valor'))['valor__sum'] or Decimal('0.00')
+    total_despesas    = float(despesas_fixas) + float(despesas_variaveis) + float(comissoes)
+
     resultado = total_receitas - total_despesas
-    
-    # 🔹 Criar PDF
+
+    # ── PDF ────────────────────────────────────────────────────────────────────
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f"inline; filename=dre_{mes:02d}_{ano}.pdf"
-    
-    pdf = canvas.Canvas(response, pagesize=landscape(A4))
-    width, height = landscape(A4)
-    margin = 40
-    
-    # 🔹 Header
-    report = PDFReportBase("Demonstração do Resultado (DRE)", company.name, company.logo)
-    y = report.draw_header(pdf, width, height, f"Período: {str(mes).zfill(2)}/{ano}")
-    
-    # 🔹 Dados da DRE
-    y -= 20
-    
-    # ========== RECEITAS ==========
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.setFillColor(colors.HexColor("#1E40AF"))  # Azul escuro
-    pdf.drawString(margin, y, "RECEITAS")
-    y -= 15
-    
-    # Receitas Fixas
-    pdf.setFont("Helvetica", 10)
-    pdf.setFillColor(colors.black)
-    pdf.drawString(margin + 20, y, "Receitas Fixas")
-    pdf.drawRightString(width - margin, y, format_currency(float(receitas_fixas)))
-    y -= 12
-    
-    # Receitas Variáveis
-    pdf.drawString(margin + 20, y, "Receitas Variáveis")
-    pdf.drawRightString(width - margin, y, format_currency(float(receitas_variaveis)))
-    y -= 12
-    
-    # Estornos
-    pdf.drawString(margin + 20, y, "Estornos")
-    pdf.drawRightString(width - margin, y, format_currency(float(estornos)))
-    y -= 15
-    
-    # Total Receitas
-    pdf.setFont("Helvetica-Bold", 11)
-    pdf.setFillColor(colors.HexColor("#065F46"))  # Verde escuro
-    pdf.drawString(margin, y, "Total de Receitas")
-    pdf.drawRightString(width - margin, y, format_currency(total_receitas))
-    y -= 20
-    
-    # ========== DESPESAS ==========
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.setFillColor(colors.HexColor("#7F1D1D"))  # Vermelho escuro
-    pdf.drawString(margin, y, "DESPESAS")
-    y -= 15
-    
-    # Despesas Fixas
-    pdf.setFont("Helvetica", 10)
-    pdf.setFillColor(colors.black)
-    pdf.drawString(margin + 20, y, "Despesas Fixas")
-    pdf.drawRightString(width - margin, y, format_currency(float(despesas_fixas)))
-    y -= 12
-    
-    # Despesas Variáveis
-    pdf.drawString(margin + 20, y, "Despesas Variáveis")
-    pdf.drawRightString(width - margin, y, format_currency(float(despesas_variaveis)))
-    y -= 12
-    
-    # Comissões
-    pdf.drawString(margin + 20, y, "Comissões")
-    pdf.drawRightString(width - margin, y, format_currency(float(comissoes)))
-    y -= 15
-    
-    # Total Despesas
-    pdf.setFont("Helvetica-Bold", 11)
-    pdf.setFillColor(colors.HexColor("#7F1D1D"))  # Vermelho escuro
-    pdf.drawString(margin, y, "Total de Despesas")
-    pdf.drawRightString(width - margin, y, format_currency(total_despesas))
-    y -= 20
-    
-    # ========== RESULTADO ==========
-    # Desenhar linha separadora
-    pdf.setStrokeColor(colors.grey)
-    pdf.setLineWidth(1)
-    pdf.line(margin, y, width - margin, y)
-    y -= 15
-    
-    # Resultado
-    pdf.setFont("Helvetica-Bold", 13)
-    if resultado >= 0:
-        pdf.setFillColor(colors.HexColor("#059669"))  # Verde
+
+    pdf = canvas.Canvas(response, pagesize=A4)
+    width, height = A4
+    margin = 60
+    right_col = width - margin
+
+    # Paleta monocromática — apenas preto/cinza + um acento no resultado
+    C_BLACK    = colors.HexColor("#111827")
+    C_DARK     = colors.HexColor("#374151")
+    C_MUTED    = colors.HexColor("#6B7280")
+    C_LINE     = colors.HexColor("#D1D5DB")
+    C_BG       = colors.HexColor("#F3F4F6")
+    C_RES_POS  = colors.HexColor("#14532D")   # verde escuro
+    C_RES_NEG  = colors.HexColor("#7F1D1D")   # vermelho escuro
+
+    y = height - margin
+
+    # ── Logo / Nome da empresa ─────────────────────────────────────────────────
+    if company.logo:
+        try:
+            logo_w, logo_h = 140, 60
+            pdf.drawImage(
+                company.logo.path,
+                (width - logo_w) / 2, y - 55,
+                width=logo_w, height=logo_h,
+                preserveAspectRatio=True, mask='auto'
+            )
+            y -= 72
+        except Exception:
+            pdf.setFont("Helvetica-Bold", 15)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawCentredString(width / 2, y - 10, company.name)
+            y -= 28
     else:
-        pdf.setFillColor(colors.HexColor("#DC2626"))  # Vermelho
-    
-    pdf.drawString(margin, y, "RESULTADO")
-    pdf.drawRightString(width - margin, y, format_currency(resultado))
-    
-    # 🔹 Footer
-    report.draw_footer(pdf, width)
+        pdf.setFont("Helvetica-Bold", 15)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawCentredString(width / 2, y - 10, company.name)
+        y -= 28
+
+    # ── Título ─────────────────────────────────────────────────────────────────
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.setFillColor(C_BLACK)
+    pdf.drawCentredString(width / 2, y, "DEMONSTRAÇÃO DO RESULTADO DO EXERCÍCIO")
+    y -= 16
+
+    meses_nomes = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(C_MUTED)
+    pdf.drawCentredString(width / 2, y, f"{meses_nomes[mes - 1]} de {ano}")
+    y -= 10
+
+    pdf.setStrokeColor(C_LINE)
+    pdf.setLineWidth(0.5)
+    pdf.line(margin, y, right_col, y)
+    y -= 28
+
+    # ── Helpers de desenho ────────────────────────────────────────────────────
+    def section_header(label, y_pos):
+        pdf.setFillColor(C_BG)
+        pdf.rect(margin, y_pos - 3, width - 2 * margin, 20, fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(C_DARK)
+        pdf.drawString(margin + 8, y_pos + 4, label)
+        return y_pos - 24
+
+    def item_row(label, value, y_pos):
+        pdf.setFont("Helvetica", 10)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawString(margin + 20, y_pos, label)
+        pdf.drawRightString(right_col, y_pos, format_currency(float(value)))
+        return y_pos - 17
+
+    def subtotal_row(label, value, y_pos):
+        y_pos += 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.setLineWidth(0.5)
+        pdf.line(margin, y_pos, right_col, y_pos)
+        y_pos -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(C_DARK)
+        pdf.drawString(margin + 8, y_pos, label)
+        pdf.drawRightString(right_col, y_pos, format_currency(float(value)))
+        return y_pos - 22
+
+    # ── RECEITAS ──────────────────────────────────────────────────────────────
+    y = section_header("RECEITAS", y)
+    y = item_row("Receitas Fixas",     receitas_fixas,     y)
+    y = item_row("Receitas Variáveis", receitas_variaveis, y)
+    y = item_row("Estornos",           estornos,           y)
+    y = subtotal_row("Total de Receitas", total_receitas,  y)
+
+    y -= 10
+
+    # ── DESPESAS ──────────────────────────────────────────────────────────────
+    y = section_header("DESPESAS", y)
+    y = item_row("Despesas Fixas",    despesas_fixas,    y)
+    y = item_row("Despesas Variáveis", despesas_variaveis, y)
+    y = item_row("Comissões",         comissoes,         y)
+    y = subtotal_row("Total de Despesas", total_despesas, y)
+
+    y -= 18
+
+    # ── RESULTADO ─────────────────────────────────────────────────────────────
+    pdf.setStrokeColor(C_DARK)
+    pdf.setLineWidth(1.5)
+    pdf.line(margin, y + 2, right_col, y + 2)
+    pdf.setLineWidth(0.5)
+    pdf.line(margin, y - 2, right_col, y - 2)
+    y -= 20
+
+    pdf.setFont("Helvetica-Bold", 13)
+    pdf.setFillColor(C_RES_POS if resultado >= 0 else C_RES_NEG)
+    pdf.drawString(margin + 8, y, "RESULTADO DO PERÍODO")
+    pdf.drawRightString(right_col, y, format_currency(resultado))
+
+    # ── Rodapé ────────────────────────────────────────────────────────────────
+    pdf.setFont("Helvetica", 7)
+    pdf.setFillColor(C_MUTED)
+    pdf.drawString(margin, margin, f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
+    pdf.drawRightString(right_col, margin, "Página 1")
+
     pdf.showPage()
     pdf.save()
-    
+
     return response
 
 """
@@ -1894,17 +2050,321 @@ def relatorio_comissionamento_pdf(request):
     # Adicionar footer na última página do último comissionado
     report.draw_footer(pdf, width)
 
-    # Total geral (se houver múltiplos comissionados)
-    if len(comissionados_data) > 1:
-        pdf.showPage()
-        y = draw_page_header()
-        y -= 20
+    # Resumo consolidado por comissionado
+    pdf.showPage()
+    y = draw_page_header()
+    y -= 10
 
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(margin, y, "TOTAL GERAL:")
-        pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_geral))
+    pdf.setFont("Helvetica-Bold", 13)
+    pdf.drawString(margin, y, "RESUMO CONSOLIDADO")
+    y -= 20
 
-        report.draw_footer(pdf, width)
+    pdf.setLineWidth(1)
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+
+    # Cabeçalho da tabela de resumo
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(margin, y, "Advogado / Comissionado")
+    pdf.drawRightString(col_comissao + 80, y, "Total a Receber")
+    y -= 5
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+
+    # Uma linha por comissionado
+    pdf.setFont("Helvetica", 10)
+    for data in comissionados_data.values():
+        comissionado = data['comissionado']
+        total_comissionado = sum(p['valor_comissao'] for p in data['pagamentos'])
+        pdf.drawString(margin, y, comissionado.nome)
+        pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_comissionado))
+        y -= 15
+
+    # Linha separadora antes do total geral
+    y -= 5
+    pdf.setLineWidth(1.5)
+    pdf.line(margin, y, width - margin, y)
+    y -= 15
+
+    # Total geral
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(margin, y, "TOTAL GERAL")
+    pdf.drawRightString(col_comissao + 80, y, format_currency_br(total_geral))
+
+    report.draw_footer(pdf, width)
+    pdf.showPage()
+    pdf.save()
+
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def relatorio_balanco_pdf(request):
+    """
+    Relatório PDF do Fluxo de Caixa Realizado (estilo balanço).
+    Espelha a página relatórios/balanço: seções Entradas / Saídas / Resultado,
+    agrupadas por banco ou por tipo.
+
+    Query params:
+    - mes (int)
+    - ano (int)
+    - agrupamento: 'banco' | 'tipo'  (padrão: 'banco')
+    - incluir_custodias: 'true' | 'false'  (padrão: 'true')
+    """
+    from reportlab.lib import colors
+
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+
+    mes_param = request.query_params.get('mes')
+    ano_param = request.query_params.get('ano')
+    agrupamento = request.query_params.get('agrupamento', 'banco')
+    incluir_custodias = request.query_params.get('incluir_custodias', 'true').lower() == 'true'
+
+    if not mes_param or not ano_param:
+        hoje = datetime.now()
+        mes, ano = hoje.month, hoje.year
+    else:
+        mes, ano = int(mes_param), int(ano_param)
+
+    data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+    if mes == 12:
+        data_fim_raw = f"{ano + 1}-01-01"
+    else:
+        data_fim_raw = f"{ano}-{str(mes + 1).zfill(2)}-01"
+    data_fim = (datetime.strptime(data_fim_raw, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # ── Buscar dados (mesma lógica do balanco_patrimonial) ────────────────────
+    payment_ids_transferencia = Allocation.objects.filter(
+        payment__company=company,
+        payment__data_pagamento__gte=data_inicio,
+        payment__data_pagamento__lte=data_fim,
+        transfer__isnull=False
+    ).values_list('payment_id', flat=True)
+
+    pagamentos = Payment.objects.filter(
+        company=company,
+        data_pagamento__gte=data_inicio,
+        data_pagamento__lte=data_fim
+    ).exclude(
+        id__in=payment_ids_transferencia
+    ).select_related('conta_bancaria').prefetch_related(
+        'allocations__receita', 'allocations__despesa', 'allocations__custodia'
+    )
+
+    allocations = Allocation.objects.filter(
+        payment__company=company,
+        payment__data_pagamento__gte=data_inicio,
+        payment__data_pagamento__lte=data_fim,
+        transfer__isnull=True
+    ).select_related('payment', 'payment__conta_bancaria', 'receita', 'despesa', 'custodia')
+
+    entradas_por_banco = {}
+    saidas_por_banco   = {}
+    entradas_por_tipo  = {}
+    saidas_por_tipo    = {}
+
+    TIPO_RECEITA_MAP = {'F': 'Receita Fixa', 'V': 'Receita Variável', 'E': 'Estorno'}
+    TIPO_DESPESA_MAP = {'F': 'Despesa Fixa', 'V': 'Despesa Variável',
+                        'C': 'Comissionamento', 'R': 'Reembolso'}
+
+    for pag in pagamentos:
+        banco = pag.conta_bancaria.nome
+        valor = float(pag.valor)
+        if pag.tipo == 'E':
+            entradas_por_banco[banco] = entradas_por_banco.get(banco, 0) + valor
+        elif pag.tipo == 'S':
+            saidas_por_banco[banco] = saidas_por_banco.get(banco, 0) + valor
+
+    pagamentos_alocados = set()
+    for alloc in allocations:
+        valor = float(alloc.valor)
+        tipo_pag = alloc.payment.tipo
+        pagamentos_alocados.add(alloc.payment.id)
+
+        if alloc.receita:
+            tipo_nome = TIPO_RECEITA_MAP.get(alloc.receita.tipo, 'Outro')
+        elif alloc.despesa:
+            tipo_nome = TIPO_DESPESA_MAP.get(alloc.despesa.tipo, 'Outro')
+        elif alloc.custodia:
+            tipo_nome = 'Valores Reembolsados' if tipo_pag == 'E' else 'Valores Reembolsáveis'
+        else:
+            tipo_nome = 'Não Alocado'
+
+        if tipo_pag == 'E':
+            entradas_por_tipo[tipo_nome] = entradas_por_tipo.get(tipo_nome, 0) + valor
+        elif tipo_pag == 'S':
+            saidas_por_tipo[tipo_nome] = saidas_por_tipo.get(tipo_nome, 0) + valor
+
+    for pag in pagamentos:
+        if pag.id not in pagamentos_alocados:
+            valor = float(pag.valor)
+            if pag.tipo == 'E':
+                entradas_por_tipo['Não Alocado'] = entradas_por_tipo.get('Não Alocado', 0) + valor
+            elif pag.tipo == 'S':
+                saidas_por_tipo['Não Alocado'] = saidas_por_tipo.get('Não Alocado', 0) + valor
+
+    ORDEM_ENTRADAS = ['Receita Fixa', 'Receita Variável', 'Valores Reembolsados', 'Estorno', 'Não Alocado']
+    ORDEM_SAIDAS   = ['Despesa Fixa', 'Despesa Variável', 'Valores Reembolsáveis',
+                      'Comissionamento', 'Reembolso', 'Não Alocado']
+
+    def ordered_list(d, ordem):
+        result = [(k, d[k]) for k in ordem if k in d]
+        result += [(k, v) for k, v in d.items() if k not in ordem]
+        return result
+
+    if agrupamento == 'banco':
+        entradas_items = list(entradas_por_banco.items())
+        saidas_items   = list(saidas_por_banco.items())
+    else:
+        entradas_items = ordered_list(entradas_por_tipo, ORDEM_ENTRADAS)
+        saidas_items   = ordered_list(saidas_por_tipo,   ORDEM_SAIDAS)
+        if not incluir_custodias:
+            entradas_items = [(k, v) for k, v in entradas_items if k != 'Valores Reembolsados']
+            saidas_items   = [(k, v) for k, v in saidas_items   if k != 'Valores Reembolsáveis']
+
+    total_entradas = sum(v for _, v in entradas_items)
+    total_saidas   = sum(v for _, v in saidas_items)
+    resultado      = total_entradas - total_saidas
+
+    # ── PDF ───────────────────────────────────────────────────────────────────
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename=balanco_{mes:02d}_{ano}.pdf"
+
+    pdf = canvas.Canvas(response, pagesize=A4)
+    width, height = A4
+    margin    = 60
+    right_col = width - margin
+
+    C_BLACK  = colors.HexColor("#111827")
+    C_DARK   = colors.HexColor("#374151")
+    C_MUTED  = colors.HexColor("#6B7280")
+    C_LINE   = colors.HexColor("#D1D5DB")
+    C_BG     = colors.HexColor("#F3F4F6")
+    C_GREEN  = colors.HexColor("#14532D")
+    C_RED    = colors.HexColor("#7F1D1D")
+
+    y = height - margin
+
+    # Logo / nome
+    if company.logo:
+        try:
+            logo_w, logo_h = 140, 60
+            pdf.drawImage(
+                company.logo.path,
+                (width - logo_w) / 2, y - 55,
+                width=logo_w, height=logo_h,
+                preserveAspectRatio=True, mask='auto'
+            )
+            y -= 72
+        except Exception:
+            pdf.setFont("Helvetica-Bold", 15)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawCentredString(width / 2, y - 10, company.name)
+            y -= 28
+    else:
+        pdf.setFont("Helvetica-Bold", 15)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawCentredString(width / 2, y - 10, company.name)
+        y -= 28
+
+    # Títulos
+    MESES_NOMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    agrup_label = "por Banco" if agrupamento == 'banco' else "por Tipo"
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.setFillColor(C_BLACK)
+    pdf.drawCentredString(width / 2, y, "FLUXO DE CAIXA REALIZADO")
+    y -= 16
+
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(C_MUTED)
+    pdf.drawCentredString(width / 2, y, f"{MESES_NOMES[mes - 1]} de {ano}  ·  Agrupado {agrup_label}")
+    y -= 10
+
+    pdf.setStrokeColor(C_LINE)
+    pdf.setLineWidth(0.5)
+    pdf.line(margin, y, right_col, y)
+    y -= 24
+
+    # Helpers de desenho
+    def section_header(label, y_pos, bg=C_BG):
+        pdf.setFillColor(bg)
+        pdf.rect(margin, y_pos - 3, width - 2 * margin, 20, fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(C_DARK)
+        pdf.drawString(margin + 8, y_pos + 4, label)
+        return y_pos - 26
+
+    def item_row(label, value, y_pos):
+        pdf.setFont("Helvetica", 10)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawString(margin + 20, y_pos, label)
+        pdf.drawRightString(right_col, y_pos, format_currency(value))
+        return y_pos - 17
+
+    def subtotal_row(label, value, y_pos, color=C_DARK):
+        y_pos += 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.setLineWidth(0.5)
+        pdf.line(margin, y_pos, right_col, y_pos)
+        y_pos -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(color)
+        pdf.drawString(margin + 8, y_pos, label)
+        pdf.drawRightString(right_col, y_pos, format_currency(value))
+        return y_pos - 22
+
+    # ENTRADAS
+    y = section_header("ENTRADAS  (Recebimentos)", y)
+    if entradas_items:
+        for label, valor in entradas_items:
+            y = item_row(label, valor, y)
+        y = subtotal_row("Total de Entradas", total_entradas, y)
+    else:
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 20, y, "Nenhuma entrada registrada neste período")
+        y -= 22
+
+    y -= 10
+
+    # SAÍDAS
+    y = section_header("SAÍDAS  (Pagamentos)", y)
+    if saidas_items:
+        for label, valor in saidas_items:
+            y = item_row(label, valor, y)
+        y = subtotal_row("Total de Saídas", total_saidas, y)
+    else:
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 20, y, "Nenhuma saída registrada neste período")
+        y -= 22
+
+    y -= 18
+
+    # RESULTADO
+    pdf.setStrokeColor(C_DARK)
+    pdf.setLineWidth(1.5)
+    pdf.line(margin, y + 2, right_col, y + 2)
+    pdf.setLineWidth(0.5)
+    pdf.line(margin, y - 2, right_col, y - 2)
+    y -= 20
+
+    pdf.setFont("Helvetica-Bold", 13)
+    pdf.setFillColor(C_GREEN if resultado >= 0 else C_RED)
+    pdf.drawString(margin + 8, y, "RESULTADO DO PERÍODO")
+    pdf.drawRightString(right_col, y, format_currency(resultado))
+
+    # Rodapé
+    pdf.setFont("Helvetica", 7)
+    pdf.setFillColor(C_MUTED)
+    pdf.drawString(margin, margin, f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
+    pdf.drawRightString(right_col, margin, "Página 1")
 
     pdf.showPage()
     pdf.save()

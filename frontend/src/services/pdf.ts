@@ -42,15 +42,25 @@ type TipoRelatorioLista =
   | 'receitas-a-receber'
   | 'fluxo-de-caixa';
 
+// 🔹 Payload específico para Balanço
+export interface RelatorioBalancoPayload {
+  mes: number;
+  ano: number;
+  agrupamento?: 'banco' | 'tipo';
+  incluir_custodias?: boolean;
+}
+
 type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
 type TipoRelatorioComissionamento = 'comissionamento';
+type TipoRelatorioBalanco = 'balanco';
 
 export type TipoRelatorio =
   | TipoRelatorioLista
   | TipoRelatorioDRE
   | TipoRelatorioRecibo
-  | TipoRelatorioComissionamento;
+  | TipoRelatorioComissionamento
+  | TipoRelatorioBalanco;
 
 /* =========================
    CONFIG
@@ -102,6 +112,10 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
     endpoint: '/api/pdf/comissionamento/',
     nomeArquivo: 'relatorio_comissionamento.pdf',
   },
+  'balanco': {
+    endpoint: '/api/pdf/balanco/',
+    nomeArquivo: 'relatorio_balanco.pdf',
+  },
 };
 
 /* =========================
@@ -132,10 +146,16 @@ export async function gerarRelatorioPDF(
   filtros: RelatorioComissionamentoPayload
 ): Promise<void>;
 
+// 🔹 Balanço
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioBalanco,
+  filtros: RelatorioBalancoPayload
+): Promise<void>;
+
 // 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -231,6 +251,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'fluxo-de-caixa': 'Relatório de Fluxo de Caixa',
     'recibo-pagamento': 'Recibo de Pagamento',
     'comissionamento': 'Relatório de Comissionamento',
+    'balanco': 'Fluxo de Caixa Realizado (Balanço)',
   };
 
   return nomes[tipoRelatorio];

@@ -17,12 +17,13 @@ from .pdf_views import (
     relatorio_cliente_especifico,
     relatorio_despesas_pagas,
     relatorio_despesas_a_pagar,
-    relatorio_receitas_a_receber, # Renomeado para a_receber para clareza
+    relatorio_receitas_a_receber,
     relatorio_dre_consolidado,
     relatorio_fluxo_de_caixa,
     relatorio_funcionario_especifico,
     recibo_pagamento,
     relatorio_comissionamento_pdf,
+    relatorio_balanco_pdf,
 )
 
 router = DefaultRouter()
@@ -86,6 +87,9 @@ urlpatterns = [
 
     # 9. Relatório de Comissionamento PDF
     path('pdf/comissionamento/', relatorio_comissionamento_pdf, name='relatorio-comissionamento-pdf'),
+
+    # 10. Relatório de Balanço (Fluxo de Caixa por banco/tipo)
+    path('pdf/balanco/', relatorio_balanco_pdf, name='relatorio-balanco-pdf'),
 
 ]
 

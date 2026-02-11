@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -8,6 +10,7 @@ import { formatCurrencyBR } from "@/lib/formatters";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 
 import { getBalancoPatrimonial, BalancoData } from "@/services/relatorios";
+import { gerarRelatorioPDF } from "@/services/pdf";
 
 type LineItem = {
   label: string;
@@ -30,6 +33,28 @@ export default function BalancoPage() {
   const [loading, setLoading] = useState(true);
   const [agrupamento, setAgrupamento] = useState<AgrupamentoTipo>('banco');
   const [incluirCustodias, setIncluirCustodias] = useState(true);
+  const [loadingPDF, setLoadingPDF] = useState(false);
+
+  /* =========================
+     GERAR PDF
+  ========================= */
+  const handleGerarPDF = async () => {
+    try {
+      setLoadingPDF(true);
+      await gerarRelatorioPDF("balanco", {
+        mes,
+        ano,
+        agrupamento,
+        incluir_custodias: incluirCustodias,
+      });
+      toast.success("Relatório gerado com sucesso!");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro ao gerar relatório";
+      toast.error(msg);
+    } finally {
+      setLoadingPDF(false);
+    }
+  };
 
   /* =========================
      FETCH BALANÇO DATA
@@ -117,6 +142,14 @@ export default function BalancoPage() {
                 Movimentações em {String(mes).padStart(2, "0")}/{ano}
               </p>
             </div>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleGerarPDF}
+              loading={loadingPDF}
+              className="shadow-md whitespace-nowrap"
+            >
+              Gerar Relatório PDF
+            </Button>
           </div>
 
           <div className="flex gap-4 items-end flex-wrap">
@@ -222,7 +255,6 @@ export default function BalancoPage() {
                         <TotalRow
                           label="Total de Entradas"
                           value={totalEntradasAjustado}
-                          highlight={true}
                         />
                       </>
                     ) : (
@@ -302,9 +334,7 @@ function Row({ label, value }: LineItem) {
   return (
     <div className="grid grid-cols-2 text-sm">
       <span>{label}</span>
-      <span
-        className={`text-right ${value < 0 ? "text-red-500" : ""}`}
-      >
+      <span className="text-right">
         {formatCurrencyBR(value)}
       </span>
     </div>

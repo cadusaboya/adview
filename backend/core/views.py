@@ -3755,13 +3755,15 @@ def balanco_patrimonial(request):
                 saidas_por_banco[banco_nome] += valor
 
         # 🔹 Processar alocações para agrupamento por tipo
-        # Rastrear pagamentos que foram alocados
-        pagamentos_alocados = set()
+        # Rastrear valor total alocado por pagamento
+        valor_alocado_por_pagamento = {}  # payment_id -> total alocado
 
         for allocation in allocations:
             valor = float(allocation.valor)
             tipo_pagamento = allocation.payment.tipo
-            pagamentos_alocados.add(allocation.payment.id)
+            pid = allocation.payment.id
+
+            valor_alocado_por_pagamento[pid] = valor_alocado_por_pagamento.get(pid, 0) + valor
 
             # Determinar tipo
             if allocation.receita:
@@ -3790,20 +3792,23 @@ def balanco_patrimonial(request):
                     saidas_por_tipo[tipo_nome] = 0
                 saidas_por_tipo[tipo_nome] += valor
 
-        # 🔹 Adicionar pagamentos não alocados
+        # 🔹 Adicionar pagamentos não alocados (total ou parcialmente)
         for pagamento in pagamentos:
-            if pagamento.id not in pagamentos_alocados:
-                valor = float(pagamento.valor)
+            valor_total = float(pagamento.valor)
+            valor_alocado = valor_alocado_por_pagamento.get(pagamento.id, 0)
+            valor_nao_alocado = round(valor_total - valor_alocado, 2)
+
+            if valor_nao_alocado > 0:
                 tipo_nome = 'Não Alocado'
 
                 if pagamento.tipo == 'E':
                     if tipo_nome not in entradas_por_tipo:
                         entradas_por_tipo[tipo_nome] = 0
-                    entradas_por_tipo[tipo_nome] += valor
+                    entradas_por_tipo[tipo_nome] += valor_nao_alocado
                 elif pagamento.tipo == 'S':
                     if tipo_nome not in saidas_por_tipo:
                         saidas_por_tipo[tipo_nome] = 0
-                    saidas_por_tipo[tipo_nome] += valor
+                    saidas_por_tipo[tipo_nome] += valor_nao_alocado
 
         # 🔹 Converter dicionários em listas
         entradas_banco_list = [{"banco": banco, "valor": valor} for banco, valor in entradas_por_banco.items()]

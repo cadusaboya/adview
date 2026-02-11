@@ -86,10 +86,10 @@ export default function LoginPage() {
               <div className="flex-shrink-0 w-2 h-2 bg-gold rounded-full mt-2"></div>
               <div>
                 <h3 className="text-lg font-serif font-semibold text-white mb-1">
-                  Controle por cliente e processo
+                  Controle por cliente
                 </h3>
                 <p className="text-sm text-white/70 leading-relaxed">
-                  Organize receitas e despesas vinculadas a cada cliente ou caso jurídico com precisão
+                  Organize receitas e despesas vinculadas a cada cliente com precisão e facilidade
                 </p>
               </div>
             </div>
