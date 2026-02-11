@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 
 logger = logging.getLogger(__name__)
-from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, Prefetch
+from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, Prefetch, DecimalField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.timezone import now
@@ -2711,7 +2711,16 @@ def dashboard_view(request):
             data_vencimento__lte=data_limite,
             situacao__in=['A', 'V']  # Não paga ainda
         )
-        .aggregate(total=Sum('valor'))['total']
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
+        .aggregate(
+            total=Sum(F('valor') - F('total_alocado'), output_field=DecimalField())
+        )['total']
         or Decimal('0.00')
     )
     
@@ -2726,7 +2735,16 @@ def dashboard_view(request):
             data_vencimento__lte=data_limite,
             situacao__in=['A', 'V']  # Não paga ainda
         )
-        .aggregate(total=Sum('valor'))['total']
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
+        .aggregate(
+            total=Sum(F('valor') - F('total_alocado'), output_field=DecimalField())
+        )['total']
         or Decimal('0.00')
     )
 
@@ -2795,7 +2813,16 @@ def dashboard_view(request):
             company=company,
             situacao='V'
         )
-        .aggregate(total=Sum('valor'))['total']
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
+        .aggregate(
+            total=Sum(F('valor') - F('total_alocado'), output_field=DecimalField())
+        )['total']
         or Decimal('0.00')
     )
 
@@ -2804,12 +2831,21 @@ def dashboard_view(request):
             company=company,
             situacao='V'
         )
-        .aggregate(total=Sum('valor'))['total']
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
+        .aggregate(
+            total=Sum(F('valor') - F('total_alocado'), output_field=DecimalField())
+        )['total']
         or Decimal('0.00')
     )
 
     # ======================================================
-    # 📊 GRÁFICO RECEITA x DESPESA (ÚLTIMOS 6 MESES - REALIZADO)
+    # 📊 GRÁFICO RECEITA x DESPESA (ÚLTIMOS 6 MESES - BRUTO)
     # ======================================================
 
     meses_data = []
@@ -2822,25 +2858,21 @@ def dashboard_view(request):
         ) - timedelta(days=1)
 
         receita = (
-            Payment.objects.filter(
+            Receita.objects.filter(
                 company=company,
-                tipo='E',
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                data_vencimento__gte=mes_inicio,
+                data_vencimento__lte=mes_fim
             )
-            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )
 
         despesa = (
-            Payment.objects.filter(
+            Despesa.objects.filter(
                 company=company,
-                tipo='S',
-                data_pagamento__gte=mes_inicio,
-                data_pagamento__lte=mes_fim
+                data_vencimento__gte=mes_inicio,
+                data_vencimento__lte=mes_fim
             )
-            .exclude(allocations__transfer__isnull=False)
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
         )

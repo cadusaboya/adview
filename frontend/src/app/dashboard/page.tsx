@@ -112,8 +112,8 @@ interface DashboardData {
 // CONSTANTS
 // ============================================================================
 
-const COLORS_RECEITA = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
-const COLORS_DESPESA = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
+const COLORS_RECEITA = ['#D4AF37', '#0A192F', '#64748B', '#b8932a'];
+const COLORS_DESPESA = ['#0A192F', '#64748B', '#D4AF37', '#b8932a'];
 
 // ============================================================================
 // COMPONENTS
@@ -139,24 +139,20 @@ const StatCard: React.FC<{
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
   trendLabel?: string;
-  color?: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'orange';
-}> = ({ title, value, icon, trend, trendValue, trendLabel, color = 'blue' }) => {
+  color?: 'primary' | 'accent' | 'secondary' | 'warning';
+}> = ({ title, value, icon, trend, trendValue, trendLabel, color = 'primary' }) => {
   const colorClasses = {
-    blue: 'bg-blue-50 border-blue-200',
-    green: 'bg-green-50 border-green-200',
-    red: 'bg-red-50 border-red-200',
-    yellow: 'bg-yellow-50 border-yellow-200',
-    purple: 'bg-purple-50 border-purple-200',
-    orange: 'bg-white border-orange-400',
+    primary: 'bg-white border-navy/20',
+    accent:  'bg-white border-gold/40',
+    secondary: 'bg-white border-slate/30',
+    warning: 'bg-white border-warning/40',
   };
 
   const iconColorClasses = {
-    blue: 'text-blue-600',
-    green: 'text-green-600',
-    red: 'text-red-600',
-    yellow: 'text-yellow-600',
-    purple: 'text-purple-600',
-    orange: 'text-orange-500',
+    primary:   'text-navy',
+    accent:    'text-gold',
+    secondary: 'text-slate',
+    warning:   'text-warning',
   };
 
   return (
@@ -164,7 +160,7 @@ const StatCard: React.FC<{
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-navy">
             {typeof value === 'number'
               ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               : value}
@@ -177,16 +173,12 @@ const StatCard: React.FC<{
       {trend && trendValue && (
         <div className="absolute bottom-3 right-3 flex items-center">
           {trend === 'up' && (
-            <TrendingUp className="w-3 h-3 text-green-600 mr-1" />
+            <TrendingUp className="w-3 h-3 text-slate mr-1" />
           )}
           {trend === 'down' && (
-            <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
+            <TrendingDown className="w-3 h-3 text-slate mr-1" />
           )}
-          <span
-            className={`text-[10px] font-semibold ${
-              trend === 'up' ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
+          <span className="text-[10px] font-semibold text-slate">
             {trendValue}
           </span>
           {trendLabel && (
@@ -245,10 +237,13 @@ const Table: React.FC<{
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 
+type ReceitaDespesaFiltro = 'ambas' | 'receitas' | 'despesas';
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [receitaDespesaFiltro, setReceitaDespesaFiltro] = useState<ReceitaDespesaFiltro>('ambas');
 
   useEffect(() => {
     fetchDashboardData();
@@ -271,7 +266,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy mx-auto mb-4"></div>
           <p className="text-gray-600">Carregando dashboard...</p>
         </div>
       </div>
@@ -282,11 +277,11 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-warning mx-auto mb-4" />
           <p className="text-gray-600">{error || 'Erro ao carregar dados'}</p>
           <button
             onClick={fetchDashboardData}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 px-4 py-2 bg-navy text-white rounded-lg hover:opacity-90"
           >
             Tentar Novamente
           </button>
@@ -324,7 +319,7 @@ export default function DashboardPage() {
               title="Saldo Total"
               value={data.saldoTotal}
               icon={<DollarSign className="w-6 h-6" />}
-              color="blue"
+              color="primary"
               trend={variacaoSaldo > 0 ? 'up' : variacaoSaldo < 0 ? 'down' : 'neutral'}
               trendValue={`${variacaoPercentual}%`}
               trendLabel="vs 30 dias"
@@ -333,20 +328,20 @@ export default function DashboardPage() {
               title="Fluxo de Caixa Realizado"
               value={data.fluxoCaixaRealizado}
               icon={<CreditCard className="w-6 h-6" />}
-              color={data.fluxoCaixaRealizado > 0 ? 'green' : 'red'}
+              color="primary"
               trend={data.fluxoCaixaRealizado > 0 ? 'up' : 'down'}
             />
             <StatCard
               title="Receitas Projetadas"
               value={data.receitasProjetadas}
               icon={<TrendingUp className="w-6 h-6" />}
-              color="green"
+              color="accent"
             />
             <StatCard
               title="Despesas Projetadas"
               value={data.despesasProjetadas}
               icon={<TrendingDown className="w-6 h-6" />}
-              color="red"
+              color="secondary"
             />
           </div>
 
@@ -356,25 +351,25 @@ export default function DashboardPage() {
               title="Qtd. Despesas Vencidas"
               value={data.despesasVencidas.toString()}
               icon={<AlertCircle className="w-6 h-6" />}
-              color="red"
+              color="warning"
             />
             <StatCard
               title="Valor Despesas Vencidas"
               value={data.valorDespesasVencidas}
               icon={<TrendingDown className="w-6 h-6" />}
-              color="red"
+              color="warning"
             />
             <StatCard
-              title="Receitas Vencidas"
+              title="Qtd. Receitas Vencidas"
               value={data.receitasVencidas.toString()}
               icon={<XCircle className="w-6 h-6" />}
-              color="orange"
+              color="warning"
             />
             <StatCard
-              title="Receitas Vencidas"
+              title="Valor Receitas Vencidas"
               value={data.valorReceitasVencidas}
               icon={<TrendingUp className="w-6 h-6" />}
-              color="orange"
+              color="warning"
             />
           </div>
 
@@ -421,9 +416,20 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Receita vs Despesa Chart */}
             <Card>
-              <h2 className="text-lg font-bold text-gray-900 mb-6">
-                Receita vs Despesa (Últimos 6 Meses)
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-gray-900">
+                  Receita vs Despesa (Últimos 6 Meses)
+                </h2>
+                <select
+                  value={receitaDespesaFiltro}
+                  onChange={(e) => setReceitaDespesaFiltro(e.target.value as ReceitaDespesaFiltro)}
+                  className="text-sm border border-gray-200 rounded px-2 py-1 text-gray-600 bg-white focus:outline-none focus:border-navy"
+                >
+                  <option value="ambas">Ambas</option>
+                  <option value="receitas">Só Receitas</option>
+                  <option value="despesas">Só Despesas</option>
+                </select>
+              </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.receitaVsDespesaData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -447,8 +453,12 @@ export default function DashboardPage() {
                     }
                   />
                   <Legend />
-                  <Bar dataKey="receita" fill="#10b981" name="Receita" />
-                  <Bar dataKey="despesa" fill="#ef4444" name="Despesa" />
+                  {receitaDespesaFiltro !== 'despesas' && (
+                    <Bar dataKey="receita" fill="#D4AF37" name="Receita" />
+                  )}
+                  {receitaDespesaFiltro !== 'receitas' && (
+                    <Bar dataKey="despesa" fill="#64748B" name="Despesa" />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -481,12 +491,12 @@ export default function DashboardPage() {
                     }
                   />
                   <Legend />
-                  <Bar dataKey="receita" fill="#10b981" name="Entradas" />
-                  <Bar dataKey="despesa" fill="#ef4444" name="Saídas" />
+                  <Bar dataKey="receita" fill="#D4AF37" name="Entradas" />
+                  <Bar dataKey="despesa" fill="#64748B" name="Saídas" />
                   <Line
                     type="monotone"
                     dataKey="fluxo"
-                    stroke="#3b82f6"
+                    stroke="#0A192F"
                     strokeWidth={2}
                     name="Fluxo Líquido"
                     yAxisId="right"
@@ -599,7 +609,7 @@ export default function DashboardPage() {
             {/* Receitas Próximas */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-blue-600" />
+                <Clock className="w-5 h-5 mr-2 text-gold" />
                 Receitas Próximas do Vencimento
               </h2>
               <Table
@@ -623,7 +633,7 @@ export default function DashboardPage() {
             {/* Despesas Próximas */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-red-600" />
+                <Clock className="w-5 h-5 mr-2 text-slate" />
                 Despesas Próximas do Vencimento
               </h2>
               <Table
