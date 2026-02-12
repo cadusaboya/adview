@@ -252,6 +252,14 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                     }
                 comissionados_dict[func.id]['valor_comissao'] += valor_comissao_alloc
 
+        # Deletar despesas de comissão do mês que não aparecem mais no cálculo
+        ids_comissionados_ativos = list(comissionados_dict.keys())
+        Despesa.objects.filter(
+            company=request.user.company,
+            tipo='C',
+            data_vencimento=data_vencimento,
+        ).exclude(responsavel_id__in=ids_comissionados_ativos).delete()
+
         comissionados_resultado = []
         total_comissoes = Decimal('0.00')
 
@@ -771,6 +779,10 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
             'detalhes': detalhes
         })
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.atualizar_status()
+
 
 class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Despesa.objects.all()
@@ -891,6 +903,10 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         f"Conta bancária {conta_bancaria_id} não encontrada ao processar despesa {despesa.id}. "
                         "Pagamento não criado."
                     )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.atualizar_status()
 
 
 class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):

@@ -35,40 +35,141 @@ python manage.py createsuperuser        # Create admin user
 ### Backend Structure (Django)
 - `gestao_financeira/` - Django project settings and root URL configuration
 - `core/` - Main Django app with all business logic
-  - `models.py` - Data models (Company, CustomUser, Cliente, Funcionario, Receita, Despesa, Payment, ContaBancaria)
-  - `views.py` - ViewSets and API views using Django REST Framework
-  - `serializers.py` - DRF serializers
-  - `pdf_views.py` - PDF report generation using ReportLab
-  - `urls.py` - API routing using DRF DefaultRouter
+  - `models.py` - All data models (17 models)
+  - `views.py` - 16 ViewSets and report API views (~4,100 lines)
+  - `serializers.py` - 19 DRF serializers
+  - `pdf_views.py` - PDF report generation using ReportLab (~2,400 lines)
+  - `urls.py` - API routing using DRF DefaultRouter (90+ endpoints)
+  - `pagination.py` - Custom pagination
+  - `helpers/pdf.py` - PDF generation utilities
+
+### Backend Dependencies
+- Django 6.0.1 + DRF 3.16.0
+- djangorestframework_simplejwt 5.5.0 (JWT auth)
+- django-cors-headers 4.7.0
+- reportlab 4.4.9 (PDF generation)
+- psycopg2-binary 2.9.11 (PostgreSQL)
+- pillow 12.1.0 (image processing for company logo)
+- gunicorn 23.0.0 + whitenoise 6.11.0 (production)
+- openpyxl 3.1.2 (Excel/bank statement import)
+- python-dotenv, dj-database-url
 
 ### Frontend Structure (Next.js App Router)
-- `src/app/` - Pages using Next.js App Router
-  - `page.tsx` - Login/dashboard
-  - `clientes/`, `funcionarios/`, `receitas/`, `despesas/`, `bancos/`, `fornecedores/`, `relatorios/` - Feature pages
-- `src/components/` - React components
-  - `ui/` - Reusable UI components (shadcn/ui pattern with Radix primitives)
-  - `dialogs/` - Modal dialogs for CRUD operations
-- `src/services/` - API client modules using Axios
-  - `api.ts` - Axios instance with JWT interceptor
-  - Individual service files per entity (clientes.ts, receitas.ts, etc.)
-- `src/types/` - TypeScript type definitions per entity
-- `src/lib/` - Utilities (cn() for classnames, formatters, error handling)
+- `src/app/` - 23 pages using Next.js App Router
+- `src/components/dialogs/` - 27 modal dialogs for CRUD operations
+- `src/components/ui/` - 20 Shadcn/Radix UI components
+- `src/components/reports/` - Report components
+- `src/services/` - 21 API client modules using Axios
+- `src/types/` - 19 TypeScript type definition files
+- `src/lib/` - Utilities (formatters, errors, validation)
+- `src/hooks/` - 5 custom React hooks
 
-### Key Patterns
-- **Multi-tenancy**: All models have a `company` foreign key; users belong to a company
-- **Authentication**: JWT via SimpleJWT; tokens stored in localStorage
-- **Payment tracking**: Receitas/Despesas have related Payment records; status auto-updates based on payments
-- **API routing**: REST endpoints at `/api/` with ViewSets (e.g., `/api/clientes/`, `/api/receitas/`)
-- **Reports**: JSON report endpoints at `/api/relatorios/` and PDF endpoints at `/api/pdf/`
+### Frontend Dependencies
+- Next.js 15.1.11 + React 19.0.0 + TypeScript 5
+- Axios 1.9.0 (HTTP client)
+- Recharts 3.6.0 (dashboard charts)
+- Tailwind CSS 3.4.1
+- Radix UI primitives (Shadcn pattern)
+- Mantine 8.0.1 + Ant Design 5.25.2
+- Lucide React + Tabler Icons
+- Sonner 2.0.3 (toast notifications)
+- qs 6.14.0 (query string parsing)
 
-### Domain Models (Portuguese terminology)
-- **Company** - Law firm/organization
-- **Cliente** - Client (Fixo=recurring, Avulso=one-time)
-- **Funcionario** - Employee/Partner/Supplier
-- **Receita** - Revenue/Income
-- **Despesa** - Expense
-- **Payment** - Payment record (links to Receita or Despesa)
-- **ContaBancaria** - Bank account
+## Domain Models (Portuguese terminology)
+
+| Model | Purpose | Key fields |
+|-------|---------|-----------|
+| **Company** | Law firm/organization | name, cnpj, cpf, logo, percentual_comissao |
+| **CustomUser** | Auth user | Inherits AbstractUser; company FK |
+| **Cliente** | Client | nome, tipo (Fixo/Avulso), formas_cobranca, comissoes |
+| **FormaCobranca** | Billing method | formato (Mensal/Êxito), valor_mensal, percentual_exito |
+| **ClienteComissao** | Client-level commission rule | percentual; links Cliente + Funcionario |
+| **Funcionario** | Employee/Partner/Supplier | tipo (F=Funcionário/P=Parceiro/O=Outro), salario_mensal |
+| **Receita** | Revenue/Income | tipo (F/V/E), situacao (P/A/V), comissoes nested |
+| **ReceitaComissao** | Revenue-specific commission | percentual; links Receita + Funcionario |
+| **ReceitaRecorrente** | Recurring revenue template | dia_vencimento, data_inicio/fim, status (A/P) |
+| **ReceitaRecorrenteComissao** | Recurring revenue commission | percentual |
+| **Despesa** | Expense | tipo (F/V/C/R), situacao (P/A/V); optional Receita FK (for commission expenses) |
+| **DespesaRecorrente** | Recurring expense template | dia_vencimento, data_inicio/fim, status |
+| **Payment** | Neutral transaction | tipo (E=Entrada/S=Saída), valor, data_pagamento; links to ContaBancaria |
+| **ContaBancaria** | Bank account | nome, saldo_atual |
+| **Custodia** | Custody/Escrow | tipo (P=Passivo/A=Ativo), status (A/P/L), valor_total, valor_liquidado |
+| **Transfer** | Inter-bank transfer | from_bank, to_bank, status (P/M/C) |
+| **Allocation** | Payment allocation (polymorphic) | links Payment → Receita OR Despesa OR Custodia OR Transfer |
+
+## Key Architectural Patterns
+
+- **Multi-tenancy**: `CompanyScopedViewSetMixin` on all ViewSets; every model has `company` FK; users see only their company's data
+- **Polymorphic Allocation**: Single `Allocation` model links a `Payment` to one of 4 types (Receita/Despesa/Custodia/Transfer)
+- **Commission hierarchy (3 levels)**: Company default → Client-level (`ClienteComissao`) → Revenue-specific (`ReceitaComissao`)
+- **Status auto-calculation**: Receita/Despesa situacao (P/A/V) computed from allocations; Custodia status (A/P/L) from valor_liquidado
+- **Authentication**: JWT stored in localStorage (rememberMe) or sessionStorage; auto-logout on 401
+- **API routing**: REST at `/api/` with DefaultRouter; reports at `/api/relatorios/`; PDFs at `/api/pdf/`
+
+## API Endpoints
+
+### ViewSet Routes (CRUD via DefaultRouter)
+- `/api/companies/` + `me` action
+- `/api/users/`
+- `/api/clientes/` + `gerar-comissoes` action
+- `/api/funcionarios/`, `/api/fornecedores/`, `/api/favorecidos/`
+- `/api/receitas/`, `/api/receitas-recorrentes/`
+- `/api/despesas/`, `/api/despesas-recorrentes/`
+- `/api/pagamentos/` + `import-extrato` and `conciliar-bancario` actions
+- `/api/contas-bancarias/`
+- `/api/custodias/`
+- `/api/transferencias/`
+- `/api/alocacoes/`
+
+### Report Endpoints (JSON)
+- `/api/relatorios/cliente/<id>/`, `/api/relatorios/funcionario/<id>/`
+- `/api/relatorios/tipo-periodo/`, `/api/relatorios/resultado-financeiro/`
+- `/api/relatorios/folha-salarial/`, `/api/relatorios/comissionamento/`
+- `/api/relatorios/resultado-mensal/`, `/api/relatorios/dre/`
+- `/api/relatorios/balanco/`, `/api/relatorios/conciliacao-bancaria/`
+
+### PDF Endpoints
+- `/api/pdf/receitas-pagas/`, `/api/pdf/despesas-pagas/`
+- `/api/pdf/despesas-a-pagar/`, `/api/pdf/receitas-a-receber/`
+- `/api/pdf/cliente/<id>/`, `/api/pdf/funcionario/<id>/`
+- `/api/pdf/dre/`, `/api/pdf/fluxo-de-caixa/`
+- `/api/pdf/comissionamento/`, `/api/pdf/balanco/`
+
+## Frontend Pages
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Login |
+| `/dashboard` | KPIs + Recharts visualizations |
+| `/clientes` | Client management |
+| `/funcionarios` | Employee/Partner management |
+| `/receitas`, `/receitas/receber`, `/receitas/recebidas` | Revenue management |
+| `/receitas-recorrentes` | Recurring revenue templates |
+| `/despesas`, `/despesas/pagar`, `/despesas/pagas` | Expense management |
+| `/despesas-recorrentes` | Recurring expense templates |
+| `/bancos` | Bank account management |
+| `/fornecedores` | Supplier management (Funcionario type=O) |
+| `/ativos`, `/passivos` | Custody assets/liabilities |
+| `/extrato` | Bank statement import + reconciliation |
+| `/empresa` | Company settings |
+| `/relatorios/dre`, `/relatorios/balanco`, `/relatorios/fluxo`, `/relatorios/comissoes`, `/relatorios/conciliacao` | Reports |
+
+## Utilities & Formatters (src/lib/)
+
+- `formatDateBR(date)` → DD/MM/YYYY
+- `formatCurrencyBR(value)` → R$ 1.234,56
+- `formatCurrencyInput(value)` / `parseCurrencyBR(value)` → input handling
+- `formatCpfCnpj(value)` → CPF/CNPJ masking
+- `errors.ts` → API error normalization
+- `utils.ts` → cn() and general helpers
+
+## Custom Hooks (src/hooks/)
+
+- `useDebounce` - Debounce search/filter inputs
+- `useDeleteConfirmation` - Delete confirmation state
+- `useFormDirty` - Track unsaved changes
+- `useFormValidation` - Form validation with error messages
+- `useLoadAuxiliaryData` - Load clientes/funcionarios for select inputs
 
 ## Deployment
 - Backend: Gunicorn via Procfile, whitenoise for static files
