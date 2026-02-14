@@ -35,6 +35,40 @@
   margin-top: auto;
 }
 
+.trialBadge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 150ms ease;
+}
+
+.trialBadge:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: rgba(212, 175, 55, 0.5);
+}
+
+.trialBadgeTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(212, 175, 55, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trialBadgeCta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  padding-left: 19px;
+}
+
 .companyInfo {
   display: flex;
   align-items: center;

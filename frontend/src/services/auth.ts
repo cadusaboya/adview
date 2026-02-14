@@ -33,7 +33,23 @@ export function logout() {
   localStorage.removeItem('rememberMe');
   sessionStorage.removeItem('token');
   sessionStorage.removeItem('refresh_token');
+  sessionStorage.removeItem('vincor_assinatura_cache');
   window.location.href = '/';
+}
+
+export interface RegisterPayload {
+  nome_empresa: string;
+  username: string;
+  email: string;
+  senha: string;
+  nome?: string;
+}
+
+export async function register(payload: RegisterPayload): Promise<void> {
+  const response = await api.post<{ access: string; refresh: string }>('/api/register/', payload);
+  const { access, refresh } = response.data;
+  sessionStorage.setItem('token', access);
+  sessionStorage.setItem('refresh_token', refresh);
 }
 
 export function isLoggedIn() {

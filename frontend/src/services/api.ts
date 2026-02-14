@@ -45,6 +45,14 @@ api.interceptors.response.use(
       }, 1500);
     }
 
+    // Subscription expired or inactive → redirect to plans page
+    if (error.response?.status === 402) {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (currentPath !== '/assinar') {
+        window.location.href = '/assinar';
+      }
+    }
+
     return Promise.reject(error);
   }
 );

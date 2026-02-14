@@ -11,6 +11,8 @@ import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 
 import { getBalancoPatrimonial, BalancoData } from "@/services/relatorios";
 import { gerarRelatorioPDF } from "@/services/pdf";
+import { useUpgradeGuard } from "@/hooks/useUpgradeGuard";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 
 type LineItem = {
   label: string;
@@ -20,6 +22,8 @@ type LineItem = {
 type AgrupamentoTipo = 'banco' | 'tipo';
 
 export default function BalancoPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   /* =========================
     FILTRO (MÊS / ANO)
     ========================= */
@@ -144,13 +148,19 @@ export default function BalancoPage() {
             </div>
             <Button
               icon={<DownloadOutlined />}
-              onClick={handleGerarPDF}
+              onClick={guard('pdf_export', handleGerarPDF)}
               loading={loadingPDF}
               className="shadow-md whitespace-nowrap"
             >
               Gerar Relatório PDF
             </Button>
           </div>
+
+          <UpgradeDialog
+            open={isUpgradeDialogOpen}
+            onClose={closeUpgradeDialog}
+            feature={blockedFeatureLabel}
+          />
 
           <div className="flex gap-4 items-end flex-wrap">
             {/* MÊS */}

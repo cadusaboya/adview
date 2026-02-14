@@ -1,7 +1,16 @@
 import logging
+import json
+import secrets
 from rest_framework import viewsets, permissions, status, generics, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.throttling import UserRateThrottle
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.conf import settings as django_settings
+from django.db import transaction
+from requests.exceptions import RequestException, HTTPError
 
 logger = logging.getLogger(__name__)
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, Prefetch, DecimalField
@@ -13,17 +22,91 @@ import decimal
 from decimal import Decimal
 from .pagination import DynamicPageSizePagination
 from django.shortcuts import get_object_or_404
-from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Transfer, Allocation
+from .models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Transfer, Allocation, PlanoAssinatura, AssinaturaEmpresa, WebhookLog
 from .serializers import (
     CompanySerializer, CustomUserSerializer, ClienteSerializer,
     FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer, DespesaSerializer, DespesaAbertaSerializer,
-    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, TransferSerializer, AllocationSerializer
+    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, TransferSerializer, AllocationSerializer,
+    PlanoAssinaturaSerializer, AssinaturaEmpresaSerializer,
 )
+from .permissions import IsSubscriptionActive
+from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas, reativar_assinatura_asaas
+
+
+def _add_one_year_safe(base_date):
+    """Adds one year preserving day when possible, clamping to month end otherwise."""
+    import calendar
+
+    target_year = base_date.year + 1
+    last_day = calendar.monthrange(target_year, base_date.month)[1]
+    return base_date.replace(year=target_year, day=min(base_date.day, last_day))
+
+
+def _add_one_month_safe(base_date):
+    """Adds one month preserving day when possible, clamping to month end otherwise."""
+    import calendar
+
+    month = base_date.month % 12 + 1
+    year = base_date.year + (base_date.month // 12)
+    last_day = calendar.monthrange(year, month)[1]
+    return base_date.replace(year=year, month=month, day=min(base_date.day, last_day))
+
+
+def _normalize_digits(value: str) -> str:
+    return ''.join(ch for ch in str(value or '') if ch.isdigit())
+
+
+def _is_valid_cpf(cpf: str) -> bool:
+    cpf = _normalize_digits(cpf)
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+
+    total = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    first_digit = ((total * 10) % 11) % 10
+    if first_digit != int(cpf[9]):
+        return False
+
+    total = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    second_digit = ((total * 10) % 11) % 10
+    return second_digit == int(cpf[10])
+
+
+def _is_valid_cnpj(cnpj: str) -> bool:
+    cnpj = _normalize_digits(cnpj)
+    if len(cnpj) != 14 or cnpj == cnpj[0] * 14:
+        return False
+
+    weights_1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    total = sum(int(cnpj[i]) * weights_1[i] for i in range(12))
+    remainder = total % 11
+    first_digit = 0 if remainder < 2 else 11 - remainder
+    if first_digit != int(cnpj[12]):
+        return False
+
+    weights_2 = [6] + weights_1
+    total = sum(int(cnpj[i]) * weights_2[i] for i in range(13))
+    remainder = total % 11
+    second_digit = 0 if remainder < 2 else 11 - remainder
+    return second_digit == int(cnpj[13])
+
+
+def _is_valid_cpf_cnpj(value: str) -> bool:
+    digits = _normalize_digits(value)
+    if len(digits) == 11:
+        return _is_valid_cpf(digits)
+    if len(digits) == 14:
+        return _is_valid_cnpj(digits)
+    return False
+
+
+class PaymentRateThrottle(UserRateThrottle):
+    scope = 'payment'
+
 
 # --- Base ViewSet for Company context ---
 class CompanyScopedViewSetMixin:
     """Mixin to scope querysets and creation to the user's company."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
 
     def get_queryset(self):
         """Filter queryset to only include objects belonging to the user's company."""
@@ -4133,3 +4216,497 @@ def relatorio_conciliacao_bancaria(request):
         return Response({'error': f'Erro interno: {str(e)}'}, status=500)
 
 
+# ──────────────────────────────────────────────
+# Subscription ViewSets
+# ──────────────────────────────────────────────
+
+class PlanoAssinaturaViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public endpoint — lists available subscription plans. No auth required."""
+    queryset = PlanoAssinatura.objects.filter(ativo=True).order_by('ordem')
+    serializer_class = PlanoAssinaturaSerializer
+    permission_classes = []
+    pagination_class = None
+
+
+class AssinaturaViewSet(viewsets.GenericViewSet):
+    """Subscription management for the authenticated user's company."""
+    serializer_class = AssinaturaEmpresaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    # Intentionally does NOT include IsSubscriptionActive — users need access here even after expiry
+
+    def _get_assinatura(self):
+        company = self.request.user.company
+        return AssinaturaEmpresa.objects.get(company=company)
+
+    @action(detail=False, methods=['get'])
+    def status_assinatura(self, request):
+        """GET /api/assinatura/status/ — Returns current subscription status."""
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+        serializer = self.get_serializer(assinatura)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], throttle_classes=[PaymentRateThrottle])
+    def assinar(self, request):
+        """
+        POST /api/assinatura/assinar/
+        Único método suportado: Cartão de Crédito (recorrente, cobrado imediatamente).
+        Body: { "plano_slug": "profissional", "ciclo": "MONTHLY",
+                "billing_type": "CREDIT_CARD",
+                "credit_card": { "holder_name", "number", "expiry_month", "expiry_year", "ccv" },
+                "holder_info": { "name", "email", "cpf_cnpj", "phone", "postal_code", "address_number" } }
+        """
+        plano_slug = request.data.get('plano_slug')
+        ciclo = request.data.get('ciclo', 'MONTHLY').upper()
+        billing_type = request.data.get('billing_type', '').upper()
+
+        if ciclo not in ('MONTHLY', 'YEARLY'):
+            return Response({'detail': 'ciclo deve ser MONTHLY ou YEARLY.'}, status=400)
+        if billing_type != 'CREDIT_CARD':
+            return Response({'detail': 'Apenas pagamento via Cartão de Crédito é suportado.'}, status=400)
+
+        try:
+            plano = PlanoAssinatura.objects.get(slug=plano_slug, ativo=True)
+        except PlanoAssinatura.DoesNotExist:
+            return Response({'detail': 'Plano não encontrado.'}, status=400)
+
+        company = request.user.company
+
+        cpf_cnpj = (company.cnpj or company.cpf or '').strip()
+        if not cpf_cnpj:
+            return Response({'detail': 'CPF_CNPJ_MISSING'}, status=400)
+        if not _is_valid_cpf_cnpj(cpf_cnpj):
+            return Response({'detail': 'CPF/CNPJ da empresa inválido.'}, status=400)
+
+        try:
+            with transaction.atomic():
+                assinatura, _ = AssinaturaEmpresa.objects.get_or_create(
+                    company=company,
+                    defaults={'trial_fim': timezone.now(), 'status': 'trial'}
+                )
+                assinatura = AssinaturaEmpresa.objects.select_for_update().get(pk=assinatura.pk)
+
+                # Ensure Asaas customer exists
+                if not assinatura.asaas_customer_id:
+                    asaas_customer_id = criar_cliente_asaas(company)
+                    assinatura.asaas_customer_id = asaas_customer_id
+                    assinatura.save(update_fields=['asaas_customer_id'])
+                else:
+                    atualizar_cliente_asaas(assinatura.asaas_customer_id, company)
+
+                # Cancel any existing pending/overdue Asaas subscription before creating a new one
+                if assinatura.asaas_subscription_id and assinatura.status != 'active':
+                    try:
+                        cancelar_assinatura_asaas(assinatura.asaas_subscription_id)
+                        logger.info(f'Cancelled stale subscription {assinatura.asaas_subscription_id} before re-subscribing.')
+                    except Exception as cancel_err:
+                        logger.warning(f'Could not cancel old subscription {assinatura.asaas_subscription_id}: {cancel_err}')
+                    assinatura.asaas_subscription_id = None
+                    assinatura.pending_plano = None
+                    assinatura.pending_ciclo = None
+                    assinatura.save(update_fields=['asaas_subscription_id', 'pending_plano', 'pending_ciclo'])
+
+                credit_card = request.data.get('credit_card')
+                holder_info = request.data.get('holder_info')
+
+                if not credit_card or not holder_info:
+                    return Response({'detail': 'Dados do cartão incompletos.'}, status=400)
+
+                required_card = ['holder_name', 'number', 'expiry_month', 'expiry_year', 'ccv']
+                if not all(credit_card.get(f) for f in required_card):
+                    return Response({'detail': 'Dados do cartão incompletos.'}, status=400)
+
+                required_holder = ['name', 'cpf_cnpj']
+                if not all(holder_info.get(f) for f in required_holder):
+                    return Response({'detail': 'Dados do titular incompletos.'}, status=400)
+                if not _is_valid_cpf_cnpj(holder_info.get('cpf_cnpj')):
+                    return Response({'detail': 'CPF/CNPJ do titular inválido.'}, status=400)
+
+                # Use company email/phone as fallback for holder info
+                holder_info.setdefault('email', company.email or '')
+                holder_info.setdefault('phone', company.telefone or '')
+
+                result = criar_assinatura_cartao_asaas(
+                    assinatura.asaas_customer_id, plano, ciclo, credit_card, holder_info
+                )
+
+                # Activate immediately — Asaas charges the card synchronously
+                from datetime import date
+                assinatura.asaas_subscription_id = result['id']
+                assinatura.plano = plano
+                assinatura.ciclo = ciclo
+                assinatura.status = 'active'
+                assinatura.pending_plano = None
+                assinatura.pending_ciclo = None
+                # Next billing: ~1 month/year from today (matches nextDueDate sent to Asaas)
+                if ciclo == 'YEARLY':
+                    assinatura.proxima_cobranca = _add_one_year_safe(date.today())
+                else:
+                    assinatura.proxima_cobranca = _add_one_month_safe(date.today())
+                # Store card summary returned by Asaas
+                card_info = result.get('creditCard') or {}
+                if card_info.get('creditCardNumber'):
+                    assinatura.card_last_four = card_info.get('creditCardNumber')
+                    assinatura.card_brand = card_info.get('creditCardBrand') or None
+                assinatura.save()
+
+            return Response({'success': True, 'asaas_subscription_id': result['id']})
+
+        except HTTPError as e:
+            logger.warning(f'Erro HTTP no gateway Asaas ao criar assinatura: {e}')
+            if e.response is not None and 400 <= e.response.status_code < 500:
+                try:
+                    asaas_errors = e.response.json().get('errors', [])
+                    if asaas_errors:
+                        msg = asaas_errors[0].get('description', 'Erro no gateway de pagamento.')
+                        return Response({'detail': msg}, status=400)
+                except Exception:
+                    pass
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except RequestException as e:
+            logger.warning(f'Falha de comunicação com Asaas ao criar assinatura: {e}')
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except Exception as e:
+            logger.error(f'Erro inesperado ao criar assinatura: {e}')
+            return Response({'detail': 'Erro ao processar assinatura. Verifique os dados e tente novamente.'}, status=500)
+
+    @action(detail=False, methods=['get'])
+    def link_pagamento(self, request):
+        """GET /api/assinatura/link_pagamento/ — Returns the pending payment URL for an overdue subscription."""
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+
+        if assinatura.status != 'overdue' and not assinatura.pending_plano:
+            return Response({'detail': 'Assinatura não está em atraso.'}, status=400)
+
+        if not assinatura.asaas_subscription_id:
+            return Response({'detail': 'ID de assinatura não disponível.'}, status=400)
+
+        try:
+            from .asaas_service import obter_url_pagamento_assinatura
+            url = obter_url_pagamento_assinatura(assinatura.asaas_subscription_id)
+            if not url:
+                return Response({'detail': 'Link de pagamento não disponível.'}, status=404)
+            return Response({'payment_url': url})
+        except RequestException as e:
+            logger.warning(f'Falha de comunicação com Asaas ao obter link de pagamento: {e}')
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except Exception as e:
+            logger.error(f'Erro ao obter link de pagamento: {e}')
+            return Response({'detail': 'Erro ao buscar link de pagamento.'}, status=500)
+
+    @action(detail=False, methods=['get'])
+    def pagamentos(self, request):
+        """GET /api/assinatura/pagamentos/ — Returns payment history from Asaas."""
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+
+        all_ids = []
+        if assinatura.asaas_subscription_id:
+            all_ids.append(assinatura.asaas_subscription_id)
+        for prev_id in (assinatura.asaas_subscription_ids_anteriores or []):
+            if prev_id not in all_ids:
+                all_ids.append(prev_id)
+
+        if not all_ids:
+            return Response([])
+
+        try:
+            from .asaas_service import listar_pagamentos_assinatura
+            all_pagamentos = []
+            for sub_id in all_ids:
+                try:
+                    pagamentos = listar_pagamentos_assinatura(sub_id)
+                    all_pagamentos.extend(pagamentos)
+                except RequestException as sub_e:
+                    logger.warning(f'Erro de comunicação ao buscar pagamentos da assinatura {sub_id}: {sub_e}')
+                except Exception as sub_e:
+                    logger.warning(f'Erro ao buscar pagamentos da assinatura {sub_id}: {sub_e}')
+            all_pagamentos.sort(key=lambda p: p.get('dueDate', ''), reverse=True)
+            return Response(all_pagamentos[:20])
+        except RequestException as e:
+            logger.warning(f'Falha de comunicação com Asaas ao buscar histórico de pagamentos: {e}')
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except Exception as e:
+            logger.error(f'Erro ao buscar histórico de pagamentos: {e}')
+            return Response({'detail': 'Erro ao buscar histórico de pagamentos.'}, status=500)
+
+    @action(detail=False, methods=['post'])
+    def cancelar(self, request):
+        """
+        POST /api/assinatura/cancelar/ — Marks the subscription as cancelled at end of period.
+        Does NOT cancel in Asaas immediately: the subscription keeps running and will charge
+        automatically on proxima_cobranca. If the user reactivates before that date, the
+        Asaas subscription was never interrupted. If they don't reactivate, the webhook
+        (PAYMENT_OVERDUE / SUBSCRIPTION_CANCELLED) handles the final status.
+        """
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+
+        if assinatura.status not in ('active', 'overdue'):
+            return Response({'detail': 'Sem assinatura ativa para cancelar.'}, status=400)
+
+        assinatura.status = 'cancelled'
+        assinatura.save(update_fields=['status'])
+        return Response({'detail': 'Assinatura cancelada. Seu acesso continua até o fim do período pago.'})
+
+    @action(detail=False, methods=['post'])
+    def reativar(self, request):
+        """
+        POST /api/assinatura/reativar/
+        Reactivates a cancelled subscription that still has access (proxima_cobranca in the future).
+        Since cancelar() does NOT delete the Asaas subscription, we simply flip the status back
+        to active — the same subscription in Asaas will charge automatically on proxima_cobranca.
+        """
+        from datetime import date
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+
+        if assinatura.status != 'cancelled':
+            return Response({'detail': 'A assinatura não está cancelada.'}, status=400)
+
+        if not assinatura.proxima_cobranca or assinatura.proxima_cobranca < date.today():
+            return Response({'detail': 'O período pago já expirou. Assine um novo plano.'}, status=400)
+
+        assinatura.status = 'active'
+        assinatura.save(update_fields=['status'])
+        serializer = self.get_serializer(assinatura)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], throttle_classes=[PaymentRateThrottle])
+    def atualizar_cartao(self, request):
+        """
+        POST /api/assinatura/atualizar_cartao/
+        Updates the credit card used for the active subscription.
+        Body: { credit_card: {...}, holder_info: {...} }
+        """
+        try:
+            assinatura = self._get_assinatura()
+        except AssinaturaEmpresa.DoesNotExist:
+            return Response({'detail': 'Assinatura não encontrada.'}, status=404)
+
+        if assinatura.status not in ('active', 'overdue'):
+            return Response({'detail': 'Sem assinatura ativa para atualizar o cartão.'}, status=400)
+
+        if not assinatura.asaas_subscription_id:
+            return Response({'detail': 'ID de assinatura não disponível.'}, status=400)
+
+        credit_card = request.data.get('credit_card')
+        holder_info = request.data.get('holder_info')
+
+        if not credit_card or not holder_info:
+            return Response({'detail': 'Dados do cartão incompletos.'}, status=400)
+
+        required_card = ['holder_name', 'number', 'expiry_month', 'expiry_year', 'ccv']
+        if not all(credit_card.get(f) for f in required_card):
+            return Response({'detail': 'Dados do cartão incompletos.'}, status=400)
+
+        required_holder = ['name', 'cpf_cnpj']
+        if not all(holder_info.get(f) for f in required_holder):
+            return Response({'detail': 'Dados do titular incompletos.'}, status=400)
+        if not _is_valid_cpf_cnpj(holder_info.get('cpf_cnpj')):
+            return Response({'detail': 'CPF/CNPJ do titular inválido.'}, status=400)
+
+        try:
+            card_data = atualizar_cartao_assinatura(
+                assinatura.asaas_subscription_id, credit_card, holder_info
+            )
+            card_info = card_data.get('creditCard') or card_data
+            if card_info.get('creditCardNumber'):
+                assinatura.card_last_four = card_info.get('creditCardNumber')
+                assinatura.card_brand = card_info.get('creditCardBrand') or None
+                assinatura.save(update_fields=['card_last_four', 'card_brand'])
+            return Response({'success': True})
+        except HTTPError as e:
+            logger.warning(f'Erro HTTP no gateway Asaas ao atualizar cartão: {e}')
+            if e.response is not None and 400 <= e.response.status_code < 500:
+                try:
+                    asaas_errors = e.response.json().get('errors', [])
+                    if asaas_errors:
+                        msg = asaas_errors[0].get('description', 'Erro no gateway de pagamento.')
+                        return Response({'detail': msg}, status=400)
+                except Exception:
+                    pass
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except RequestException as e:
+            logger.warning(f'Falha de comunicação com Asaas ao atualizar cartão: {e}')
+            return Response({'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'}, status=503)
+        except Exception as e:
+            logger.error(f'Erro inesperado ao atualizar cartão: {e}')
+            return Response({'detail': 'Erro ao atualizar cartão. Verifique os dados e tente novamente.'}, status=500)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    """
+    POST /api/register/
+    Cria uma nova empresa + usuário administrador e retorna tokens JWT.
+    Body: { nome_empresa, username, email, senha, nome? }
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    nome_empresa = (request.data.get('nome_empresa') or '').strip()
+    username     = (request.data.get('username') or '').strip()
+    email        = (request.data.get('email') or '').strip()
+    senha        = (request.data.get('senha') or '').strip()
+    nome         = (request.data.get('nome') or '').strip()
+
+    errors = {}
+    if not nome_empresa:
+        errors['nome_empresa'] = 'Nome do escritório é obrigatório.'
+    if not username:
+        errors['username'] = 'Nome de usuário é obrigatório.'
+    elif CustomUser.objects.filter(username=username).exists():
+        errors['username'] = 'Este nome de usuário já está em uso.'
+    if not email:
+        errors['email'] = 'E-mail é obrigatório.'
+    elif CustomUser.objects.filter(email=email).exists():
+        errors['email'] = 'Este e-mail já está cadastrado.'
+    if not senha:
+        errors['senha'] = 'Senha é obrigatória.'
+    elif len(senha) < 8:
+        errors['senha'] = 'A senha deve ter pelo menos 8 caracteres.'
+    if errors:
+        return Response(errors, status=400)
+
+    try:
+        company = Company.objects.create(name=nome_empresa)
+
+        first_name = nome.split()[0] if nome else ''
+        last_name  = ' '.join(nome.split()[1:]) if nome and len(nome.split()) > 1 else ''
+
+        user = CustomUser.objects.create_user(
+            username=username,
+            email=email,
+            password=senha,
+            company=company,
+            first_name=first_name,
+            last_name=last_name,
+        )
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }, status=201)
+
+    except Exception as e:
+        logger.error(f'Erro ao registrar usuário: {e}')
+        return Response({'detail': 'Erro ao criar conta. Tente novamente.'}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def asaas_webhook(request):
+    """
+    POST /api/asaas/webhook/
+    Receives Asaas webhook events and updates subscription status accordingly.
+    """
+    token = (
+        request.headers.get('asaas-access-token')
+        or request.headers.get('x-asaas-access-token')
+        or request.GET.get('token', '')
+    )
+    configured_token = (django_settings.ASAAS_WEBHOOK_TOKEN or '').strip()
+    # Fail closed when webhook secret is not configured.
+    if not configured_token:
+        logger.error('Asaas webhook rejected: ASAAS_WEBHOOK_TOKEN not configured.')
+        return JsonResponse({'detail': 'Unauthorized'}, status=401)
+    if not token or not secrets.compare_digest(str(token), configured_token):
+        return JsonResponse({'detail': 'Unauthorized'}, status=401)
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'detail': 'Invalid JSON'}, status=400)
+
+    event_type = payload.get('event', '')
+    subscription_id = (
+        payload.get('payment', {}).get('subscription')
+        or payload.get('subscription', {}).get('id')
+        or ''
+    )
+
+    try:
+        with transaction.atomic():
+            already_processed = WebhookLog.objects.filter(
+                event_type=event_type,
+                asaas_subscription_id=subscription_id,
+                processed=True,
+            ).exists()
+            if already_processed:
+                return JsonResponse({'detail': 'already processed'}, status=200)
+
+            log = WebhookLog.objects.create(
+                event_type=event_type,
+                asaas_subscription_id=subscription_id,
+                payload=payload,
+            )
+
+            if subscription_id:
+                assinatura = AssinaturaEmpresa.objects.select_for_update().filter(
+                    asaas_subscription_id=subscription_id
+                ).first()
+
+                if assinatura:
+                    if event_type == 'PAYMENT_RECEIVED':
+                        import datetime as _dt
+                        assinatura.status = 'active'
+                        # Compute next billing date from current payment's dueDate
+                        due_date_str = payload.get('payment', {}).get('dueDate')
+                        if due_date_str:
+                            try:
+                                due = _dt.date.fromisoformat(due_date_str)
+                                ciclo = (assinatura.pending_ciclo or assinatura.ciclo or 'MONTHLY')
+                                if ciclo == 'YEARLY':
+                                    assinatura.proxima_cobranca = _add_one_year_safe(due)
+                                else:
+                                    assinatura.proxima_cobranca = _add_one_month_safe(due)
+                            except Exception:
+                                pass
+                        if assinatura.pending_plano:
+                            assinatura.plano = assinatura.pending_plano
+                            assinatura.ciclo = assinatura.pending_ciclo or 'MONTHLY'
+                            assinatura.pending_plano = None
+                            assinatura.pending_ciclo = None
+                            assinatura.save(update_fields=['status', 'plano', 'ciclo', 'pending_plano', 'pending_ciclo', 'proxima_cobranca'])
+                        else:
+                            assinatura.save(update_fields=['status', 'proxima_cobranca'])
+                    elif event_type == 'PAYMENT_OVERDUE':
+                        assinatura.status = 'overdue'
+                        assinatura.save(update_fields=['status'])
+                    elif event_type in ('SUBSCRIPTION_CANCELLED', 'SUBSCRIPTION_DELETED'):
+                        assinatura.status = 'cancelled'
+                        assinatura.asaas_subscription_id = None
+                        assinatura.save(update_fields=['status', 'asaas_subscription_id'])
+
+            log.processed = True
+            log.save(update_fields=['processed'])
+    except Exception as e:
+        logger.error(f'Asaas webhook processing error: {e}')
+        try:
+            WebhookLog.objects.create(
+                event_type=event_type,
+                asaas_subscription_id=subscription_id,
+                payload=payload,
+                error=str(e),
+            )
+        except Exception:
+            pass
+
+    return JsonResponse({'received': True})

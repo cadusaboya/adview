@@ -10,7 +10,10 @@ from .models import (
     Despesa,
     Payment,
     ContaBancaria,
-    Custodia
+    Custodia,
+    PlanoAssinatura,
+    AssinaturaEmpresa,
+    WebhookLog,
 )
 
 # =========================
@@ -161,3 +164,28 @@ class CustodiaAdmin(admin.ModelAdmin):
     search_fields = ('nome', 'cliente__nome', 'funcionario__nome')
     date_hierarchy = 'criado_em'
     readonly_fields = ('status', 'criado_em', 'atualizado_em')
+
+
+# =========================
+# ASSINATURA
+# =========================
+@admin.register(PlanoAssinatura)
+class PlanoAssinaturaAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'slug', 'preco_mensal', 'preco_anual', 'max_usuarios', 'ativo', 'ordem')
+    list_editable = ('ativo', 'ordem')
+    prepopulated_fields = {'slug': ('nome',)}
+
+
+@admin.register(AssinaturaEmpresa)
+class AssinaturaEmpresaAdmin(admin.ModelAdmin):
+    list_display = ('company', 'plano', 'ciclo', 'status', 'trial_fim', 'asaas_customer_id')
+    list_filter = ('status', 'ciclo')
+    search_fields = ('company__name', 'asaas_customer_id', 'asaas_subscription_id')
+    readonly_fields = ('trial_inicio', 'criado_em', 'atualizado_em')
+
+
+@admin.register(WebhookLog)
+class WebhookLogAdmin(admin.ModelAdmin):
+    list_display = ('event_type', 'asaas_subscription_id', 'processed', 'recebido_em')
+    list_filter = ('processed', 'event_type')
+    readonly_fields = ('recebido_em',)

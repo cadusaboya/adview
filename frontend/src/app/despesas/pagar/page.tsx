@@ -33,6 +33,8 @@ import {
 
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { useUpgradeGuard } from '@/hooks/useUpgradeGuard';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 import { Favorecido } from '@/types/favorecidos';
 import { getFavorecidos } from '@/services/favorecidos';
 import { getBancos } from '@/services/bancos';
@@ -47,6 +49,7 @@ interface Responsavel {
 }
 
 export default function DespesasPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -382,10 +385,10 @@ export default function DespesasPage() {
 
             <Button
               icon={<DownloadOutlined />}
-              onClick={async () => {
+              onClick={guard('pdf_export', async () => {
                 await loadFavorecidos();
                 setOpenRelatorioModal(true);
-              }}
+              })}
               loading={loadingRelatorio}
               className="shadow-md bg-gold text-navy hover:bg-gold/90"
             >
@@ -449,6 +452,12 @@ export default function DespesasPage() {
             id: f.id,
             nome: f.nome,
           }))}
+        />
+
+        <UpgradeDialog
+          open={isUpgradeDialogOpen}
+          onClose={closeUpgradeDialog}
+          feature={blockedFeatureLabel}
         />
 
         <DeleteConfirmationDialog

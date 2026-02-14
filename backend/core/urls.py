@@ -9,7 +9,11 @@ from .views import (
     RelatorioClienteView, RelatorioFuncionarioView, RelatorioTipoPeriodoView,
     RelatorioResultadoFinanceiroView, RelatorioFolhaSalarialView,
     RelatorioComissionamentoView, RelatorioResultadoMensalView,
-    dre_consolidado, balanco_patrimonial, relatorio_conciliacao_bancaria
+    dre_consolidado, balanco_patrimonial, relatorio_conciliacao_bancaria,
+    # Subscription views
+    PlanoAssinaturaViewSet, AssinaturaViewSet, asaas_webhook,
+    # Registration
+    register_view,
 )
 
 from .pdf_views import (
@@ -42,9 +46,13 @@ router.register(r'transferencias', TransferViewSet, basename='transfer')
 router.register(r'pagamentos', PaymentViewSet, basename='payment')
 router.register(r'alocacoes', AllocationViewSet, basename='allocation')
 router.register(r'favorecidos', FavorecidoViewSet, basename='favorecido')
+router.register(r'planos', PlanoAssinaturaViewSet, basename='plano')
+router.register(r'assinatura', AssinaturaViewSet, basename='assinatura')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('register/', register_view, name='register'),
+    path('asaas/webhook/', asaas_webhook, name='asaas-webhook'),
     # Report URLs
     path('relatorios/cliente/<int:cliente_id>/', RelatorioClienteView.as_view(), name='relatorio-cliente'),
     path('relatorios/funcionario/<int:funcionario_id>/', RelatorioFuncionarioView.as_view(), name='relatorio-funcionario'),

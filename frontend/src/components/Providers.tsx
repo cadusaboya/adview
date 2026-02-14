@@ -1,8 +1,31 @@
 'use client';
 
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { MantineProvider } from '@mantine/core';
 import { ConfigProvider } from 'antd';
 import { Toaster } from 'sonner';
+import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
+import { isLoggedIn } from '@/services/auth';
+
+const EXEMPT_PATHS = ['/', '/assinatura', '/assinar', '/assinar/pagamento', '/cadastro'];
+
+function SubscriptionGuard({ children }: { children: React.ReactNode }) {
+  const { assinatura, loading } = useSubscription();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!isLoggedIn()) return;
+    if (EXEMPT_PATHS.includes(pathname)) return;
+    if (assinatura && !assinatura.acesso_permitido) {
+      router.replace('/assinar');
+    }
+  }, [assinatura, loading, pathname, router]);
+
+  return <>{children}</>;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -39,7 +62,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }}
       >
-        {children}
+        <SubscriptionProvider>
+          <SubscriptionGuard>
+            {children}
+          </SubscriptionGuard>
+        </SubscriptionProvider>
         <Toaster
           richColors
           position="bottom-right"

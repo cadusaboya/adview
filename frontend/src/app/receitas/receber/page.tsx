@@ -33,6 +33,8 @@ import { getAllocations } from '@/services/allocations';
 import { PaymentUI } from '@/types/payments';
 
 import { gerarRelatorioPDF } from '@/services/pdf';
+import { useUpgradeGuard } from '@/hooks/useUpgradeGuard';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
 
 import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
@@ -45,6 +47,7 @@ import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
 
 export default function ReceitasPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -372,10 +375,10 @@ export default function ReceitasPage() {
 
             <Button
               icon={<DownloadOutlined />}
-              onClick={async () => {
+              onClick={guard('pdf_export', async () => {
                 await loadClientes();
                 setOpenRelatorioModal(true);
-              }}
+              })}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
@@ -440,6 +443,12 @@ export default function ReceitasPage() {
             id: c.id,
             nome: c.nome,
           }))}
+        />
+
+        <UpgradeDialog
+          open={isUpgradeDialogOpen}
+          onClose={closeUpgradeDialog}
+          feature={blockedFeatureLabel}
         />
 
         <DeleteConfirmationDialog

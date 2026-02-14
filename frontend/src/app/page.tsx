@@ -54,7 +54,7 @@ export default function LoginPage() {
       setIsSubmitting(true);
       await login(username, password, rememberMe);
       toast.success("Login realizado com sucesso!");
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, 'Usuário ou senha incorretos');
       toast.error(errorMessage);
@@ -190,6 +190,13 @@ export default function LoginPage() {
               {isSubmitting ? "Entrando..." : "Entrar"}
             </Button>
           </div>
+
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Não possui acesso?{" "}
+            <a href="/cadastro" className="text-primary font-medium hover:underline">
+              Teste o sistema agora mesmo
+            </a>
+          </p>
         </form>
       </div>
     </div>

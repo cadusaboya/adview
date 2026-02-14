@@ -10,6 +10,8 @@ import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import RelatorioFiltrosModal from "@/components/dialogs/RelatorioFiltrosModal";
 import { gerarRelatorioPDF } from "@/services/pdf";
 import { RelatorioFiltros } from "@/components/dialogs/RelatorioFiltrosModal";
+import { useUpgradeGuard } from "@/hooks/useUpgradeGuard";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 import { formatCurrencyBR } from "@/lib/formatters";
 
 import { getPayments } from "@/services/payments";
@@ -73,6 +75,8 @@ type Row =
 ========================= */
 
 export default function FluxoCaixaPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   const today = new Date();
   const startDefault = new Date();
   startDefault.setDate(today.getDate() - 6);
@@ -230,7 +234,7 @@ export default function FluxoCaixaPage() {
           {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => setOpenRelatorioModal(true)}
+            onClick={guard('pdf_export', () => setOpenRelatorioModal(true))}
             loading={loadingRelatorio}
             className="shadow-md whitespace-nowrap"
           >
@@ -385,6 +389,12 @@ export default function FluxoCaixaPage() {
             id: c.id,
             nome: c.nome,
           }))}
+        />
+
+        <UpgradeDialog
+          open={isUpgradeDialogOpen}
+          onClose={closeUpgradeDialog}
+          feature={blockedFeatureLabel}
         />
       </main>
     </div>
