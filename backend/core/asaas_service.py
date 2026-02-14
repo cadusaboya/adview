@@ -38,7 +38,8 @@ def criar_cliente_asaas(company) -> str:
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas customer creation error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas customer creation error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas customer creation response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     logger.info(f'Asaas customer created: {data["id"]} for company {company.id}')
@@ -64,7 +65,8 @@ def atualizar_cliente_asaas(asaas_customer_id: str, company) -> None:
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas customer update error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas customer update error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas customer update response body: {resp.text}')
         resp.raise_for_status()
     logger.info(f'Asaas customer updated: {asaas_customer_id}')
 
@@ -105,7 +107,8 @@ def criar_assinatura_asaas(asaas_customer_id: str, plano, ciclo: str = 'MONTHLY'
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas subscription error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas subscription error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas subscription response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     subscription_id = data['id']
@@ -221,7 +224,8 @@ def criar_assinatura_cartao_asaas(
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas credit card subscription error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas credit card subscription error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas credit card subscription response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     logger.info(f'Asaas credit card subscription created: {data["id"]}')
@@ -235,8 +239,8 @@ def criar_assinatura_cartao_token_asaas(
     credit_card_token: str,
 ) -> dict:
     """
-    Creates a recurring subscription in Asaas using a previously tokenised credit card.
-    credit_card_token: the creditCardToken string returned by Asaas on a prior subscription.
+    Creates a recurring subscription in Asaas using a card token generated client-side.
+    credit_card_token: token generated in the browser via Asaas SDK.
     Returns the subscription dict.
     """
     import datetime
@@ -265,7 +269,8 @@ def criar_assinatura_cartao_token_asaas(
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas credit card token subscription error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas credit card token subscription error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas credit card token subscription response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     logger.info(f'Asaas credit card token subscription created: {data["id"]}')
@@ -302,7 +307,8 @@ def reativar_assinatura_asaas(asaas_customer_id: str, plano, ciclo: str, next_du
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas reactivation error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas reactivation error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas reactivation response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     logger.info(f'Asaas subscription reactivated: {data["id"]}')
@@ -346,7 +352,8 @@ def atualizar_cartao_assinatura(
         timeout=15,
     )
     if not resp.ok:
-        logger.error(f'Asaas update card error {resp.status_code}: {resp.text}')
+        logger.error(f'Asaas update card error: HTTP {resp.status_code}')
+        logger.debug(f'Asaas update card response body: {resp.text}')
         resp.raise_for_status()
     data = resp.json()
     logger.info(f'Asaas card updated for subscription {asaas_subscription_id}')

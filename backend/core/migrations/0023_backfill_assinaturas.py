@@ -1,4 +1,4 @@
-from django.db import migrations
+from django.db import migrations, transaction
 from django.utils import timezone
 
 
@@ -10,18 +10,23 @@ def backfill_assinaturas(apps, schema_editor):
     Company = apps.get_model('core', 'Company')
     AssinaturaEmpresa = apps.get_model('core', 'AssinaturaEmpresa')
     now = timezone.now()
-    for company in Company.objects.all():
-        AssinaturaEmpresa.objects.get_or_create(
-            company=company,
-            defaults={
-                'trial_fim': now,
-                'status': 'active',
-            },
-        )
+    db_alias = schema_editor.connection.alias
+    with transaction.atomic(using=db_alias):
+        for company in Company.objects.using(db_alias).select_for_update().all():
+            AssinaturaEmpresa.objects.using(db_alias).get_or_create(
+                company=company,
+                defaults={
+                    'trial_fim': now,
+                    'status': 'active',
+                },
+            )
 
 
 def reverse_backfill(apps, schema_editor):
-    pass  # Leave data in place on reverse
+    raise migrations.IrreversibleError(
+        "Migration 0023_backfill_assinaturas is irreversible because it creates "
+        "subscription rows for pre-existing companies."
+    )
 
 
 class Migration(migrations.Migration):

@@ -20,6 +20,11 @@ load_dotenv()
 
 ENV = os.getenv("ENV", "development")
 
+
+def _csv_env(name: str, default: str) -> list[str]:
+    raw = os.getenv(name, default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -36,8 +41,8 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = ENV == "development"
 
-# Adjust allowed hosts as needed for deployment
-ALLOWED_HOSTS = ["*"]
+# Adjust allowed hosts via env (comma-separated)
+ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # Application definition
 
@@ -117,7 +122,10 @@ else:
 
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = _csv_env(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -173,7 +181,10 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    )
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'payment': os.getenv('PAYMENT_THROTTLE_RATE', '5/hour'),
+    },
 }
 
 SIMPLE_JWT = {
@@ -226,3 +237,8 @@ ASAAS_API_KEY = os.getenv('ASAAS_API_KEY', '')
 ASAAS_BASE_URL = os.getenv('ASAAS_BASE_URL', 'https://sandbox.asaas.com/api/v3')
 ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
 
+if ENV == "production":
+    if not ASAAS_API_KEY:
+        raise RuntimeError("ASAAS_API_KEY obrigatório em produção")
+    if not ASAAS_WEBHOOK_TOKEN:
+        raise RuntimeError("ASAAS_WEBHOOK_TOKEN obrigatório em produção")

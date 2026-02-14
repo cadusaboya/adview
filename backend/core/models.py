@@ -832,7 +832,6 @@ class AssinaturaEmpresa(models.Model):
     proxima_cobranca = models.DateField(null=True, blank=True)
     card_last_four = models.CharField(max_length=4, blank=True, null=True)
     card_brand = models.CharField(max_length=30, blank=True, null=True)
-    card_token = models.CharField(max_length=200, blank=True, null=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -891,4 +890,3 @@ def criar_assinatura_trial(sender, instance, created, **kwargs):
             trial_fim=timezone.now() + timedelta(days=7),
             status='trial',
         )
-
