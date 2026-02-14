@@ -219,3 +219,10 @@ else:
 # Include core app urls in the main project urls
 # This needs to be done in gestao_financeira/urls.py, not here.
 
+# ──────────────────────────────────────────────
+# Asaas payment gateway
+# ──────────────────────────────────────────────
+ASAAS_API_KEY = os.getenv('ASAAS_API_KEY', '')
+ASAAS_BASE_URL = os.getenv('ASAAS_BASE_URL', 'https://sandbox.asaas.com/api/v3')
+ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
+

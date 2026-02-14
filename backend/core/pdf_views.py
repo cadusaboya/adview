@@ -1936,7 +1936,7 @@ def relatorio_comissionamento_pdf(request):
     if not comissionados_data:
         return Response(
             {"error": f"Nenhum pagamento com comissionado encontrado para {mes}/{ano}"},
-            status=404
+            status=400
         )
 
     # Criar PDF
