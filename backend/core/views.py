@@ -4556,11 +4556,12 @@ def register_view(request):
     """
     POST /api/register/
     Cria uma nova empresa + usuário administrador e retorna tokens JWT.
-    Body: { nome_empresa, username, email, senha, nome? }
+    Body: { nome_empresa, cpf_cnpj, username, email, senha, nome? }
     """
     from rest_framework_simplejwt.tokens import RefreshToken
 
     nome_empresa = (request.data.get('nome_empresa') or '').strip()
+    cpf_cnpj     = (request.data.get('cpf_cnpj') or '').strip()
     username     = (request.data.get('username') or '').strip()
     email        = (request.data.get('email') or '').strip()
     senha        = (request.data.get('senha') or '').strip()
@@ -4569,6 +4570,11 @@ def register_view(request):
     errors = {}
     if not nome_empresa:
         errors['nome_empresa'] = 'Nome do escritório é obrigatório.'
+    cpf_cnpj_digits = _normalize_digits(cpf_cnpj)
+    if not cpf_cnpj_digits:
+        errors['cpf_cnpj'] = 'CPF ou CNPJ é obrigatório.'
+    elif not _is_valid_cpf_cnpj(cpf_cnpj_digits):
+        errors['cpf_cnpj'] = 'CPF/CNPJ inválido.'
     if not username:
         errors['username'] = 'Nome de usuário é obrigatório.'
     elif CustomUser.objects.filter(username=username).exists():
@@ -4585,7 +4591,12 @@ def register_view(request):
         return Response(errors, status=400)
 
     try:
-        company = Company.objects.create(name=nome_empresa)
+        company_data = {'name': nome_empresa}
+        if len(cpf_cnpj_digits) == 14:
+            company_data['cnpj'] = cpf_cnpj_digits
+        else:
+            company_data['cpf'] = cpf_cnpj_digits
+        company = Company.objects.create(**company_data)
 
         first_name = nome.split()[0] if nome else ''
         last_name  = ' '.join(nome.split()[1:]) if nome and len(nome.split()) > 1 else ''

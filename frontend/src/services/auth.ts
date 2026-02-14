@@ -39,6 +39,7 @@ export function logout() {
 
 export interface RegisterPayload {
   nome_empresa: string;
+  cpf_cnpj: string;
   username: string;
   email: string;
   senha: string;
