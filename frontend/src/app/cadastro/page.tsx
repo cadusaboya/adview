@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { register } from '@/services/auth';
-import { IconBuilding, IconUser, IconAt, IconLock, IconArrowRight, IconCheck } from '@tabler/icons-react';
+import { IconBuilding, IconUser, IconAt, IconLock, IconArrowRight, IconCheck, IconIdBadge2 } from '@tabler/icons-react';
 
 interface FieldError {
   nome_empresa?: string;
+  cpf_cnpj?: string;
   nome?: string;
   username?: string;
   email?: string;
@@ -14,9 +15,25 @@ interface FieldError {
   confirmar_senha?: string;
 }
 
+function formatCpfCnpj(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
 export default function CadastroPage() {
   const [form, setForm] = useState({
     nome_empresa: '',
+    cpf_cnpj: '',
     nome: '',
     username: '',
     email: '',
@@ -36,6 +53,11 @@ export default function CadastroPage() {
   const validate = (): boolean => {
     const errs: FieldError = {};
     if (!form.nome_empresa.trim()) errs.nome_empresa = 'Nome do escritório é obrigatório.';
+    const cpfCnpjDigits = form.cpf_cnpj.replace(/\D/g, '');
+    if (!cpfCnpjDigits) errs.cpf_cnpj = 'CPF ou CNPJ é obrigatório.';
+    else if (cpfCnpjDigits.length !== 11 && cpfCnpjDigits.length !== 14) {
+      errs.cpf_cnpj = 'Informe um CPF ou CNPJ válido.';
+    }
     if (!form.nome.trim()) errs.nome = 'Seu nome é obrigatório.';
     if (!form.username.trim()) errs.username = 'Nome de usuário é obrigatório.';
     if (!form.email.trim()) errs.email = 'E-mail é obrigatório.';
@@ -55,6 +77,7 @@ export default function CadastroPage() {
     try {
       await register({
         nome_empresa: form.nome_empresa.trim(),
+        cpf_cnpj: form.cpf_cnpj.trim(),
         nome: form.nome.trim(),
         username: form.username.trim(),
         email: form.email.trim(),
@@ -66,6 +89,7 @@ export default function CadastroPage() {
       if (data && typeof data === 'object') {
         const fieldErrors: FieldError = {};
         if (data.nome_empresa) fieldErrors.nome_empresa = data.nome_empresa;
+        if (data.cpf_cnpj) fieldErrors.cpf_cnpj = data.cpf_cnpj;
         if (data.username) fieldErrors.username = data.username;
         if (data.email) fieldErrors.email = data.email;
         if (data.senha) fieldErrors.senha = data.senha;
@@ -164,6 +188,30 @@ export default function CadastroPage() {
                 />
               </div>
               {errors.nome_empresa && <p className="mt-1 text-xs text-red-500">{errors.nome_empresa}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                CPF / CNPJ
+              </label>
+              <div className="relative">
+                <IconIdBadge2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  value={form.cpf_cnpj}
+                  onChange={(e) => {
+                    setForm(prev => ({ ...prev, cpf_cnpj: formatCpfCnpj(e.target.value) }));
+                    setErrors(prev => ({ ...prev, cpf_cnpj: '' }));
+                    setApiError('');
+                  }}
+                  className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border bg-white transition focus:outline-none focus:ring-2 focus:ring-[#0A192F]/20 ${
+                    errors.cpf_cnpj ? 'border-red-400' : 'border-gray-200 focus:border-[#0A192F]/40'
+                  }`}
+                />
+              </div>
+              {errors.cpf_cnpj && <p className="mt-1 text-xs text-red-500">{errors.cpf_cnpj}</p>}
             </div>
 
             {/* Nome */}
