@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { formatCurrencyBR } from "@/lib/formatters";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import { gerarRelatorioPDF } from "@/services/pdf";
+import { useUpgradeGuard } from "@/hooks/useUpgradeGuard";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 
 import { getDREConsolidado, DREData } from "@/services/relatorios";
 
@@ -18,6 +20,8 @@ type LineItem = {
 };
 
 export default function DREPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   /* =========================
     FILTRO (MÊS / ANO)
     ========================= */
@@ -112,7 +116,7 @@ export default function DREPage() {
             {/* 📊 BOTÃO PARA GERAR RELATÓRIO */}
             <Button
               icon={<DownloadOutlined />}
-              onClick={handleGerarRelatorio}
+              onClick={guard('pdf_export', handleGerarRelatorio)}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap"
             >
@@ -120,6 +124,12 @@ export default function DREPage() {
             </Button>
 
           </div>
+
+          <UpgradeDialog
+            open={isUpgradeDialogOpen}
+            onClose={closeUpgradeDialog}
+            feature={blockedFeatureLabel}
+          />
 
           <div className="flex gap-4 items-end">
             {/* MÊS */}

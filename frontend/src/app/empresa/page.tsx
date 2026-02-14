@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { getMyEmpresa, updateMyEmpresa } from "@/services/empresa";
 import { Empresa, EmpresaUpdate } from "@/types/empresa";
 import { Button } from "antd";
@@ -8,11 +9,14 @@ import { toast } from "sonner";
 import { NavbarNested } from "@/components/imports/Navbar/NavbarNested";
 import { Input } from "@/components/ui/input";
 import { formatDateBR } from "@/lib/formatters";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 
 export default function EmpresaPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { assinatura } = useSubscription();
+  const router = useRouter();
 
   // Form state
   const [formData, setFormData] = useState<EmpresaUpdate>({
@@ -276,6 +280,41 @@ export default function EmpresaPage() {
                   {formatDateBR(empresa.criado_em.split('T')[0])}
                 </p>
               </div>
+
+              {/* Assinatura */}
+              {assinatura && (
+                <div className="pt-4 border-t">
+                  <h3 className="text-sm font-semibold mb-3">Assinatura</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        Plano:{" "}
+                        <span className="font-medium">
+                          {assinatura.plano?.nome ?? "Período de teste"}
+                        </span>
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Status:{" "}
+                        {assinatura.status === "trial"
+                          ? `Período de teste (${assinatura.dias_trial_restantes} ${assinatura.dias_trial_restantes === 1 ? "dia" : "dias"} restantes)`
+                          : assinatura.status === "active"
+                          ? "Ativa"
+                          : assinatura.status === "overdue"
+                          ? "Em atraso"
+                          : "Cancelada"}
+                      </p>
+                    </div>
+                    {assinatura.status !== "active" && (
+                      <Button
+                        type="primary"
+                        onClick={() => router.push("/assinar")}
+                      >
+                        {assinatura.status === "trial" ? "Assinar" : "Renovar"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -25,12 +25,16 @@ import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { RelatorioFiltros } from '@/components/dialogs/RelatorioFiltrosModal';
+import { useUpgradeGuard } from '@/hooks/useUpgradeGuard';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 import { PaymentUI } from '@/types/payments';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
 
 export default function ReceitaRecebidasPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -365,7 +369,7 @@ export default function ReceitaRecebidasPage() {
 
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => setOpenRelatorioModal(true)}
+              onClick={guard('pdf_export', () => setOpenRelatorioModal(true))}
               loading={loadingRelatorio}
               className="shadow-md whitespace-nowrap bg-gold text-navy hover:bg-gold/90"
             >
@@ -422,6 +426,12 @@ export default function ReceitaRecebidasPage() {
             id: c.id,
             nome: c.nome,
           }))}
+        />
+
+        <UpgradeDialog
+          open={isUpgradeDialogOpen}
+          onClose={closeUpgradeDialog}
+          feature={blockedFeatureLabel}
         />
 
         <DeleteConfirmationDialog

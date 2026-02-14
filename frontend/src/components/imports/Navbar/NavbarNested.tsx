@@ -18,6 +18,9 @@ import classes from './NavbarNested.module.css';
 import { LinksGroup } from '../Navbar/NavbarLinksGroup';
 import { getMyEmpresa } from '@/services/empresa';
 import { logout } from '@/services/auth';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useRouter } from 'next/navigation';
+import { IconClock } from '@tabler/icons-react';
 
 const menuItems = [
   { label: 'Dashboard', icon: IconGauge, link: '/dashboard' },
@@ -57,16 +60,6 @@ const menuItems = [
   { label: 'Extrato', icon: IconReceipt, link: '/extrato' },
 
   {
-    label: 'Empresa',
-    icon: IconBuilding,
-    initiallyOpened: true,
-    links: [
-      { label: 'Bancos', link: '/bancos' },
-      { label: 'Configurações', link: '/empresa' },
-    ],
-  },
-
-  {
     label: 'Pessoas',
     icon: IconUsers,
     initiallyOpened: true,
@@ -89,12 +82,28 @@ const menuItems = [
       { label: 'Comissões', link: '/relatorios/comissoes' },
     ],
   },
+
+  {
+    label: 'Empresa',
+    icon: IconBuilding,
+    initiallyOpened: true,
+    links: [
+      { label: 'Bancos', link: '/bancos' },
+      { label: 'Configurações', link: '/empresa' },
+      { label: 'Ver Assinatura', link: '/assinatura' },
+    ],
+  },
 ];
 
 export function NavbarNested() {
   const [companyName, setCompanyName] = useState<string>('');
   const [openedItem, setOpenedItem] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { assinatura } = useSubscription();
+  const router = useRouter();
+
+  const showTrialBadge = assinatura?.status === 'trial' && assinatura?.trial_ativo;
+  const diasRestantes = assinatura?.dias_trial_restantes ?? 0;
 
   const links = menuItems.map((item) => (
     <LinksGroup
@@ -148,6 +157,24 @@ export function NavbarNested() {
       </ScrollArea>
 
       <div className={classes.footer}>
+        {showTrialBadge && (
+          <button
+            onClick={() => router.push('/assinar')}
+            className={classes.trialBadge}
+          >
+            <div className={classes.trialBadgeTop}>
+              <IconClock size={13} style={{ flexShrink: 0 }} />
+              <span>
+                {diasRestantes === 0
+                  ? 'Trial expira hoje'
+                  : diasRestantes === 1
+                  ? '1 dia de trial'
+                  : `${diasRestantes} dias de trial`}
+              </span>
+            </div>
+            <span className={classes.trialBadgeCta}>Assinar plano →</span>
+          </button>
+        )}
         {companyName && (
           <div className={classes.companyInfo}>
             <IconBuilding size={16} style={{ opacity: 0.7 }} />

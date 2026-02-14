@@ -23,6 +23,8 @@ import { NavbarNested } from '@/components/imports/Navbar/NavbarNested';
 import ClienteDialog from '@/components/dialogs/ClienteDialog';
 import { ClienteProfileDialog } from '@/components/dialogs/ClienteProfileDialog';
 import { gerarRelatorioPDF } from '@/services/pdf';
+import { useUpgradeGuard } from '@/hooks/useUpgradeGuard';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 import { toast } from 'sonner';
 import { formatCpfCnpj } from '@/lib/formatters';
 import { getErrorMessage } from '@/lib/errors';
@@ -58,6 +60,8 @@ import {
 } from '@/components/ui/select';
 
 export default function ClientePage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -306,8 +310,9 @@ export default function ClientePage() {
             {
               label: 'Gerar PDF',
               icon: FileText,
-              onClick: () =>
-                handleOpenRelatorioModal(record.id),
+              onClick: guard('pdf_export', () =>
+                handleOpenRelatorioModal(record.id)
+              ),
               disabled:
                 loadingRelatorio === record.id,
             },
@@ -499,6 +504,12 @@ export default function ClientePage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <UpgradeDialog
+          open={isUpgradeDialogOpen}
+          onClose={closeUpgradeDialog}
+          feature={blockedFeatureLabel}
+        />
 
         <DeleteConfirmationDialog
           open={confirmState.isOpen}

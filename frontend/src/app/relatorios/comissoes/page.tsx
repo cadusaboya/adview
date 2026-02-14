@@ -17,8 +17,12 @@ import { getFuncionarios } from '@/services/funcionarios';
 import { Funcionario } from '@/types/funcionarios';
 import { gerarRelatorioPDF } from '@/services/pdf';
 import { getErrorMessage } from '@/lib/errors';
+import { useUpgradeGuard } from '@/hooks/useUpgradeGuard';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 
 export default function ComissoesPage() {
+  const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
+
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [funcionarioId, setFuncionarioId] = useState<string>('todos');
@@ -153,7 +157,7 @@ export default function ComissoesPage() {
                   <Button
                     type="primary"
                     icon={<DownloadOutlined />}
-                    onClick={handleGerarPDF}
+                    onClick={guard('pdf_export', handleGerarPDF)}
                     loading={loading}
                     size="large"
                     className="bg-navy hover:bg-navy/90"
@@ -161,6 +165,12 @@ export default function ComissoesPage() {
                     Gerar Relatório PDF
                   </Button>
                 </div>
+
+                <UpgradeDialog
+                  open={isUpgradeDialogOpen}
+                  onClose={closeUpgradeDialog}
+                  feature={blockedFeatureLabel}
+                />
               </div>
             </CardContent>
           </Card>
