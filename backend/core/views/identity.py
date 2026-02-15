@@ -2,7 +2,20 @@ from rest_framework import viewsets, permissions, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
+
+
+class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
+    """Token generator exclusivo para verificação de email.
+    Não inclui user.password no hash, então um reset de senha não invalida
+    o link de verificação de email enviado no cadastro.
+    Inclui is_email_verified para que o token expire após o uso.
+    """
+    def _make_hash_value(self, user, timestamp):
+        return f"{user.pk}{timestamp}{user.is_email_verified}"
+
+
+email_verification_token = EmailVerificationTokenGenerator()
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.conf import settings
@@ -84,7 +97,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         # We must set the company before validating the serializer if it relies on it
         # Or pass it in context. Here, we save with the determined company.
         if target_company:
-             serializer.save(company=target_company)
+             serializer.save(company=target_company, is_email_verified=True)
         else:
              # Non-superuser without a company cannot create users for other companies
              # Or maybe allow creating users without company? Depends on rules.
@@ -94,7 +107,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
                  raise PermissionDenied("You must belong to a company to create users.")
              else:
                  # Superuser creating user without company
-                 serializer.save(company=None)
+                 serializer.save(company=None, is_email_verified=True)
 
 
 @api_view(['POST'])
@@ -174,6 +187,7 @@ def password_reset_confirm(request):
         return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
 
     user.set_password(password)
+    user.is_email_verified = True
     user.save()
     return Response({"detail": "Senha redefinida com sucesso."}, status=status.HTTP_200_OK)
 
@@ -198,7 +212,7 @@ def verify_email(request):
     except (CustomUser.DoesNotExist, ValueError, TypeError):
         return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not default_token_generator.check_token(user, token):
+    if not email_verification_token.check_token(user, token):
         return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
 
     if not user.is_email_verified:
