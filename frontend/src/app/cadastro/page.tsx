@@ -32,12 +32,20 @@ function formatCpfCnpj(value: string) {
 }
 
 const VALID_PLANS = ['essencial', 'profissional', 'evolution'] as const;
+const VALID_CICLOS = ['MONTHLY', 'ANNUAL'] as const;
 type Plan = typeof VALID_PLANS[number];
+type Ciclo = typeof VALID_CICLOS[number];
 
 function CadastroForm() {
   const searchParams = useSearchParams();
-  const planParam = searchParams.get('plan')?.toLowerCase();
+
+  // Aceita ?plano= ou ?plan=, case-insensitive
+  const planParam = (searchParams.get('plano') ?? searchParams.get('plan'))?.toLowerCase();
   const plan: Plan | null = VALID_PLANS.includes(planParam as Plan) ? (planParam as Plan) : null;
+
+  // Aceita ?ciclo=, case-insensitive, default MONTHLY
+  const cicloParam = searchParams.get('ciclo')?.toUpperCase() as Ciclo | undefined;
+  const ciclo: Ciclo = VALID_CICLOS.includes(cicloParam as Ciclo) ? (cicloParam as Ciclo) : 'MONTHLY';
 
   const [form, setForm] = useState({
     nome_empresa: '',
@@ -92,7 +100,7 @@ function CadastroForm() {
         senha: form.senha,
       });
       if (plan) {
-        window.location.href = `/assinar/pagamento?plano=${plan}&ciclo=MONTHLY`;
+        window.location.href = `/assinar/pagamento?plano=${plan}&ciclo=${ciclo}`;
       } else {
         window.location.href = '/dashboard';
       }
@@ -133,22 +141,40 @@ function CadastroForm() {
         </div>
 
         <div className="relative z-10 max-w-lg">
-          <p className="text-3xl font-serif font-semibold text-white leading-snug mb-8">
-            Gestão financeira para escritórios de advocacia
+          <p className="text-3xl font-serif font-semibold text-white leading-snug mb-3">
+            Chega de planilha. Seu escritório merece mais controle.
+          </p>
+          <p className="text-white/50 text-sm mb-8 leading-relaxed">
+            O Vincor centraliza tudo que você precisa para gerenciar o financeiro do seu escritório sem complicação.
           </p>
 
-          <ul className="space-y-4">
+          <ul className="space-y-5">
             {[
-              'Controle de receitas, despesas e fluxo de caixa',
-              'Relatórios profissionais em PDF para clientes e sócios',
-              'Comissionamento automático por advogado',
-              '7 dias grátis, sem cartão de crédito',
+              {
+                title: 'Saiba exatamente o que cada cliente gera',
+                desc: 'Visualize receitas por cliente, identifique os mais rentáveis e tome decisões com dados reais.',
+              },
+              {
+                title: 'Comissões calculadas automaticamente',
+                desc: 'Defina regras por advogado ou por cliente. O sistema calcula tudo sem fórmula, sem erro.',
+              },
+              {
+                title: 'Relatórios prontos para clientes e sócios',
+                desc: 'Exporte PDFs profissionais de DRE, fluxo de caixa e comissionamento em segundos.',
+              },
+              {
+                title: '7 dias grátis, sem cartão de crédito',
+                desc: 'Teste tudo sem compromisso. Cancele quando quiser.',
+              },
             ].map((item) => (
-              <li key={item} className="flex items-start gap-3 text-white/75 text-sm">
-                <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center">
+              <li key={item.title} className="flex items-start gap-3">
+                <span className="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center">
                   <IconCheck size={11} className="text-[#D4AF37]" />
                 </span>
-                {item}
+                <div>
+                  <p className="text-white text-sm font-medium leading-snug">{item.title}</p>
+                  <p className="text-white/45 text-xs mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
               </li>
             ))}
           </ul>
