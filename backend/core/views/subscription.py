@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
-from django.contrib.auth.tokens import default_token_generator
+from .identity import email_verification_token
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from requests.exceptions import RequestException, HTTPError
@@ -514,7 +514,7 @@ def register_view(request):
 
         # Envia email de verificação via Resend
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
+        token = email_verification_token.make_token(user)
         verify_url = f"{django_settings.FRONTEND_URL}/verificar-email?uid={uid}&token={token}"
 
         resend.api_key = django_settings.RESEND_API_KEY
