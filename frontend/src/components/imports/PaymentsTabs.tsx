@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-import { formatCurrencyInput, parseCurrencyBR, formatCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyInput, parseCurrencyBR, formatCurrencyBR, formatDateBR } from '@/lib/formatters';
 import { createPayment, getPayments, deletePayment } from '@/services/payments';
 import { createAllocation, deleteAllocation, getAllocations } from '@/services/allocations';
 import PaymentsTable from './PaymentsTable';
@@ -294,7 +294,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
     const search = searchTerm.toLowerCase();
 
     // Pesquisar por data (formato brasileiro)
-    const dataFormatada = new Date(payment.data_pagamento).toLocaleDateString('pt-BR');
+    const dataFormatada = formatDateBR(payment.data_pagamento);
     if (dataFormatada.includes(search)) return true;
 
     // Pesquisar por valor total
@@ -540,7 +540,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
                         />
                       </td>
                       <td className="p-3 text-sm whitespace-nowrap">
-                        {new Date(payment.data_pagamento).toLocaleDateString('pt-BR')}
+                        {formatDateBR(payment.data_pagamento)}
                       </td>
                       <td className="p-3 text-sm">
                         {contasBancarias.find((c) => c.id === payment.conta_bancaria)?.nome || '-'}

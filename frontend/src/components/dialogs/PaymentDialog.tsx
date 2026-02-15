@@ -14,7 +14,7 @@ import {
 import { Select as AntdSelect } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 
-import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyInput, parseCurrencyBR, formatDateBR } from '@/lib/formatters';
 
 import { getBancos } from '@/services/bancos';
 import { getReceitasAbertas } from '@/services/receitas';
@@ -531,7 +531,7 @@ export default function PaymentDialog({
                             }))
                           : transfers.map((t) => ({
                               value: t.id,
-                              label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${new Date(t.data_transferencia).toLocaleDateString('pt-BR')}`,
+                              label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatDateBR(t.data_transferencia)}`,
                             }))
                       }
                       onChange={(val) => {

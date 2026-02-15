@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Select as AntdSelect } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
-import { formatCurrencyBR, formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
+import { formatCurrencyBR, formatCurrencyInput, parseCurrencyBR, formatDateBR } from '@/lib/formatters';
 import { createAllocation, getAllocations, deleteAllocation } from '@/services/allocations';
 import { getReceitasAbertas, getReceitaById } from '@/services/receitas';
 import { getDespesasAbertas, getDespesaById } from '@/services/despesas';
@@ -636,7 +636,7 @@ export default function VincularLancamentoDialog({
                           }))
                         : transfers.map((t) => ({
                             value: t.id,
-                            label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatCurrencyBR(parseFloat(t.valor))} - ${new Date(t.data_transferencia).toLocaleDateString('pt-BR')}`,
+                            label: `${t.from_bank_nome} → ${t.to_bank_nome} - ${formatCurrencyBR(parseFloat(t.valor))} - ${formatDateBR(t.data_transferencia)}`,
                           }))
                     }
                     onChange={(val) => {

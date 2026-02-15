@@ -22,7 +22,7 @@ import GenericTable from "@/components/imports/GenericTable";
 import BancoDialog from "@/components/dialogs/BancoDialog";
 import TransferDialog from "@/components/dialogs/TransferDialog";
 
-import { formatCurrencyBR } from "@/lib/formatters";
+import { formatCurrencyBR, formatDateBR } from "@/lib/formatters";
 import { ActionsDropdown } from "@/components/imports/ActionsDropdown";
 import { Pencil, Trash, ArrowRightLeft } from "lucide-react";
 import { useDeleteConfirmation } from "@/hooks/useDeleteConfirmation";
@@ -272,7 +272,7 @@ export default function BancosPage() {
       title: "Data",
       dataIndex: "data_transferencia",
       width: "12%",
-      render: (date: string) => new Date(date).toLocaleDateString("pt-BR"),
+      render: (date: string) => formatDateBR(date),
     },
     {
       title: "De",
