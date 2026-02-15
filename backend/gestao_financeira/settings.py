@@ -42,7 +42,7 @@ if not SECRET_KEY:
 DEBUG = ENV == "development"
 
 # Adjust allowed hosts via env (comma-separated)
-ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1,creatural-aphetically-lynda.ngrok-free.dev")
 
 # Application definition
 
