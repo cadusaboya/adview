@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 
 
@@ -219,4 +220,12 @@ def verify_email(request):
         user.is_email_verified = True
         user.save(update_fields=['is_email_verified'])
 
-    return Response({"detail": "Email confirmado com sucesso."}, status=status.HTTP_200_OK)
+    refresh = RefreshToken.for_user(user)
+    return Response(
+        {
+            "detail": "Email confirmado com sucesso.",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+        },
+        status=status.HTTP_200_OK,
+    )

@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { verifyEmail } from "@/services/auth";
+import { saveAuthTokens, verifyEmail } from "@/services/auth";
 
 type State = "loading" | "success" | "error" | "invalid";
 
@@ -18,7 +18,13 @@ function VerificarEmailForm() {
     if (!uid || !token) return;
 
     verifyEmail(uid, token)
-      .then(() => setState("success"))
+      .then((tokens) => {
+        saveAuthTokens(tokens, false);
+        setState("success");
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 800);
+      })
       .catch(() => setState("error"));
   }, [uid, token]);
 
@@ -58,13 +64,13 @@ function VerificarEmailForm() {
               </div>
               <h2 className="text-xl font-serif font-bold text-navy mb-2">Email confirmado!</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                Sua conta está ativa. Agora você pode fazer login e começar a usar o Vincor.
+                Sua conta está ativa. Você será redirecionado para o dashboard.
               </p>
               <Link
-                href="/"
+                href="/dashboard"
                 className="inline-block w-full py-2.5 bg-primary text-white rounded text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                Fazer login
+                Ir para o dashboard
               </Link>
             </>
           )}

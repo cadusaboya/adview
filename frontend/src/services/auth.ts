@@ -5,6 +5,22 @@ export interface LoginResponse {
   refresh: string;
 }
 
+export function saveAuthTokens(
+  tokens: LoginResponse,
+  rememberMe: boolean = false
+) {
+  const { access, refresh } = tokens;
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem('token', access);
+  storage.setItem('refresh_token', refresh);
+
+  if (rememberMe) {
+    localStorage.setItem('rememberMe', 'true');
+  } else {
+    localStorage.removeItem('rememberMe');
+  }
+}
+
 export async function login(username: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> {
   const response = await api.post<LoginResponse>('/api/token/', {
     username,
@@ -12,17 +28,7 @@ export async function login(username: string, password: string, rememberMe: bool
   });
 
   const { access, refresh } = response.data;
-
-  const storage = rememberMe ? localStorage : sessionStorage;
-  storage.setItem('token', access);
-  storage.setItem('refresh_token', refresh);
-
-  // Store the preference
-  if (rememberMe) {
-    localStorage.setItem('rememberMe', 'true');
-  } else {
-    localStorage.removeItem('rememberMe');
-  }
+  saveAuthTokens({ access, refresh }, rememberMe);
 
   return { access, refresh };
 }
@@ -50,8 +56,9 @@ export async function register(payload: RegisterPayload): Promise<void> {
   await api.post('/api/register/', payload);
 }
 
-export async function verifyEmail(uid: string, token: string): Promise<void> {
-  await api.post('/api/verify-email/', { uid, token });
+export async function verifyEmail(uid: string, token: string): Promise<LoginResponse> {
+  const response = await api.post<LoginResponse>('/api/verify-email/', { uid, token });
+  return response.data;
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
