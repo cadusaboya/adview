@@ -53,6 +53,14 @@ export async function register(payload: RegisterPayload): Promise<void> {
   sessionStorage.setItem('refresh_token', refresh);
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await api.post('/api/password-reset/', { email });
+}
+
+export async function confirmPasswordReset(uid: string, token: string, password: string): Promise<void> {
+  await api.post('/api/password-reset/confirm/', { uid, token, password });
+}
+
 export function isLoggedIn() {
   return !!getAccessToken();
 }

@@ -183,13 +183,18 @@ export default function LoginPage() {
               )}
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="lembrar"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-              />
-              <Label htmlFor="lembrar" className="cursor-pointer">Lembrar-me</Label>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="lembrar"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <Label htmlFor="lembrar" className="cursor-pointer">Lembrar-me</Label>
+              </div>
+              <a href="/esqueci-senha" className="text-sm text-primary hover:underline">
+                Esqueci minha senha
+              </a>
             </div>
 
             <Button

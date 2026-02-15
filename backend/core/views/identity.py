@@ -1,7 +1,12 @@
 from rest_framework import viewsets, permissions, serializers
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.conf import settings
+import resend
 from .mixins import CompanyScopedViewSetMixin
 from ..models import Company, CustomUser
 from ..serializers import CompanySerializer, CustomUserSerializer
@@ -90,3 +95,84 @@ class CustomUserViewSet(viewsets.ModelViewSet):
              else:
                  # Superuser creating user without company
                  serializer.save(company=None)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def password_reset_request(request):
+    """
+    POST /api/password-reset/
+    Body: { "email": "user@example.com" }
+    Envia um email com link de redefinição via Resend.
+    Sempre retorna 200 para não revelar se o email existe.
+    """
+    email = request.data.get('email', '').strip().lower()
+    if email:
+        try:
+            user = CustomUser.objects.get(email__iexact=email)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_url = f"{settings.FRONTEND_URL}/redefinir-senha?uid={uid}&token={token}"
+
+            resend.api_key = settings.RESEND_API_KEY
+            resend.Emails.send({
+                "from": "suporte@vincorapp.com.br",
+                "to": [user.email],
+                "subject": "Redefinição de senha — Vincor",
+                "html": f"""
+                <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
+                  <h2 style="color: #1a1a2e; margin-bottom: 8px;">Redefinição de senha</h2>
+                  <p style="color: #444; line-height: 1.6;">
+                    Recebemos uma solicitação para redefinir a senha da sua conta no Vincor.
+                    Clique no botão abaixo para criar uma nova senha.
+                  </p>
+                  <a href="{reset_url}"
+                     style="display: inline-block; margin: 24px 0; padding: 12px 28px;
+                            background-color: #c9a84c; color: #fff; text-decoration: none;
+                            border-radius: 6px; font-weight: 600;">
+                    Redefinir senha
+                  </a>
+                  <p style="color: #888; font-size: 13px;">
+                    Este link expira em 1 hora. Se você não solicitou a redefinição, ignore este email.
+                  </p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+                  <p style="color: #aaa; font-size: 12px;">Vincor — Gestão financeira para escritórios de advocacia</p>
+                </div>
+                """,
+            })
+        except CustomUser.DoesNotExist:
+            pass  # Não revelar se o email existe
+
+    return Response({"detail": "Se esse email estiver cadastrado, você receberá um link em breve."}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def password_reset_confirm(request):
+    """
+    POST /api/password-reset/confirm/
+    Body: { "uid": "...", "token": "...", "password": "novasenha" }
+    Valida o token e redefine a senha.
+    """
+    uid = request.data.get('uid', '')
+    token = request.data.get('token', '')
+    password = request.data.get('password', '')
+
+    if not uid or not token or not password:
+        return Response({"detail": "Dados incompletos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(password) < 8:
+        return Response({"detail": "A senha deve ter pelo menos 8 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        pk = force_str(urlsafe_base64_decode(uid))
+        user = CustomUser.objects.get(pk=pk)
+    except (CustomUser.DoesNotExist, ValueError, TypeError):
+        return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not default_token_generator.check_token(user, token):
+        return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(password)
+    user.save()
+    return Response({"detail": "Senha redefinida com sucesso."}, status=status.HTTP_200_OK)

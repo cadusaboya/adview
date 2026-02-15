@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    CompanyViewSet, CustomUserViewSet, ClienteViewSet,
+    CompanyViewSet, CustomUserViewSet, password_reset_request, password_reset_confirm, ClienteViewSet,
     FuncionarioViewSet, ReceitaViewSet, ReceitaRecorrenteViewSet, DespesaViewSet, DespesaRecorrenteViewSet,
     FornecedorViewSet, ContaBancariaViewSet, CustodiaViewSet, TransferViewSet, PaymentViewSet, AllocationViewSet,
     FavorecidoViewSet, dashboard_view,
@@ -52,6 +52,8 @@ router.register(r'assinatura', AssinaturaViewSet, basename='assinatura')
 urlpatterns = [
     path('', include(router.urls)),
     path('register/', register_view, name='register'),
+    path('password-reset/', password_reset_request, name='password-reset'),
+    path('password-reset/confirm/', password_reset_confirm, name='password-reset-confirm'),
     path('asaas/webhook/', asaas_webhook, name='asaas-webhook'),
     # Report URLs
     path('relatorios/cliente/<int:cliente_id>/', RelatorioClienteView.as_view(), name='relatorio-cliente'),
