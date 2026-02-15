@@ -30,7 +30,7 @@ from .serializers import (
     PlanoAssinaturaSerializer, AssinaturaEmpresaSerializer,
 )
 from .permissions import IsSubscriptionActive
-from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas
+from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas, reativar_assinatura_asaas
 
 
 def _add_one_year_safe(base_date):
@@ -4519,8 +4519,7 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
         """
         POST /api/assinatura/reativar/
         Reactivates a cancelled subscription that still has access (proxima_cobranca in the future).
-        Note: cancelar() now cancels the subscription in Asaas. Reactivation here only restores the
-        local status; the user will need to subscribe again when proxima_cobranca expires.
+        Re-creates the subscription in Asaas starting from proxima_cobranca (no immediate charge).
         """
         from datetime import date
         try:
@@ -4534,8 +4533,44 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
         if not assinatura.proxima_cobranca or assinatura.proxima_cobranca < date.today():
             return Response({'detail': 'O período pago já expirou. Assine um novo plano.'}, status=400)
 
+        if not assinatura.plano:
+            return Response({'detail': 'Plano não encontrado. Assine um novo plano.'}, status=400)
+
+        if not assinatura.asaas_customer_id:
+            return Response({'detail': 'Cliente não encontrado no gateway. Entre em contato com o suporte.'}, status=400)
+
+        next_due_date = assinatura.proxima_cobranca.strftime('%Y-%m-%d')
+        try:
+            data = reativar_assinatura_asaas(
+                assinatura.asaas_customer_id,
+                assinatura.plano,
+                assinatura.ciclo,
+                next_due_date,
+            )
+        except RequestException as e:
+            logger.warning(f'Falha de comunicação com Asaas ao reativar assinatura: {e}')
+            return Response(
+                {'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'},
+                status=503,
+            )
+        except HTTPError as e:
+            logger.warning(f'Erro HTTP no Asaas ao reativar assinatura: {e}')
+            return Response(
+                {'detail': 'Não foi possível reativar a assinatura no gateway de pagamento. Tente novamente.'},
+                status=502,
+            )
+
+        # Preserve old subscription_id before overwriting
+        old_sub_id = assinatura.asaas_subscription_id
+        ids_anteriores = list(assinatura.asaas_subscription_ids_anteriores or [])
+        if old_sub_id and old_sub_id not in ids_anteriores:
+            ids_anteriores.append(old_sub_id)
+
+        assinatura.asaas_subscription_id = data['id']
+        assinatura.asaas_subscription_ids_anteriores = ids_anteriores
         assinatura.status = 'active'
-        assinatura.save(update_fields=['status'])
+        assinatura.save(update_fields=['status', 'asaas_subscription_id', 'asaas_subscription_ids_anteriores'])
+
         serializer = self.get_serializer(assinatura)
         return Response(serializer.data)
 

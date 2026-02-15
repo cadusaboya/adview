@@ -596,23 +596,52 @@ class CobrancaAutomaticaTests(BaseSubscriptionTest):
 
 class ReativarAssinaturaTests(BaseSubscriptionTest):
 
-    def test_reativar_dentro_do_periodo_graca(self):
-        """Reativar durante período de graça deve voltar para active."""
+    REATIVAR_RESULT = {"id": "sub_nova_reativada", "status": "ACTIVE"}
+
+    def _setup_cancelled_with_grace(self, days=10):
         a = self._get_assinatura()
         a.status = "cancelled"
-        a.proxima_cobranca = date.today() + timedelta(days=10)
+        a.proxima_cobranca = date.today() + timedelta(days=days)
+        a.asaas_customer_id = ASAAS_CUSTOMER_ID
+        a.asaas_subscription_id = "sub_antiga"
+        a.plano = PlanoAssinatura.objects.first()
+        a.ciclo = "MONTHLY"
         a.save()
+        return a
 
-        resp = self.client.post(f"{ASSINATURA_URL}reativar/")
+    def test_reativar_dentro_do_periodo_graca(self):
+        """Reativar durante período de graça recria assinatura no Asaas e volta para active."""
+        a = self._setup_cancelled_with_grace()
+
+        with patch("core.views.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
+            resp = self.client.post(f"{ASSINATURA_URL}reativar/")
+
         self.assertEqual(resp.status_code, 200)
         a.refresh_from_db()
         self.assertEqual(a.status, "active")
+        self.assertEqual(a.asaas_subscription_id, "sub_nova_reativada")
+        self.assertIn("sub_antiga", a.asaas_subscription_ids_anteriores)
+
+    def test_reativar_preserva_subscription_id_antigo(self):
+        """ID antigo deve ir para asaas_subscription_ids_anteriores ao reativar."""
+        a = self._setup_cancelled_with_grace()
+        a.asaas_subscription_ids_anteriores = ["sub_mais_antiga"]
+        a.save()
+
+        with patch("core.views.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
+            self.client.post(f"{ASSINATURA_URL}reativar/")
+
+        a.refresh_from_db()
+        self.assertIn("sub_antiga", a.asaas_subscription_ids_anteriores)
+        self.assertIn("sub_mais_antiga", a.asaas_subscription_ids_anteriores)
 
     def test_reativar_fora_do_periodo_graca_retorna_400(self):
         """Não pode reativar se proxima_cobranca já passou."""
         a = self._get_assinatura()
         a.status = "cancelled"
         a.proxima_cobranca = date.today() - timedelta(days=5)
+        a.plano = PlanoAssinatura.objects.first()
+        a.asaas_customer_id = ASAAS_CUSTOMER_ID
         a.save()
 
         resp = self.client.post(f"{ASSINATURA_URL}reativar/")
@@ -623,6 +652,18 @@ class ReativarAssinaturaTests(BaseSubscriptionTest):
         self._set_status("active")
         resp = self.client.post(f"{ASSINATURA_URL}reativar/")
         self.assertEqual(resp.status_code, 400)
+
+    def test_reativar_falha_asaas_retorna_503(self):
+        """Se o Asaas falhar ao reativar, retorna 503 e não altera o status local."""
+        from requests.exceptions import RequestException
+        a = self._setup_cancelled_with_grace()
+
+        with patch("core.views.reativar_assinatura_asaas", side_effect=RequestException("timeout")):
+            resp = self.client.post(f"{ASSINATURA_URL}reativar/")
+
+        self.assertEqual(resp.status_code, 503)
+        a.refresh_from_db()
+        self.assertEqual(a.status, "cancelled")
 
 
 # ===========================================================================

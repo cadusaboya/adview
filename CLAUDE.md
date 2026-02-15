@@ -28,16 +28,21 @@ python manage.py createsuperuser        # Create admin user
 
 ### Environment Variables
 - Frontend: `frontend/.env.local` with `NEXT_PUBLIC_API_URL`
-- Backend: `backend/.env` with `SECRET_KEY`, `ENV` (development/production), and database settings (`DATABASE_URL` or individual `DB_*` vars)
+- Backend: `backend/.env` with:
+  - `SECRET_KEY`, `ENV` (development/production)
+  - Database: `DATABASE_URL` or individual `DB_*` vars
+  - Asaas: `ASAAS_API_KEY`, `ASAAS_BASE_URL`, `ASAAS_WEBHOOK_TOKEN`
 
 ## Architecture
 
 ### Backend Structure (Django)
 - `gestao_financeira/` - Django project settings and root URL configuration
 - `core/` - Main Django app with all business logic
-  - `models.py` - All data models (17 models)
-  - `views.py` - 16 ViewSets and report API views (~4,100 lines)
-  - `serializers.py` - 19 DRF serializers
+  - `models.py` - All data models (19 models)
+  - `views.py` - 18 ViewSets and report API views (~4,800 lines)
+  - `serializers.py` - DRF serializers (~895 lines)
+  - `permissions.py` - Custom DRF permissions (e.g. `IsSubscriptionActive`)
+  - `asaas_service.py` - Asaas payment gateway integration
   - `pdf_views.py` - PDF report generation using ReportLab (~2,400 lines)
   - `urls.py` - API routing using DRF DefaultRouter (90+ endpoints)
   - `pagination.py` - Custom pagination
@@ -55,12 +60,13 @@ python manage.py createsuperuser        # Create admin user
 - python-dotenv, dj-database-url
 
 ### Frontend Structure (Next.js App Router)
-- `src/app/` - 23 pages using Next.js App Router
-- `src/components/dialogs/` - 27 modal dialogs for CRUD operations
-- `src/components/ui/` - 20 Shadcn/Radix UI components
+- `src/app/` - 27+ pages using Next.js App Router
+- `src/components/dialogs/` - 25 modal dialogs for CRUD operations
+- `src/components/ui/` - 18 Shadcn/Radix UI components
 - `src/components/reports/` - Report components
-- `src/services/` - 21 API client modules using Axios
-- `src/types/` - 19 TypeScript type definition files
+- `src/services/` - 20 API client modules using Axios
+- `src/types/` - 18 TypeScript type definition files
+- `src/contexts/` - React contexts (e.g. `SubscriptionContext`)
 - `src/lib/` - Utilities (formatters, errors, validation)
 - `src/hooks/` - 5 custom React hooks
 
@@ -96,6 +102,9 @@ python manage.py createsuperuser        # Create admin user
 | **Custodia** | Custody/Escrow | tipo (P=Passivo/A=Ativo), status (A/P/L), valor_total, valor_liquidado |
 | **Transfer** | Inter-bank transfer | from_bank, to_bank, status (P/M/C) |
 | **Allocation** | Payment allocation (polymorphic) | links Payment → Receita OR Despesa OR Custodia OR Transfer |
+| **PlanoAssinatura** | Subscription plan definition | nome, preco_mensal, preco_anual, max_usuarios |
+| **AssinaturaEmpresa** | Active subscription per company | OneToOne(Company), status (trial/active/overdue/cancelled), plano FK, datas |
+| **WebhookLog** | Asaas webhook event log | evento, payment_id, payload, processed_at |
 
 ## Key Architectural Patterns
 
@@ -104,6 +113,7 @@ python manage.py createsuperuser        # Create admin user
 - **Commission hierarchy (3 levels)**: Company default → Client-level (`ClienteComissao`) → Revenue-specific (`ReceitaComissao`)
 - **Status auto-calculation**: Receita/Despesa situacao (P/A/V) computed from allocations; Custodia status (A/P/L) from valor_liquidado
 - **Authentication**: JWT stored in localStorage (rememberMe) or sessionStorage; auto-logout on 401
+- **Subscription enforcement**: `IsSubscriptionActive` permission class in `CompanyScopedViewSetMixin` → HTTP 402 → Axios interceptor → redirect `/assinar`; new companies get 7-day trial via `post_save` signal on Company
 - **API routing**: REST at `/api/` with DefaultRouter; reports at `/api/relatorios/`; PDFs at `/api/pdf/`
 
 ## API Endpoints
@@ -120,6 +130,9 @@ python manage.py createsuperuser        # Create admin user
 - `/api/custodias/`
 - `/api/transferencias/`
 - `/api/alocacoes/`
+- `/api/planos/` - Subscription plan listing
+- `/api/assinatura/` + `checkout`, `portal` actions - Subscription management
+- `/api/asaas/webhook/?token=SECRET` - Asaas payment webhook (PAYMENT_RECEIVED, PAYMENT_OVERDUE, SUBSCRIPTION_CANCELLED)
 
 ### Report Endpoints (JSON)
 - `/api/relatorios/cliente/<id>/`, `/api/relatorios/funcionario/<id>/`
@@ -153,6 +166,10 @@ python manage.py createsuperuser        # Create admin user
 | `/extrato` | Bank statement import + reconciliation |
 | `/empresa` | Company settings |
 | `/relatorios/dre`, `/relatorios/balanco`, `/relatorios/fluxo`, `/relatorios/comissoes`, `/relatorios/conciliacao` | Reports |
+| `/cadastro` | New company self-registration |
+| `/assinar` | Subscription paywall (plan selection + Asaas checkout) |
+| `/assinatura` | Subscription management (current plan, status) |
+| `/pagamento` | Post-payment success/confirmation page |
 
 ## Utilities & Formatters (src/lib/)
 
