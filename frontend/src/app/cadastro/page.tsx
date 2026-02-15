@@ -100,10 +100,10 @@ function CadastroForm() {
         senha: form.senha,
       });
       if (plan) {
-        window.location.href = `/assinar/pagamento?plano=${plan}&ciclo=${ciclo}`;
-      } else {
-        window.location.href = '/dashboard';
+        sessionStorage.setItem('pending_plan', plan);
+        sessionStorage.setItem('pending_ciclo', ciclo);
       }
+      window.location.href = '/email-enviado';
     } catch (err: unknown) {
       const data = (err as { response?: { data?: Record<string, string> } })?.response?.data;
       if (data && typeof data === 'object') {

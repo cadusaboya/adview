@@ -56,16 +56,20 @@ export default function LoginPage() {
       window.location.href = "/dashboard";
     } catch (error: unknown) {
       let detail = 'Usuário ou senha incorretos.';
+      let code = '';
       if (
         typeof error === 'object' &&
         error !== null &&
         'response' in error
       ) {
-        const data = (error as { response?: { data?: { detail?: string } } }).response?.data;
+        const data = (error as { response?: { data?: { detail?: string; code?: string } } }).response?.data;
         if (data?.detail) detail = data.detail;
+        if (data?.code) code = data.code;
       }
       toast.error(detail);
-      if (detail.toLowerCase().includes('usuário não encontrado')) {
+      if (code === 'email_not_verified') {
+        setPasswordError(detail);
+      } else if (detail.toLowerCase().includes('usuário não encontrado')) {
         setUsernameError(detail);
       } else {
         setPasswordError(detail);

@@ -176,3 +176,33 @@ def password_reset_confirm(request):
     user.set_password(password)
     user.save()
     return Response({"detail": "Senha redefinida com sucesso."}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_email(request):
+    """
+    POST /api/verify-email/
+    Body: { "uid": "...", "token": "..." }
+    Valida o token e marca o email como verificado.
+    """
+    uid = request.data.get('uid', '')
+    token = request.data.get('token', '')
+
+    if not uid or not token:
+        return Response({"detail": "Dados incompletos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        pk = force_str(urlsafe_base64_decode(uid))
+        user = CustomUser.objects.get(pk=pk)
+    except (CustomUser.DoesNotExist, ValueError, TypeError):
+        return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not default_token_generator.check_token(user, token):
+        return Response({"detail": "Link inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not user.is_email_verified:
+        user.is_email_verified = True
+        user.save(update_fields=['is_email_verified'])
+
+    return Response({"detail": "Email confirmado com sucesso."}, status=status.HTTP_200_OK)

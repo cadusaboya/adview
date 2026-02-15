@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import Link from "next/link";
 import { confirmPasswordReset } from "@/services/auth";
 
 function RedefinirSenhaForm() {
@@ -84,9 +85,9 @@ function RedefinirSenhaForm() {
               <p className="text-sm text-muted-foreground mb-6">
                 Este link é inválido ou expirou. Solicite um novo link de redefinição de senha.
               </p>
-              <a href="/esqueci-senha" className="text-sm text-primary font-medium hover:underline">
+              <Link href="/esqueci-senha" className="text-sm text-primary font-medium hover:underline">
                 Solicitar novo link
-              </a>
+              </Link>
             </div>
           ) : (
             <>
@@ -98,9 +99,9 @@ function RedefinirSenhaForm() {
                 {errors.general && (
                   <div className="rounded bg-red-50 border border-red-200 p-3 text-sm text-red-600">
                     {errors.general}{" "}
-                    <a href="/esqueci-senha" className="underline font-medium">
+                    <Link href="/esqueci-senha" className="underline font-medium">
                       Solicitar novo link
-                    </a>
+                    </Link>
                   </div>
                 )}
                 <div className="space-y-1">
@@ -135,9 +136,9 @@ function RedefinirSenhaForm() {
                 </Button>
               </form>
               <p className="mt-4 text-center text-sm text-muted-foreground">
-                <a href="/" className="text-primary font-medium hover:underline">
+                <Link href="/" className="text-primary font-medium hover:underline">
                   Voltar ao login
-                </a>
+                </Link>
               </p>
             </>
           )}

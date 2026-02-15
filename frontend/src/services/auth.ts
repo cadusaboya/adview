@@ -47,10 +47,11 @@ export interface RegisterPayload {
 }
 
 export async function register(payload: RegisterPayload): Promise<void> {
-  const response = await api.post<{ access: string; refresh: string }>('/api/register/', payload);
-  const { access, refresh } = response.data;
-  sessionStorage.setItem('token', access);
-  sessionStorage.setItem('refresh_token', refresh);
+  await api.post('/api/register/', payload);
+}
+
+export async function verifyEmail(uid: string, token: string): Promise<void> {
+  await api.post('/api/verify-email/', { uid, token });
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {

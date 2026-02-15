@@ -1,6 +1,7 @@
 import logging
 import json
 import secrets
+import resend
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -11,6 +12,9 @@ from django.views.decorators.http import require_POST
 from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 from requests.exceptions import RequestException, HTTPError
 from .mixins import (
     CompanyScopedViewSetMixin, PaymentRateThrottle,
@@ -454,11 +458,9 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
 def register_view(request):
     """
     POST /api/register/
-    Cria uma nova empresa + usuário administrador e retorna tokens JWT.
+    Cria uma nova empresa + usuário administrador e envia email de verificação.
     Body: { nome_empresa, cpf_cnpj, username, email, senha, nome? }
     """
-    from rest_framework_simplejwt.tokens import RefreshToken
-
     nome_empresa = (request.data.get('nome_empresa') or '').strip()
     cpf_cnpj     = (request.data.get('cpf_cnpj') or '').strip()
     username     = (request.data.get('username') or '').strip()
@@ -507,13 +509,41 @@ def register_view(request):
             company=company,
             first_name=first_name,
             last_name=last_name,
+            is_email_verified=False,
         )
 
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-        }, status=201)
+        # Envia email de verificação via Resend
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        verify_url = f"{django_settings.FRONTEND_URL}/verificar-email?uid={uid}&token={token}"
+
+        resend.api_key = django_settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": "suporte@vincorapp.com.br",
+            "to": [user.email],
+            "subject": "Confirme seu email — Vincor",
+            "html": f"""
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
+              <h2 style="color: #1a1a2e; margin-bottom: 8px;">Bem-vindo ao Vincor!</h2>
+              <p style="color: #444; line-height: 1.6;">
+                Sua conta foi criada com sucesso. Clique no botão abaixo para confirmar seu email e ativar o acesso.
+              </p>
+              <a href="{verify_url}"
+                 style="display: inline-block; margin: 24px 0; padding: 12px 28px;
+                        background-color: #c9a84c; color: #fff; text-decoration: none;
+                        border-radius: 6px; font-weight: 600;">
+                Confirmar email
+              </a>
+              <p style="color: #888; font-size: 13px;">
+                Este link expira em 1 hora. Se você não criou uma conta no Vincor, ignore este email.
+              </p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+              <p style="color: #aaa; font-size: 12px;">Vincor — Gestão financeira para escritórios de advocacia</p>
+            </div>
+            """,
+        })
+
+        return Response({"detail": "Conta criada! Verifique seu email para ativar o acesso."}, status=201)
 
     except Exception as e:
         logger.error(f'Erro ao registrar usuário: {e}')

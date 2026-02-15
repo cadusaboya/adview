@@ -1,5 +1,5 @@
 from .mixins import CompanyScopedViewSetMixin
-from .identity import CompanyViewSet, CustomUserViewSet, password_reset_request, password_reset_confirm
+from .identity import CompanyViewSet, CustomUserViewSet, password_reset_request, password_reset_confirm, verify_email
 from .people import ClienteViewSet, FuncionarioViewSet, FornecedorViewSet, FavorecidoViewSet
 from .revenue import ReceitaViewSet, ReceitaRecorrenteViewSet
 from .expense import DespesaViewSet, DespesaRecorrenteViewSet

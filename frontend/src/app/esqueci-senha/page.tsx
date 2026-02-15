@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import { requestPasswordReset } from "@/services/auth";
 
 export default function EsqueciSenhaPage() {
@@ -59,9 +60,9 @@ export default function EsqueciSenhaPage() {
               <p className="text-sm text-muted-foreground mb-6">
                 Se esse email estiver cadastrado, você receberá um link para redefinir sua senha em breve.
               </p>
-              <a href="/" className="text-sm text-primary font-medium hover:underline">
+              <Link href="/" className="text-sm text-primary font-medium hover:underline">
                 Voltar ao login
-              </a>
+              </Link>
             </div>
           ) : (
             <>
@@ -91,9 +92,9 @@ export default function EsqueciSenhaPage() {
                 </Button>
               </form>
               <p className="mt-4 text-center text-sm text-muted-foreground">
-                <a href="/" className="text-primary font-medium hover:underline">
+                <Link href="/" className="text-primary font-medium hover:underline">
                   Voltar ao login
-                </a>
+                </Link>
               </p>
             </>
           )}
