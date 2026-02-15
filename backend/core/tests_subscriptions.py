@@ -189,9 +189,9 @@ class CriarAssinaturaTests(BaseSubscriptionTest):
 
     def _mock_asaas(self):
         return [
-            patch("core.views.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID),
-            patch("core.views.atualizar_cliente_asaas", return_value=None),
-            patch("core.views.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT),
+            patch("core.views.subscription.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID),
+            patch("core.views.subscription.atualizar_cliente_asaas", return_value=None),
+            patch("core.views.subscription.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT),
         ]
 
     def test_criar_assinatura_muda_status_para_active(self):
@@ -252,7 +252,9 @@ class CriarAssinaturaTests(BaseSubscriptionTest):
     def test_criar_assinatura_dados_cartao_incompletos_retorna_400(self):
         """Campos do cartão faltando devem retornar 400."""
         payload = {**CARD_PAYLOAD, "credit_card": {"holder_name": "X"}}
-        resp = self.client.post(f"{ASSINATURA_URL}assinar/", payload, format="json")
+        with patch("core.views.subscription.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
+             patch("core.views.subscription.atualizar_cliente_asaas", return_value=None):
+            resp = self.client.post(f"{ASSINATURA_URL}assinar/", payload, format="json")
         self.assertEqual(resp.status_code, 400)
 
     def test_criar_assinatura_cpf_cnpj_invalido_retorna_400(self):
@@ -267,9 +269,9 @@ class CriarAssinaturaTests(BaseSubscriptionTest):
         """Se Asaas retornar erro de rede, endpoint deve retornar 503 sem mudar status."""
         from requests.exceptions import RequestException
         self._set_status("trial", trial_fim_delta=timedelta(days=-1))
-        with patch("core.views.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
-             patch("core.views.atualizar_cliente_asaas", return_value=None), \
-             patch("core.views.criar_assinatura_cartao_asaas", side_effect=RequestException("timeout")):
+        with patch("core.views.subscription.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
+             patch("core.views.subscription.atualizar_cliente_asaas", return_value=None), \
+             patch("core.views.subscription.criar_assinatura_cartao_asaas", side_effect=RequestException("timeout")):
             resp = self.client.post(f"{ASSINATURA_URL}assinar/", CARD_PAYLOAD, format="json")
 
         self.assertEqual(resp.status_code, 503)
@@ -475,7 +477,7 @@ class CancelarAssinaturaTests(BaseSubscriptionTest):
 
     def test_cancelar_chama_asaas_e_muda_status(self):
         """C2: cancelar() deve chamar Asaas E mudar status local."""
-        with patch("core.views.cancelar_assinatura_asaas") as mock_cancel:
+        with patch("core.views.subscription.cancelar_assinatura_asaas") as mock_cancel:
             resp = self.client.post(f"{ASSINATURA_URL}cancelar/")
         self.assertEqual(resp.status_code, 200)
         mock_cancel.assert_called_once_with("sub_abc123")
@@ -485,7 +487,7 @@ class CancelarAssinaturaTests(BaseSubscriptionTest):
     def test_cancelar_falha_no_asaas_retorna_503_sem_mudar_status(self):
         """C2: se Asaas falhar com erro de rede, status local NÃO deve ser alterado."""
         from requests.exceptions import RequestException
-        with patch("core.views.cancelar_assinatura_asaas", side_effect=RequestException("timeout")):
+        with patch("core.views.subscription.cancelar_assinatura_asaas", side_effect=RequestException("timeout")):
             resp = self.client.post(f"{ASSINATURA_URL}cancelar/")
         self.assertEqual(resp.status_code, 503)
         a = self._get_assinatura()
@@ -493,7 +495,7 @@ class CancelarAssinaturaTests(BaseSubscriptionTest):
 
     def test_cancelar_periodo_graca_mantem_acesso(self):
         """Após cancelar, se proxima_cobranca > hoje, acesso deve ser mantido."""
-        with patch("core.views.cancelar_assinatura_asaas"):
+        with patch("core.views.subscription.cancelar_assinatura_asaas"):
             self.client.post(f"{ASSINATURA_URL}cancelar/")
         a = self._get_assinatura()
         self.assertEqual(a.status, "cancelled")
@@ -508,7 +510,7 @@ class CancelarAssinaturaTests(BaseSubscriptionTest):
         a = self._get_assinatura()
         a.proxima_cobranca = date.today() - timedelta(days=1)
         a.save()
-        with patch("core.views.cancelar_assinatura_asaas"):
+        with patch("core.views.subscription.cancelar_assinatura_asaas"):
             self.client.post(f"{ASSINATURA_URL}cancelar/")
         a.refresh_from_db()
         self.assertFalse(a.acesso_permitido)
@@ -521,7 +523,7 @@ class CancelarAssinaturaTests(BaseSubscriptionTest):
         a = self._get_assinatura()
         a.asaas_subscription_id = ""
         a.save()
-        with patch("core.views.cancelar_assinatura_asaas") as mock_cancel:
+        with patch("core.views.subscription.cancelar_assinatura_asaas") as mock_cancel:
             resp = self.client.post(f"{ASSINATURA_URL}cancelar/")
         mock_cancel.assert_not_called()
         self.assertEqual(resp.status_code, 200)
@@ -613,7 +615,7 @@ class ReativarAssinaturaTests(BaseSubscriptionTest):
         """Reativar durante período de graça recria assinatura no Asaas e volta para active."""
         a = self._setup_cancelled_with_grace()
 
-        with patch("core.views.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
+        with patch("core.views.subscription.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
             resp = self.client.post(f"{ASSINATURA_URL}reativar/")
 
         self.assertEqual(resp.status_code, 200)
@@ -628,7 +630,7 @@ class ReativarAssinaturaTests(BaseSubscriptionTest):
         a.asaas_subscription_ids_anteriores = ["sub_mais_antiga"]
         a.save()
 
-        with patch("core.views.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
+        with patch("core.views.subscription.reativar_assinatura_asaas", return_value=self.REATIVAR_RESULT):
             self.client.post(f"{ASSINATURA_URL}reativar/")
 
         a.refresh_from_db()
@@ -658,7 +660,7 @@ class ReativarAssinaturaTests(BaseSubscriptionTest):
         from requests.exceptions import RequestException
         a = self._setup_cancelled_with_grace()
 
-        with patch("core.views.reativar_assinatura_asaas", side_effect=RequestException("timeout")):
+        with patch("core.views.subscription.reativar_assinatura_asaas", side_effect=RequestException("timeout")):
             resp = self.client.post(f"{ASSINATURA_URL}reativar/")
 
         self.assertEqual(resp.status_code, 503)
@@ -680,10 +682,10 @@ class EdgeCasesTests(BaseSubscriptionTest):
         a.asaas_subscription_id = "sub_antigo"
         a.save()
 
-        with patch("core.views.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
-             patch("core.views.atualizar_cliente_asaas"), \
-             patch("core.views.cancelar_assinatura_asaas"), \
-             patch("core.views.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT):
+        with patch("core.views.subscription.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
+             patch("core.views.subscription.atualizar_cliente_asaas"), \
+             patch("core.views.subscription.cancelar_assinatura_asaas"), \
+             patch("core.views.subscription.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT):
             self.client.post(f"{ASSINATURA_URL}assinar/", CARD_PAYLOAD, format="json")
 
         a.refresh_from_db()
@@ -698,10 +700,10 @@ class EdgeCasesTests(BaseSubscriptionTest):
         a.asaas_subscription_id = "sub_antigo_falhou"
         a.save()
 
-        with patch("core.views.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
-             patch("core.views.atualizar_cliente_asaas"), \
-             patch("core.views.cancelar_assinatura_asaas", side_effect=RequestException("timeout")), \
-             patch("core.views.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT):
+        with patch("core.views.subscription.criar_cliente_asaas", return_value=ASAAS_CUSTOMER_ID), \
+             patch("core.views.subscription.atualizar_cliente_asaas"), \
+             patch("core.views.subscription.cancelar_assinatura_asaas", side_effect=RequestException("timeout")), \
+             patch("core.views.subscription.criar_assinatura_cartao_asaas", return_value=ASAAS_SUBSCRIPTION_RESULT):
             self.client.post(f"{ASSINATURA_URL}assinar/", CARD_PAYLOAD, format="json")
 
         a.refresh_from_db()
