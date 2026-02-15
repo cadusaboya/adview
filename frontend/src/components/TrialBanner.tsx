@@ -9,6 +9,24 @@ export function TrialBanner() {
   const router = useRouter();
 
   if (loading || !assinatura) return null;
+
+  if (assinatura.status === 'payment_failed') {
+    return (
+      <div className="flex items-center justify-between px-4 py-2 text-sm font-medium bg-red-600 text-white">
+        <div className="flex items-center gap-2">
+          <IconAlertCircle size={16} />
+          <span>Pagamento recusado. Regularize sua assinatura para recuperar o acesso.</span>
+        </div>
+        <button
+          onClick={() => router.push('/assinatura')}
+          className="ml-4 underline font-semibold hover:no-underline whitespace-nowrap"
+        >
+          Ver detalhes
+        </button>
+      </div>
+    );
+  }
+
   if (assinatura.status !== 'trial' || !assinatura.trial_ativo) return null;
 
   const dias = assinatura.dias_trial_restantes;

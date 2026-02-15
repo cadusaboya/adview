@@ -17,7 +17,7 @@ export interface AssinaturaStatus {
   id: number;
   plano: PlanoAssinatura | null;
   ciclo: 'MONTHLY' | 'YEARLY';
-  status: 'trial' | 'active' | 'overdue' | 'cancelled' | 'expired';
+  status: 'trial' | 'active' | 'overdue' | 'payment_failed' | 'cancelled' | 'expired';
   trial_inicio: string;
   trial_fim: string;
   trial_ativo: boolean;

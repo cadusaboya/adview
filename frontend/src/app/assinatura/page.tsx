@@ -60,6 +60,15 @@ const STATUS_CONFIG = {
     icon: IconAlertCircle,
     iconColor: 'text-red-500',
   },
+  payment_failed: {
+    label: 'Pagamento Recusado',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    text: 'text-red-700',
+    badge: 'bg-red-100 text-red-700 border border-red-200',
+    icon: IconAlertCircle,
+    iconColor: 'text-red-500',
+  },
   cancelled: {
     label: 'Cancelada',
     bg: 'bg-gray-50',
@@ -123,9 +132,9 @@ export default function AssinaturaPage() {
     }
   };
 
-  // Fetch payment URL when overdue
+  // Fetch payment URL when overdue or payment_failed
   useEffect(() => {
-    if (assinatura?.status === 'overdue') {
+    if (assinatura?.status === 'overdue' || assinatura?.status === 'payment_failed') {
       setLoadingPaymentUrl(true);
       getLinkPagamento()
         .then(setPaymentUrl)
@@ -235,11 +244,12 @@ export default function AssinaturaPage() {
   const isActive = assinatura.status === 'active';
   const isTrial = assinatura.status === 'trial';
   const isOverdue = assinatura.status === 'overdue';
+  const isPaymentFailed = assinatura.status === 'payment_failed';
   const isCancelledWithAccess = assinatura.status === 'cancelled' && assinatura.acesso_permitido;
   const isCancelledNoAccess = (assinatura.status === 'cancelled' && !assinatura.acesso_permitido) || assinatura.status === 'expired';
 
   const canCancel = isActive || isOverdue;
-  const needsAction = isTrial || isOverdue || isCancelledNoAccess;
+  const needsAction = isTrial || isOverdue || isPaymentFailed || isCancelledNoAccess;
 
   const cicloLabel = assinatura.ciclo === 'YEARLY' ? 'Anual' : 'Mensal';
   const precoMes = assinatura.plano
@@ -321,6 +331,8 @@ export default function AssinaturaPage() {
                       ? 'Seu período de teste encerrou'
                       : isOverdue
                       ? 'Há um pagamento pendente na sua assinatura'
+                      : isPaymentFailed
+                      ? 'Seu pagamento foi recusado'
                       : 'Sua assinatura está inativa'}
                   </p>
                   <p className={`text-xs mt-0.5 ${status.text} opacity-80`}>
@@ -328,11 +340,13 @@ export default function AssinaturaPage() {
                       ? 'Assine um plano para continuar utilizando o Vincor após o término do teste.'
                       : isOverdue
                       ? 'Regularize seu pagamento para manter o acesso sem interrupções.'
+                      : isPaymentFailed
+                      ? 'O cartão foi recusado. Pague a cobrança pendente abaixo para reativar seu acesso.'
                       : 'Escolha um plano para reativar o acesso ao sistema.'}
                   </p>
 
-                  {/* Payment link for overdue */}
-                  {isOverdue && (
+                  {/* Payment link for overdue or payment_failed */}
+                  {(isOverdue || isPaymentFailed) && (
                     <div className="mt-3">
                       {loadingPaymentUrl ? (
                         <p className="text-xs text-red-500 opacity-70">Buscando link de pagamento...</p>
@@ -355,7 +369,7 @@ export default function AssinaturaPage() {
                   )}
                 </div>
 
-                {!isOverdue && (
+                {!isOverdue && !isPaymentFailed && (
                   <button
                     onClick={() => router.push('/assinar')}
                     className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0A192F] text-white hover:bg-[#0A192F]/90 transition"
