@@ -46,6 +46,26 @@ def criar_cliente_asaas(company) -> str:
     return data['id']
 
 
+def buscar_cliente_asaas_por_cpfcnpj(cpf_cnpj: str) -> str | None:
+    """
+    Searches Asaas for a customer by CPF/CNPJ.
+    Returns the Asaas customer ID if found, None otherwise.
+    """
+    cpf_cnpj_clean = cpf_cnpj.replace('.', '').replace('-', '').replace('/', '')
+    resp = requests.get(
+        f'{_base_url()}/customers',
+        params={'cpfCnpj': cpf_cnpj_clean},
+        headers=_headers(),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json().get('data', [])
+    if data:
+        logger.info(f'Asaas customer found by CPF/CNPJ: {data[0]["id"]}')
+        return data[0]['id']
+    return None
+
+
 def atualizar_cliente_asaas(asaas_customer_id: str, company) -> None:
     """Updates an existing Asaas customer with the latest company data (e.g. CPF/CNPJ)."""
     cpf_cnpj = (company.cnpj or company.cpf or '').replace('.', '').replace('-', '').replace('/', '')
