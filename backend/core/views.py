@@ -4337,9 +4337,26 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                 holder_info.setdefault('email', company.email or '')
                 holder_info.setdefault('phone', company.telefone or '')
 
-                result = criar_assinatura_cartao_asaas(
-                    assinatura.asaas_customer_id, plano, ciclo, credit_card, holder_info
-                )
+                try:
+                    result = criar_assinatura_cartao_asaas(
+                        assinatura.asaas_customer_id, plano, ciclo, credit_card, holder_info
+                    )
+                except HTTPError as e:
+                    # Asaas rejects charges for removed customers — recreate and retry once
+                    if e.response is not None and e.response.status_code == 400:
+                        body = e.response.text.lower()
+                        if 'removido' in body or 'removed' in body:
+                            logger.warning(f'Customer {assinatura.asaas_customer_id} is removed in Asaas, recreating.')
+                            new_id = criar_cliente_asaas(company)
+                            assinatura.asaas_customer_id = new_id
+                            assinatura.save(update_fields=['asaas_customer_id'])
+                            result = criar_assinatura_cartao_asaas(
+                                new_id, plano, ciclo, credit_card, holder_info
+                            )
+                        else:
+                            raise
+                    else:
+                        raise
 
                 # Activate immediately — Asaas charges the card synchronously
                 today = timezone.localdate()
