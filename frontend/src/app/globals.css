@@ -257,6 +257,9 @@
 /* Ant Design Select in dialogs */
 .ant-select {
   font-family: var(--font-inter), system-ui, sans-serif;
+  display: block !important;
+  height: 40px !important;
+  line-height: 40px !important;
 }
 
 .ant-select-selector {
@@ -264,6 +267,10 @@
   border-color: hsl(var(--input)) !important;
   height: 40px !important;
   align-items: center !important;
+}
+
+.ant-select-status-error .ant-select-selector {
+  border-color: hsl(var(--destructive)) !important;
 }
 
 .ant-select-focused .ant-select-selector {

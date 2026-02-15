@@ -49,7 +49,7 @@ export default function ComissaoList({ comissoes, setComissoes, funcionarios, em
       )}
 
       {comissoes.map((item) => (
-        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end border rounded-md p-3 bg-muted">
+        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start border rounded-md p-3 bg-muted">
           {/* Funcionário */}
           <div className="md:col-span-7 space-y-1">
             <label className="text-xs font-medium">Comissionado</label>
@@ -85,7 +85,7 @@ export default function ComissaoList({ comissoes, setComissoes, funcionarios, em
           </div>
 
           {/* Remover */}
-          <div className="md:col-span-1 flex justify-end">
+          <div className="md:col-span-1 flex justify-end mt-5">
             <Button
               type="button"
               variant="destructive"

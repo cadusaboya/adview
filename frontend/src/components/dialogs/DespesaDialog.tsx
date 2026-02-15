@@ -95,7 +95,6 @@ export default function DespesaDialog({
   } = useFormValidation<DespesaCreate>(
     {
       nome: '',
-      descricao: '',
       responsavel_id: 0,
       valor: 0,
       data_vencimento: '',
@@ -118,7 +117,6 @@ export default function DespesaDialog({
     if (despesa) {
       setFormData({
         nome: despesa.nome,
-        descricao: despesa.descricao,
         responsavel_id: despesa.responsavel?.id ?? despesa.responsavel_id,
         valor: despesa.valor,
         data_vencimento: despesa.data_vencimento,
@@ -128,7 +126,6 @@ export default function DespesaDialog({
     } else {
       setFormData({
         nome: '',
-        descricao: '',
         responsavel_id: 0,
         valor: 0,
         data_vencimento: '',
@@ -239,16 +236,6 @@ export default function DespesaDialog({
           />
         </div>
 
-        {/* Descrição */}
-        <FormInput
-          label="Descrição"
-          placeholder="Detalhes sobre a despesa"
-          value={formData.descricao}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, descricao: e.target.value }))
-          }
-          error={getFieldProps('descricao').error}
-        />
 
         {/* Valor / Vencimento / Tipo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

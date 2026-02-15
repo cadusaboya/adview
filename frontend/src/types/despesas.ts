@@ -4,8 +4,8 @@
 export interface Despesa {
     id: number;
     nome: string;
-    descricao: string;
-  
+    descricao?: string;
+
     responsavel_id: number;
     responsavel: {
       id: number;
@@ -29,8 +29,7 @@ export interface Despesa {
   // 🔹 Payload de criação
   export type DespesaCreate = {
     nome: string;
-    descricao: string;
-  
+
     responsavel_id: number;
   
     data_vencimento: string;

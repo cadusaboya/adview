@@ -181,6 +181,25 @@ export async function gerarRelatorioPDF(
       window.URL.revokeObjectURL(urlBlob);
     }, 100);
   } catch (error: unknown) {
+    // When responseType is 'blob', error responses arrive as Blobs — parse them to extract the message
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'response' in error
+    ) {
+      const axiosError = error as { response?: { data?: unknown } };
+      if (axiosError.response?.data instanceof Blob) {
+        const text = await axiosError.response.data.text();
+        let message = 'Erro ao gerar relatório';
+        try {
+          const json = JSON.parse(text);
+          message = json.error || json.detail || message;
+        } catch {
+          message = text || message;
+        }
+        throw new Error(message);
+      }
+    }
     throw new Error(getErrorMessage(error, 'Erro ao gerar relatório'));
   }
 }

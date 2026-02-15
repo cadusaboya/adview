@@ -162,16 +162,31 @@ export default function AssinarPage() {
                     ))}
                   </ul>
 
-                  <button
-                    onClick={() => handleSelectPlano(plano)}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition ${
-                      isPro
-                        ? 'bg-[#0A192F] text-white hover:bg-[#0A192F]/90'
-                        : 'bg-[#D4AF37] text-[#0A192F] hover:bg-[#c9a42e]'
-                    }`}
-                  >
-                    Assinar agora
-                  </button>
+                  {plano.slug === 'evolution' ? (
+                    <a
+                      href="https://wa.me/5591984147769?text=Ol%C3%A1%2C+quero+saber+mais+sobre+o+plano+Evolution"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-full py-2.5 rounded-xl font-semibold text-sm transition flex items-center justify-center ${
+                        isPro
+                          ? 'bg-[#0A192F] text-white hover:bg-[#0A192F]/90'
+                          : 'bg-[#D4AF37] text-[#0A192F] hover:bg-[#c9a42e]'
+                      }`}
+                    >
+                      Falar com Consultor
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => handleSelectPlano(plano)}
+                      className={`w-full py-2.5 rounded-xl font-semibold text-sm transition ${
+                        isPro
+                          ? 'bg-[#0A192F] text-white hover:bg-[#0A192F]/90'
+                          : 'bg-[#D4AF37] text-[#0A192F] hover:bg-[#c9a42e]'
+                      }`}
+                    >
+                      Assinar agora
+                    </button>
+                  )}
                 </div>
               );
             })}

@@ -32,17 +32,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear tokens
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('token');
-
-      // Show error message
-      toast.error('Sessão expirada. Por favor, faça login novamente.');
-
-      // Redirect to login after a short delay
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 1500);
+      const url = error.config?.url ?? '';
+      // Ignore 401 from the login endpoint — the page handles those messages itself
+      if (!url.includes('/api/token/')) {
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
+        toast.error('Sessão expirada. Por favor, faça login novamente.');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
+      }
     }
 
     // Subscription expired or inactive → redirect based on subscription status

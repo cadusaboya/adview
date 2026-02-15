@@ -436,5 +436,4 @@ class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         })
 
     def perform_update(self, serializer):
-        instance = serializer.save()
-        instance.atualizar_status()
+        serializer.save()

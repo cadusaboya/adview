@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { login, isLoggedIn } from "@/services/auth";
-import { getErrorMessage } from "@/lib/errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,9 +55,21 @@ export default function LoginPage() {
       toast.success("Login realizado com sucesso!");
       window.location.href = "/dashboard";
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, 'Usuário ou senha incorretos');
-      toast.error(errorMessage);
-      setPasswordError("Verifique suas credenciais e tente novamente.");
+      let detail = 'Usuário ou senha incorretos.';
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error
+      ) {
+        const data = (error as { response?: { data?: { detail?: string } } }).response?.data;
+        if (data?.detail) detail = data.detail;
+      }
+      toast.error(detail);
+      if (detail.toLowerCase().includes('usuário não encontrado')) {
+        setUsernameError(detail);
+      } else {
+        setPasswordError(detail);
+      }
     } finally {
       setIsSubmitting(false);
     }
