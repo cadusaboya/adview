@@ -7,6 +7,7 @@ import { ConfigProvider } from 'antd';
 import { Toaster } from 'sonner';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 import { isLoggedIn } from '@/services/auth';
+import { WhatsAppButton } from '@/components/WhatsAppButton';
 
 const EXEMPT_PATHS = ['/', '/assinatura', '/assinar', '/assinar/pagamento', '/cadastro'];
 
@@ -71,6 +72,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             {children}
           </SubscriptionGuard>
         </SubscriptionProvider>
+        <WhatsAppButton />
         <Toaster
           richColors
           position="bottom-right"
