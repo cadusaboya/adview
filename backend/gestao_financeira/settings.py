@@ -211,7 +211,7 @@ if ENV == "production":
     CSRF_TRUSTED_ORIGINS = [
         "https://*.railway.app",
         "https://*.up.railway.app",
-        "https://jurisfinance-bice.vercel.app"
+        "https://jurisfinance-bice.vercel.app",
         "https://app.vincorapp.com.br"
     ]
     # Adicionar domínios customizados via env (separados por vírgula)
