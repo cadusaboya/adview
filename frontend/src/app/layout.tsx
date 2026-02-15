@@ -3,6 +3,7 @@ import { Playfair_Display, Inter } from 'next/font/google';
 import './globals.css';
 
 import { Providers } from '@/components/Providers';
+import { Analytics } from '@vercel/analytics/react';
 
 const playfairDisplay = Playfair_Display({
   variable: '--font-playfair',
@@ -34,6 +35,7 @@ export default function RootLayout({
         <Providers>
           {children}
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
