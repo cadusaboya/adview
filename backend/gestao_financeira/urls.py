@@ -32,6 +32,12 @@ class CustomTokenObtainPairView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        if not user.is_email_verified:
+            return Response(
+                {"detail": "Confirme seu email antes de fazer login.", "code": "email_not_verified"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = TokenObtainPairSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)

@@ -237,6 +237,12 @@ ASAAS_API_KEY = os.getenv('ASAAS_API_KEY', '')
 ASAAS_BASE_URL = os.getenv('ASAAS_BASE_URL', 'https://sandbox.asaas.com/api/v3')
 ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
 
+# ──────────────────────────────────────────────
+# Resend email service
+# ──────────────────────────────────────────────
+RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
 if ENV == "production":
     if not ASAAS_API_KEY:
         raise RuntimeError("ASAAS_API_KEY obrigatório em produção")

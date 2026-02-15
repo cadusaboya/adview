@@ -38,6 +38,7 @@ class Company(models.Model):
 
 class CustomUser(AbstractUser):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
+    is_email_verified = models.BooleanField(default=False)
 
     groups = models.ManyToManyField(
         'auth.Group',
