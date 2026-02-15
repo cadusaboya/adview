@@ -4333,7 +4333,6 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                 )
 
                 # Activate immediately — Asaas charges the card synchronously
-                from django.utils import timezone
                 today = timezone.localdate()
                 assinatura.asaas_subscription_id = result['id']
                 assinatura.plano = plano
