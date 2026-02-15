@@ -870,6 +870,7 @@ class AssinaturaEmpresa(models.Model):
 class WebhookLog(models.Model):
     event_type = models.CharField(max_length=100)
     asaas_subscription_id = models.CharField(max_length=100, blank=True)
+    asaas_payment_id = models.CharField(max_length=100, blank=True)
     payload = models.JSONField()
     processed = models.BooleanField(default=False)
     error = models.TextField(blank=True)

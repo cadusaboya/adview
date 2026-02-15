@@ -4678,12 +4678,13 @@ def asaas_webhook(request):
         or payload.get('subscription', {}).get('id')
         or ''
     )
+    payment_id = payload.get('payment', {}).get('id', '')
 
     try:
         with transaction.atomic():
             already_processed = WebhookLog.objects.filter(
                 event_type=event_type,
-                asaas_subscription_id=subscription_id,
+                asaas_payment_id=payment_id,
                 processed=True,
             ).exists()
             if already_processed:
@@ -4692,6 +4693,7 @@ def asaas_webhook(request):
             log = WebhookLog.objects.create(
                 event_type=event_type,
                 asaas_subscription_id=subscription_id,
+                asaas_payment_id=payment_id,
                 payload=payload,
             )
 
