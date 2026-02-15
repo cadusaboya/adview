@@ -1,6 +1,7 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import APIException
 from rest_framework import status as drf_status
+from .models import AssinaturaEmpresa
 
 
 class PaymentRequired(APIException):
@@ -33,9 +34,9 @@ class IsSubscriptionActive(BasePermission):
 
         try:
             assinatura = company.assinatura
-        except Exception:
-            # No AssinaturaEmpresa row — allow access (backfill may not have run yet)
-            return True
+        except (AssinaturaEmpresa.DoesNotExist, AttributeError):
+            # No subscription row — deny access.
+            raise PaymentRequired()
 
         if assinatura.acesso_permitido:
             return True

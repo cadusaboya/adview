@@ -4282,11 +4282,15 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
 
         try:
             with transaction.atomic():
-                assinatura, _ = AssinaturaEmpresa.objects.get_or_create(
-                    company=company,
-                    defaults={'trial_fim': timezone.now(), 'status': 'trial'}
-                )
-                assinatura = AssinaturaEmpresa.objects.select_for_update().get(pk=assinatura.pk)
+                try:
+                    assinatura = AssinaturaEmpresa.objects.select_for_update().get(company=company)
+                except AssinaturaEmpresa.DoesNotExist:
+                    assinatura = AssinaturaEmpresa.objects.create(
+                        company=company,
+                        trial_fim=timezone.now(),
+                        status='trial',
+                    )
+                    assinatura = AssinaturaEmpresa.objects.select_for_update().get(pk=assinatura.pk)
 
                 # Ensure Asaas customer exists
                 if not assinatura.asaas_customer_id:
@@ -4307,15 +4311,28 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
 
                 # Cancel any existing pending/overdue Asaas subscription before creating a new one
                 if assinatura.asaas_subscription_id and assinatura.status != 'active':
+                    old_sub_id = assinatura.asaas_subscription_id
                     try:
-                        cancelar_assinatura_asaas(assinatura.asaas_subscription_id)
-                        logger.info(f'Cancelled stale subscription {assinatura.asaas_subscription_id} before re-subscribing.')
+                        cancelar_assinatura_asaas(old_sub_id)
+                        logger.info(f'Cancelled stale subscription {old_sub_id} before re-subscribing.')
                     except Exception as cancel_err:
-                        logger.warning(f'Could not cancel old subscription {assinatura.asaas_subscription_id}: {cancel_err}')
+                        logger.warning(f'Could not cancel old subscription {old_sub_id}: {cancel_err}')
+
+                    # Preserve the old ID in audit trail regardless of cancellation outcome.
+                    ids_anteriores = list(assinatura.asaas_subscription_ids_anteriores or [])
+                    if old_sub_id not in ids_anteriores:
+                        ids_anteriores.append(old_sub_id)
+
                     assinatura.asaas_subscription_id = None
+                    assinatura.asaas_subscription_ids_anteriores = ids_anteriores
                     assinatura.pending_plano = None
                     assinatura.pending_ciclo = None
-                    assinatura.save(update_fields=['asaas_subscription_id', 'pending_plano', 'pending_ciclo'])
+                    assinatura.save(update_fields=[
+                        'asaas_subscription_id',
+                        'asaas_subscription_ids_anteriores',
+                        'pending_plano',
+                        'pending_ciclo',
+                    ])
 
                 credit_card = request.data.get('credit_card')
                 holder_info = request.data.get('holder_info')
@@ -4466,11 +4483,8 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'])
     def cancelar(self, request):
         """
-        POST /api/assinatura/cancelar/ — Marks the subscription as cancelled at end of period.
-        Does NOT cancel in Asaas immediately: the subscription keeps running and will charge
-        automatically on proxima_cobranca. If the user reactivates before that date, the
-        Asaas subscription was never interrupted. If they don't reactivate, the webhook
-        (PAYMENT_OVERDUE / SUBSCRIPTION_CANCELLED) handles the final status.
+        POST /api/assinatura/cancelar/ — Cancels the subscription in Asaas immediately,
+        then marks it locally as cancelled. Access remains until proxima_cobranca.
         """
         try:
             assinatura = self._get_assinatura()
@@ -4479,6 +4493,22 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
 
         if assinatura.status not in ('active', 'overdue'):
             return Response({'detail': 'Sem assinatura ativa para cancelar.'}, status=400)
+
+        if assinatura.asaas_subscription_id:
+            try:
+                cancelar_assinatura_asaas(assinatura.asaas_subscription_id)
+            except RequestException as e:
+                logger.warning(f'Falha de comunicação com Asaas ao cancelar assinatura: {e}')
+                return Response(
+                    {'detail': 'Serviço de pagamento temporariamente indisponível. Tente novamente.'},
+                    status=503,
+                )
+            except HTTPError as e:
+                logger.warning(f'Erro HTTP no Asaas ao cancelar assinatura: {e}')
+                return Response(
+                    {'detail': 'Não foi possível cancelar a assinatura no gateway de pagamento. Tente novamente.'},
+                    status=502,
+                )
 
         assinatura.status = 'cancelled'
         assinatura.save(update_fields=['status'])
@@ -4489,8 +4519,8 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
         """
         POST /api/assinatura/reativar/
         Reactivates a cancelled subscription that still has access (proxima_cobranca in the future).
-        Since cancelar() does NOT delete the Asaas subscription, we simply flip the status back
-        to active — the same subscription in Asaas will charge automatically on proxima_cobranca.
+        Note: cancelar() now cancels the subscription in Asaas. Reactivation here only restores the
+        local status; the user will need to subscribe again when proxima_cobranca expires.
         """
         from datetime import date
         try:
@@ -4705,27 +4735,35 @@ def asaas_webhook(request):
                 if assinatura:
                     if event_type == 'PAYMENT_RECEIVED':
                         import datetime as _dt
-                        assinatura.status = 'active'
-                        # Compute next billing date from current payment's dueDate
-                        due_date_str = payload.get('payment', {}).get('dueDate')
-                        if due_date_str:
-                            try:
-                                due = _dt.date.fromisoformat(due_date_str)
-                                ciclo = (assinatura.pending_ciclo or assinatura.ciclo or 'MONTHLY')
-                                if ciclo == 'YEARLY':
-                                    assinatura.proxima_cobranca = _add_one_year_safe(due)
-                                else:
-                                    assinatura.proxima_cobranca = _add_one_month_safe(due)
-                            except Exception:
-                                pass
-                        if assinatura.pending_plano:
-                            assinatura.plano = assinatura.pending_plano
-                            assinatura.ciclo = assinatura.pending_ciclo or 'MONTHLY'
-                            assinatura.pending_plano = None
-                            assinatura.pending_ciclo = None
-                            assinatura.save(update_fields=['status', 'plano', 'ciclo', 'pending_plano', 'pending_ciclo', 'proxima_cobranca'])
+                        # Never restore access to a subscription the user explicitly cancelled.
+                        if assinatura.status == 'cancelled':
+                            logger.warning(
+                                f'PAYMENT_RECEIVED for cancelled subscription '
+                                f'{subscription_id} (company {assinatura.company_id}). '
+                                f'Ignoring to preserve cancellation intent.'
+                            )
                         else:
-                            assinatura.save(update_fields=['status', 'proxima_cobranca'])
+                            assinatura.status = 'active'
+                            # Compute next billing date from current payment's dueDate
+                            due_date_str = payload.get('payment', {}).get('dueDate')
+                            if due_date_str:
+                                try:
+                                    due = _dt.date.fromisoformat(due_date_str)
+                                    ciclo = (assinatura.pending_ciclo or assinatura.ciclo or 'MONTHLY')
+                                    if ciclo == 'YEARLY':
+                                        assinatura.proxima_cobranca = _add_one_year_safe(due)
+                                    else:
+                                        assinatura.proxima_cobranca = _add_one_month_safe(due)
+                                except Exception:
+                                    pass
+                            if assinatura.pending_plano:
+                                assinatura.plano = assinatura.pending_plano
+                                assinatura.ciclo = assinatura.pending_ciclo or 'MONTHLY'
+                                assinatura.pending_plano = None
+                                assinatura.pending_ciclo = None
+                                assinatura.save(update_fields=['status', 'plano', 'ciclo', 'pending_plano', 'pending_ciclo', 'proxima_cobranca'])
+                            else:
+                                assinatura.save(update_fields=['status', 'proxima_cobranca'])
                     elif event_type == 'PAYMENT_OVERDUE':
                         assinatura.status = 'overdue'
                         assinatura.save(update_fields=['status'])
