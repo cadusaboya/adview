@@ -38,10 +38,31 @@ python manage.py createsuperuser        # Create admin user
 ### Backend Structure (Django)
 - `gestao_financeira/` - Django project settings and root URL configuration
 - `core/` - Main Django app with all business logic
-  - `models.py` - All data models (19 models)
-  - `views.py` - 18 ViewSets and report API views (~4,800 lines)
-  - `serializers.py` - DRF serializers (~895 lines)
-  - `permissions.py` - Custom DRF permissions (e.g. `IsSubscriptionActive`)
+  - `models/` - Data models split by domain (package; `__init__.py` re-exports tudo)
+    - `identity.py` - Company, CustomUser
+    - `people.py` - Cliente, FormaCobranca, Funcionario, ClienteComissao
+    - `revenue.py` - Receita, ReceitaComissao, ReceitaRecorrente, ReceitaRecorrenteComissao
+    - `expense.py` - Despesa, DespesaRecorrente
+    - `banking.py` - ContaBancaria, Payment, Transfer
+    - `custody.py` - Custodia, Allocation
+    - `subscription.py` - PlanoAssinatura, AssinaturaEmpresa, WebhookLog + signal post_save
+  - `serializers/` - DRF serializers split por domínio (package; `__init__.py` re-exporta tudo)
+    - `identity.py`, `people.py`, `revenue.py`, `expense.py`, `banking.py`, `subscription.py`
+  - `views/` - ViewSets e views split por domínio (package; `__init__.py` re-exporta tudo)
+    - `mixins.py` - CompanyScopedViewSetMixin, PaymentRateThrottle, helpers CPF/data
+    - `identity.py` - CompanyViewSet, CustomUserViewSet
+    - `people.py` - ClienteViewSet, FuncionarioViewSet, FornecedorViewSet, FavorecidoViewSet
+    - `revenue.py` - ReceitaViewSet, ReceitaRecorrenteViewSet
+    - `expense.py` - DespesaViewSet, DespesaRecorrenteViewSet
+    - `banking.py` - PaymentViewSet, ContaBancariaViewSet, CustodiaViewSet, TransferViewSet, AllocationViewSet
+    - `subscription.py` - PlanoAssinaturaViewSet, AssinaturaViewSet, register_view, asaas_webhook
+    - `reports/base.py` - BaseReportView
+    - `reports/dashboard.py` - dashboard_view
+    - `reports/people.py` - RelatorioClienteView, RelatorioFuncionarioView, RelatorioFolhaSalarialView, RelatorioComissionamentoView
+    - `reports/financial.py` - RelatorioTipoPeriodoView, dre_consolidado, balanco_patrimonial, relatorio_conciliacao_bancaria, etc.
+  - `services/` - Camada de serviços (lógica de negócio desacoplada dos ViewSets)
+    - `commission.py` - `calcular_comissoes_mes()`, `gerar_despesas_comissao()`
+  - `permissions.py` - Custom DRF permissions (`IsSubscriptionActive`)
   - `asaas_service.py` - Asaas payment gateway integration
   - `pdf_views.py` - PDF report generation using ReportLab (~2,400 lines)
   - `urls.py` - API routing using DRF DefaultRouter (90+ endpoints)
