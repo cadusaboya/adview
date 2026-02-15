@@ -71,53 +71,6 @@ def atualizar_cliente_asaas(asaas_customer_id: str, company) -> None:
     logger.info(f'Asaas customer updated: {asaas_customer_id}')
 
 
-def criar_assinatura_asaas(asaas_customer_id: str, plano, ciclo: str = 'MONTHLY') -> dict:
-    """
-    Creates a recurring subscription in Asaas.
-    ciclo: 'MONTHLY' or 'YEARLY'
-    Returns the subscription dict enriched with 'checkout_url' from the first generated payment.
-    """
-    import datetime
-    from django.utils import timezone
-
-    # Start billing on the next day
-    next_due = (timezone.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-
-    if ciclo == 'YEARLY':
-        value = float(plano.preco_anual)
-        asaas_cycle = 'YEARLY'
-    else:
-        value = float(plano.preco_mensal)
-        asaas_cycle = 'MONTHLY'
-
-    payload = {
-        'customer': asaas_customer_id,
-        'billingType': 'UNDEFINED',  # Allows customer to choose boleto/PIX/credit card on invoice page
-        'value': value,
-        'nextDueDate': next_due,
-        'cycle': asaas_cycle,
-        'description': f'Assinatura Vincor — Plano {plano.nome}',
-        'externalReference': f'{plano.slug}-{ciclo.lower()}',
-    }
-
-    resp = requests.post(
-        f'{_base_url()}/subscriptions',
-        json=payload,
-        headers=_headers(),
-        timeout=15,
-    )
-    if not resp.ok:
-        logger.error(f'Asaas subscription error: HTTP {resp.status_code}')
-        logger.debug(f'Asaas subscription response body: {resp.text}')
-        resp.raise_for_status()
-    data = resp.json()
-    subscription_id = data['id']
-    logger.info(f'Asaas subscription created: {subscription_id}')
-
-    # Fetch the first payment generated for this subscription to get the invoice URL
-    data['checkout_url'] = obter_url_pagamento_assinatura(subscription_id)
-    return data
-
 
 def obter_url_pagamento_assinatura(asaas_subscription_id: str) -> str:
     """
@@ -178,10 +131,9 @@ def criar_assinatura_cartao_asaas(
     holder_info: { name, email, cpf_cnpj, phone, postal_code, address_number }
     Returns the subscription dict. Raises on card decline or API error.
     """
-    import datetime
     from django.utils import timezone
 
-    today = timezone.now().date()
+    today = timezone.localdate()  # respects TIME_ZONE = 'America/Sao_Paulo'
     if ciclo == 'YEARLY':
         value = float(plano.preco_anual)
         asaas_cycle = 'YEARLY'
@@ -243,10 +195,9 @@ def criar_assinatura_cartao_token_asaas(
     credit_card_token: token generated in the browser via Asaas SDK.
     Returns the subscription dict.
     """
-    import datetime
     from django.utils import timezone
 
-    today = timezone.now().date()
+    today = timezone.localdate()  # respects TIME_ZONE = 'America/Sao_Paulo'
     value = float(plano.preco_anual) if ciclo == 'YEARLY' else float(plano.preco_mensal)
     asaas_cycle = 'YEARLY' if ciclo == 'YEARLY' else 'MONTHLY'
     next_due = today.strftime('%Y-%m-%d')

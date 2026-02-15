@@ -126,35 +126,3 @@ class SubscriptionPlanFlowTests(TestCase):
         # comportamento desejado: deveria virar 2025-02-28, não ficar None
         self.assertIsNotNone(assinatura.proxima_cobranca)
 
-    @patch("core.views.obter_url_pagamento_assinatura", create=True)
-    @patch("core.views.criar_assinatura_asaas")
-    @patch("core.views.atualizar_cliente_asaas")
-    @patch("core.views.criar_cliente_asaas")
-    def test_assinar_pix_boleto_sets_pending_plan(
-        self,
-        mock_criar_cliente,
-        mock_atualizar_cliente,
-        mock_criar_assinatura,
-        mock_obter_url,
-    ):
-        self.company.cpf = "12345678901"
-        self.company.save(update_fields=["cpf"])
-        self.client.force_authenticate(user=self.user)
-        mock_criar_cliente.return_value = "cus_test_1"
-        mock_criar_assinatura.return_value = {
-            "id": "sub_test_1",
-            "checkout_url": "https://checkout.example/1",
-        }
-        mock_obter_url.return_value = "https://checkout.example/1"
-
-        response = self.client.post(
-            "/api/assinatura/assinar/",
-            data={"plano_slug": self.plano.slug, "ciclo": "MONTHLY"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-
-        assinatura = AssinaturaEmpresa.objects.get(company=self.company)
-        self.assertEqual(assinatura.pending_plano_id, self.plano.id)
-        self.assertEqual(assinatura.pending_ciclo, "MONTHLY")
-        self.assertEqual(assinatura.asaas_subscription_id, "sub_test_1")

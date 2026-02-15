@@ -30,7 +30,7 @@ from .serializers import (
     PlanoAssinaturaSerializer, AssinaturaEmpresaSerializer,
 )
 from .permissions import IsSubscriptionActive
-from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas, reativar_assinatura_asaas
+from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas
 
 
 def _add_one_year_safe(base_date):
@@ -4333,7 +4333,8 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                 )
 
                 # Activate immediately — Asaas charges the card synchronously
-                from datetime import date
+                from django.utils import timezone
+                today = timezone.localdate()
                 assinatura.asaas_subscription_id = result['id']
                 assinatura.plano = plano
                 assinatura.ciclo = ciclo
@@ -4342,9 +4343,9 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                 assinatura.pending_ciclo = None
                 # Next billing: ~1 month/year from today (matches nextDueDate sent to Asaas)
                 if ciclo == 'YEARLY':
-                    assinatura.proxima_cobranca = _add_one_year_safe(date.today())
+                    assinatura.proxima_cobranca = _add_one_year_safe(today)
                 else:
-                    assinatura.proxima_cobranca = _add_one_month_safe(date.today())
+                    assinatura.proxima_cobranca = _add_one_month_safe(today)
                 # Store card summary returned by Asaas
                 card_info = result.get('creditCard') or {}
                 if card_info.get('creditCardNumber'):
@@ -4700,6 +4701,9 @@ def asaas_webhook(request):
                             assinatura.save(update_fields=['status', 'proxima_cobranca'])
                     elif event_type == 'PAYMENT_OVERDUE':
                         assinatura.status = 'overdue'
+                        assinatura.save(update_fields=['status'])
+                    elif event_type == 'PAYMENT_REFUSED':
+                        assinatura.status = 'payment_failed'
                         assinatura.save(update_fields=['status'])
                     elif event_type in ('SUBSCRIPTION_CANCELLED', 'SUBSCRIPTION_DELETED'):
                         assinatura.status = 'cancelled'

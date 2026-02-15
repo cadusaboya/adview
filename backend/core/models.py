@@ -798,6 +798,7 @@ class AssinaturaEmpresa(models.Model):
         ('trial', 'Período de Teste'),
         ('active', 'Ativa'),
         ('overdue', 'Em Atraso'),
+        ('payment_failed', 'Pagamento Recusado'),
         ('cancelled', 'Cancelada'),
         ('expired', 'Expirada'),
     )
@@ -861,6 +862,8 @@ class AssinaturaEmpresa(models.Model):
             return self.trial_ativo
         if self.status == 'cancelled' and self.proxima_cobranca and self.proxima_cobranca >= timezone.now().date():
             return True
+        if self.status == 'payment_failed':
+            return False
         return False
 
 
