@@ -27,6 +27,23 @@ export function TrialBanner() {
     );
   }
 
+  if (assinatura.status === 'overdue') {
+    return (
+      <div className="flex items-center justify-between px-4 py-2 text-sm font-medium bg-orange-500 text-white">
+        <div className="flex items-center gap-2">
+          <IconAlertCircle size={16} />
+          <span>Pagamento em atraso. Regularize para evitar a suspensão do acesso.</span>
+        </div>
+        <button
+          onClick={() => router.push('/assinatura')}
+          className="ml-4 underline font-semibold hover:no-underline whitespace-nowrap"
+        >
+          Regularizar
+        </button>
+      </div>
+    );
+  }
+
   if (assinatura.status !== 'trial' || !assinatura.trial_ativo) return null;
 
   const dias = assinatura.dias_trial_restantes;

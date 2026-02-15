@@ -2,6 +2,10 @@
 # Global ignores (geral)
 # ===============================
 
+# Documentos de revisão e auditoria
+REVIEW_*.md
+AUDIT_*.md
+
 # Sistema operacional
 .DS_Store
 Thumbs.db

@@ -4765,11 +4765,19 @@ def asaas_webhook(request):
                             else:
                                 assinatura.save(update_fields=['status', 'proxima_cobranca'])
                     elif event_type == 'PAYMENT_OVERDUE':
-                        assinatura.status = 'overdue'
-                        assinatura.save(update_fields=['status'])
+                        # Don't overwrite an intentional cancellation.
+                        if assinatura.status != 'cancelled':
+                            assinatura.status = 'overdue'
+                            assinatura.save(update_fields=['status'])
+                        else:
+                            logger.info(
+                                f'PAYMENT_OVERDUE ignored for already-cancelled '
+                                f'subscription {subscription_id}.'
+                            )
                     elif event_type == 'PAYMENT_REFUSED':
-                        assinatura.status = 'payment_failed'
-                        assinatura.save(update_fields=['status'])
+                        if assinatura.status != 'cancelled':
+                            assinatura.status = 'payment_failed'
+                            assinatura.save(update_fields=['status'])
                     elif event_type in ('SUBSCRIPTION_CANCELLED', 'SUBSCRIPTION_DELETED'):
                         assinatura.status = 'cancelled'
                         assinatura.asaas_subscription_id = None

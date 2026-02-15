@@ -45,11 +45,25 @@ api.interceptors.response.use(
       }, 1500);
     }
 
-    // Subscription expired or inactive → redirect to plans page
+    // Subscription expired or inactive → redirect based on subscription status
     if (error.response?.status === 402) {
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      if (currentPath !== '/assinar') {
-        window.location.href = '/assinar';
+      const exemptPaths = ['/assinar', '/assinatura'];
+      if (!exemptPaths.includes(currentPath)) {
+        // Read cached status to decide where to send the user:
+        // - payment_failed / overdue → /assinatura (update card or pay pending charge)
+        // - everything else (trial expired, cancelled) → /assinar (pick a plan)
+        let cachedStatus: string | null = null;
+        try {
+          const raw = sessionStorage.getItem('vincor_assinatura_cache');
+          if (raw) cachedStatus = JSON.parse(raw)?.status ?? null;
+        } catch {
+          // ignore
+        }
+        const manageStatuses = ['payment_failed', 'overdue'];
+        window.location.href = manageStatuses.includes(cachedStatus ?? '')
+          ? '/assinatura'
+          : '/assinar';
       }
     }
 

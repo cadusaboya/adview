@@ -20,7 +20,11 @@ function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     if (!isLoggedIn()) return;
     if (EXEMPT_PATHS.includes(pathname)) return;
     if (assinatura && !assinatura.acesso_permitido) {
-      router.replace('/assinar');
+      // payment_failed/overdue → manage existing subscription
+      // everything else (trial expired, cancelled) → pick a plan
+      const manageStatuses = ['payment_failed', 'overdue'];
+      const dest = manageStatuses.includes(assinatura.status) ? '/assinatura' : '/assinar';
+      router.replace(dest);
     }
   }, [assinatura, loading, pathname, router]);
 
