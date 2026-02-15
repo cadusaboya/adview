@@ -4294,7 +4294,17 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                     assinatura.asaas_customer_id = asaas_customer_id
                     assinatura.save(update_fields=['asaas_customer_id'])
                 else:
-                    atualizar_cliente_asaas(assinatura.asaas_customer_id, company)
+                    try:
+                        atualizar_cliente_asaas(assinatura.asaas_customer_id, company)
+                    except HTTPError as e:
+                        if e.response is not None and e.response.status_code == 404:
+                            # Customer not found in this Asaas environment — recreate
+                            logger.warning(f'Customer {assinatura.asaas_customer_id} not found in Asaas, recreating.')
+                            asaas_customer_id = criar_cliente_asaas(company)
+                            assinatura.asaas_customer_id = asaas_customer_id
+                            assinatura.save(update_fields=['asaas_customer_id'])
+                        else:
+                            raise
 
                 # Cancel any existing pending/overdue Asaas subscription before creating a new one
                 if assinatura.asaas_subscription_id and assinatura.status != 'active':
