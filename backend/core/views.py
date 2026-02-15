@@ -30,7 +30,7 @@ from .serializers import (
     PlanoAssinaturaSerializer, AssinaturaEmpresaSerializer,
 )
 from .permissions import IsSubscriptionActive
-from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, buscar_cliente_asaas_por_cpfcnpj, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas
+from .asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas
 
 
 def _add_one_year_safe(base_date):
@@ -4298,18 +4298,10 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
                         atualizar_cliente_asaas(assinatura.asaas_customer_id, company)
                     except HTTPError as e:
                         if e.response is not None and e.response.status_code == 404:
-                            # Customer not found — search by CPF/CNPJ before creating
-                            logger.warning(f'Customer {assinatura.asaas_customer_id} not found in Asaas, searching by CPF/CNPJ.')
-                            cpf_cnpj = (company.cnpj or company.cpf or '')
-                            found_id = buscar_cliente_asaas_por_cpfcnpj(cpf_cnpj)
-                            if found_id:
-                                assinatura.asaas_customer_id = found_id
-                                assinatura.save(update_fields=['asaas_customer_id'])
-                                atualizar_cliente_asaas(found_id, company)
-                            else:
-                                new_id = criar_cliente_asaas(company)
-                                assinatura.asaas_customer_id = new_id
-                                assinatura.save(update_fields=['asaas_customer_id'])
+                            logger.warning(f'Customer {assinatura.asaas_customer_id} not found in Asaas, creating new.')
+                            new_id = criar_cliente_asaas(company)
+                            assinatura.asaas_customer_id = new_id
+                            assinatura.save(update_fields=['asaas_customer_id'])
                         else:
                             raise
 
