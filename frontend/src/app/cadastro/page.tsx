@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { register } from '@/services/auth';
 import { IconBuilding, IconUser, IconAt, IconLock, IconArrowRight, IconCheck, IconIdBadge2 } from '@tabler/icons-react';
@@ -30,7 +31,14 @@ function formatCpfCnpj(value: string) {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
-export default function CadastroPage() {
+const VALID_PLANS = ['essencial', 'profissional', 'evolution'] as const;
+type Plan = typeof VALID_PLANS[number];
+
+function CadastroForm() {
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get('plan')?.toLowerCase();
+  const plan: Plan | null = VALID_PLANS.includes(planParam as Plan) ? (planParam as Plan) : null;
+
   const [form, setForm] = useState({
     nome_empresa: '',
     cpf_cnpj: '',
@@ -83,7 +91,11 @@ export default function CadastroPage() {
         email: form.email.trim(),
         senha: form.senha,
       });
-      window.location.href = '/dashboard';
+      if (plan) {
+        window.location.href = `/assinar/pagamento?plano=${plan}&ciclo=MONTHLY`;
+      } else {
+        window.location.href = '/dashboard';
+      }
     } catch (err: unknown) {
       const data = (err as { response?: { data?: Record<string, string> } })?.response?.data;
       if (data && typeof data === 'object') {
@@ -337,13 +349,21 @@ export default function CadastroPage() {
 
           <p className="text-center text-xs text-gray-400 mt-6">
             Ao criar uma conta você concorda com nossos{' '}
-            <span className="text-gray-500 underline cursor-pointer">Termos de Uso</span>
+            <a href="https://vincorapp.com.br/termos-de-uso" target="_blank" rel="noopener noreferrer" className="text-gray-500 underline">Termos de Uso</a>
             {' '}e{' '}
-            <span className="text-gray-500 underline cursor-pointer">Política de Privacidade</span>.
+            <a href="https://vincorapp.com.br/privacidade" target="_blank" rel="noopener noreferrer" className="text-gray-500 underline">Política de Privacidade</a>.
           </p>
 
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CadastroPage() {
+  return (
+    <Suspense>
+      <CadastroForm />
+    </Suspense>
   );
 }
