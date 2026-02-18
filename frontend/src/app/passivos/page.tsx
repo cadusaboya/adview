@@ -45,6 +45,7 @@ export default function PassivosPage() {
   const [editingCustodia, setEditingCustodia] = useState<Custodia | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [ordering, setOrdering] = useState('');
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -62,7 +63,7 @@ export default function PassivosPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a custódia sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
   // ======================
   // 🔄 LOAD DATA
@@ -70,11 +71,12 @@ export default function PassivosPage() {
   const loadCustodias = useCallback(async () => {
     try {
       setLoading(true);
-      const params: { page: number; page_size: number; search: string; tipo: 'A' | 'P' } = {
+      const params: { page: number; page_size: number; search: string; tipo: 'A' | 'P'; ordering?: string } = {
         page,
         page_size: pageSize,
         search: debouncedSearch,
         tipo: 'P',
+        ordering: ordering || undefined,
       };
 
       const res = await getCustodias(params);
@@ -86,7 +88,7 @@ export default function PassivosPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadCustodias();
@@ -286,6 +288,7 @@ export default function PassivosPage() {
       title: 'Nome',
       dataIndex: 'nome',
       width: '30%',
+      sorter: true,
     },
     {
       title: 'Saldo',
@@ -309,6 +312,7 @@ export default function PassivosPage() {
       render: (_: unknown, record: Custodia) => (
         <ActionsDropdown
           onOpen={async () => {
+            setPrefetchedPayments(undefined);
             // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
             try {
               const res = await getAllocations({ custodia_id: record.id, page_size: 9999 });
@@ -395,6 +399,7 @@ export default function PassivosPage() {
           columns={columns}
           data={custodias}
           loading={loading}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           pagination={{
             current: page,
             pageSize,
@@ -416,7 +421,7 @@ export default function PassivosPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingCustodia(null);
-            setPrefetchedPayments([]);
+            setPrefetchedPayments(undefined);
             loadCustodias();
           }}
           onSubmit={handleSubmit}

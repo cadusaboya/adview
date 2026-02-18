@@ -39,6 +39,7 @@ export interface Despesa {
   
     tipo: 'F' | 'V' | 'C' | 'R';
     situacao?: 'A' | 'P' | 'V';
+    num_parcelas?: number;
   };
   
   // 🔹 Payload de atualização
@@ -49,6 +50,7 @@ export interface Despesa {
     page?: number;
     page_size?: number;
     search?: string;
+    ordering?: string;
     situacao?: 'A' | 'P' | 'V' | Array<'A' | 'P' | 'V'>;
     tipo?: 'F' | 'V' | 'C' | 'R';
     start_date?: string;

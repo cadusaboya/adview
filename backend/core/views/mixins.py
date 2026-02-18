@@ -1,36 +1,10 @@
 import logging
-import json
-import secrets
-from rest_framework import viewsets, permissions, status, generics, serializers
-from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework import permissions
 from rest_framework.throttling import UserRateThrottle
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-from django.conf import settings as django_settings
-from django.db import transaction
-from requests.exceptions import RequestException, HTTPError
+from ..models import Company
+from ..permissions import IsSubscriptionActive
 
 logger = logging.getLogger(__name__)
-from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, Prefetch, DecimalField
-from django.db.models.functions import Coalesce
-from django.utils import timezone
-from django.utils.timezone import now
-from datetime import date, datetime, timedelta
-import decimal
-from decimal import Decimal
-from ..pagination import DynamicPageSizePagination
-from django.shortcuts import get_object_or_404
-from ..models import Company, CustomUser, Cliente, Funcionario, Receita, ReceitaRecorrente, Despesa, DespesaRecorrente, Payment, ContaBancaria, Custodia, Transfer, Allocation, PlanoAssinatura, AssinaturaEmpresa, WebhookLog
-from ..serializers import (
-    CompanySerializer, CustomUserSerializer, ClienteSerializer,
-    FuncionarioSerializer, ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer, DespesaSerializer, DespesaAbertaSerializer,
-    DespesaRecorrenteSerializer, PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, TransferSerializer, AllocationSerializer,
-    PlanoAssinaturaSerializer, AssinaturaEmpresaSerializer,
-)
-from ..permissions import IsSubscriptionActive
-from ..asaas_service import criar_cliente_asaas, atualizar_cliente_asaas, criar_assinatura_cartao_asaas, atualizar_cartao_assinatura, cancelar_assinatura_asaas, reativar_assinatura_asaas
 
 
 def _add_one_year_safe(base_date):

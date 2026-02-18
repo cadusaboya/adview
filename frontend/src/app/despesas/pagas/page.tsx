@@ -54,7 +54,7 @@ export default function DespesasPagasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a despesa sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -64,6 +64,9 @@ export default function DespesasPagasPage() {
   // Busca
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+
+  // Sort state
+  const [ordering, setOrdering] = useState('');
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -89,7 +92,8 @@ export default function DespesasPagasPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
-        situacao: 'P', // Apenas despesas pagas
+        situacao: 'P',
+        ordering: ordering || undefined,
       });
 
       setDespesas(res.results);
@@ -100,7 +104,7 @@ export default function DespesasPagasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadData();
@@ -269,24 +273,28 @@ export default function DespesasPagasPage() {
       title: 'Data de Vencimento',
       dataIndex: 'data_vencimento',
       width: '15%',
+      sorter: true,
       render: (value) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
-      dataIndex: ['responsavel', 'nome'],
+      dataIndex: 'responsavel__nome',
       width: '25%',
-      render: (nome) => nome ?? '—',
+      sorter: true,
+      render: (_: unknown, record: Despesa) => (record.responsavel as { nome?: string } | undefined)?.nome ?? '—',
     },
     {
       title: 'Nome',
       dataIndex: 'nome',
       width: '30%',
+      sorter: true,
       render: (nome) => nome ?? '—',
     },
     {
       title: 'Valor',
       dataIndex: 'valor',
       width: '15%',
+      sorter: true,
       render: (v) => formatCurrencyBR(v),
     },
     {
@@ -296,6 +304,7 @@ export default function DespesasPagasPage() {
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
           onOpen={async () => {
+            setPrefetchedPayments(undefined);
             // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
             try {
               const res = await getAllocations({ despesa_id: record.id, page_size: 9999 });
@@ -397,6 +406,7 @@ export default function DespesasPagasPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -409,7 +419,7 @@ export default function DespesasPagasPage() {
             onClose={() => {
               setOpenDialog(false);
               setEditingDespesa(null);
-              setPrefetchedPayments([]);
+              setPrefetchedPayments(undefined);
             }}
             onSubmit={handleUpdateDespesa}
             initialBancos={bancos}

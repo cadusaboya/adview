@@ -1292,13 +1292,6 @@ from decimal import Decimal
 from datetime import datetime, timedelta, date
 
 
-def get_company_from_request(request):
-    """Extrai a empresa do usuário autenticado."""
-    if hasattr(request.user, 'company') and request.user.company:
-        return request.user.company
-    raise PermissionError("Usuário não possui empresa associada")
-
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def relatorio_dre_consolidado(request):
@@ -1512,13 +1505,6 @@ import io
 from .models import Payment, Company
 
 
-def get_company_from_request(request):
-    """Extrai a empresa do usuário autenticado."""
-    if hasattr(request.user, 'company') and request.user.company:
-        return request.user.company
-    raise PermissionError("Usuário não possui empresa associada")
-
-
 def format_currency(value):
     """Formata valor como moeda brasileira."""
     if isinstance(value, Decimal):
@@ -1526,50 +1512,6 @@ def format_currency(value):
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def format_currency_extenso(value):
-    """Converte valor em extenso (simplificado)."""
-    if isinstance(value, Decimal):
-        value = float(value)
-    
-    # Função auxiliar para converter números em extenso
-    def numero_extenso(n):
-        unidades = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove']
-        dezenas = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
-        tens = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
-        
-        if n == 0:
-            return 'zero'
-        
-        if n < 10:
-            return unidades[n]
-        elif n < 20:
-            return dezenas[n - 10]
-        elif n < 100:
-            return tens[n // 10] + (' e ' + unidades[n % 10] if n % 10 != 0 else '')
-        elif n < 1000:
-            return unidades[n // 100] + ' centos' + (' e ' + numero_extenso(n % 100) if n % 100 != 0 else '')
-        elif n < 1000000:
-            return numero_extenso(n // 1000) + ' mil' + (' e ' + numero_extenso(n % 1000) if n % 1000 != 0 else '')
-        else:
-            return numero_extenso(n // 1000000) + ' milhões' + (' e ' + numero_extenso(n % 1000000) if n % 1000000 != 0 else '')
-    
-    # Separar inteiros e centavos
-    partes = str(value).split('.')
-    inteiros = int(partes[0])
-    centavos = int(partes[1]) if len(partes) > 1 else 0
-    
-    texto = numero_extenso(inteiros) + ' reais'
-    if centavos > 0:
-        texto += f' e {numero_extenso(centavos)} centavos'
-    
-    return texto.capitalize()
-
-
-def format_date_br(date_obj) -> str:
-    """Formata data no padrão DD/MM/YYYY."""
-    if date_obj is None:
-        return "-"
-    return date_obj.strftime("%d/%m/%Y") if date_obj else "-"
 
 
 @api_view(["GET"])

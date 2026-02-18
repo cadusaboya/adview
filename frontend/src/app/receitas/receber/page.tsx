@@ -55,6 +55,9 @@ export default function ReceitasPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Sort state
+  const [ordering, setOrdering] = useState('');
+
   // 📊 Relatório
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -65,7 +68,7 @@ export default function ReceitasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a receita sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -84,6 +87,7 @@ export default function ReceitasPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setReceitas(res.results);
       setTotal(res.count);
@@ -93,7 +97,7 @@ export default function ReceitasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadReceitas();
@@ -273,16 +277,17 @@ export default function ReceitasPage() {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
       width: '12%',
+      sorter: true,
       render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
-      dataIndex: 'cliente',
+      dataIndex: 'cliente__nome',
       width: '25%',
-      render: (cliente: { nome?: string } | undefined) =>
-        cliente?.nome || '—',
+      sorter: true,
+      render: (_: unknown, record: Receita) => (record.cliente as { nome?: string } | undefined)?.nome || '—',
     },
-    { title: 'Nome', dataIndex: 'nome', width: '25%' },
+    { title: 'Nome', dataIndex: 'nome', width: '25%', sorter: true },
     {
       title: 'Situação',
       dataIndex: 'situacao',
@@ -291,10 +296,11 @@ export default function ReceitasPage() {
     },
     {
       title: 'Valor',
-      dataIndex: 'valor_aberto',
+      dataIndex: 'valor',
       width: '12%',
-      render: (v: number | undefined, record) =>
-        formatCurrencyBR(v ?? record.valor),
+      sorter: true,
+      render: (_v: unknown, record: Receita) =>
+        formatCurrencyBR(record.valor_aberto ?? record.valor),
     },
     {
       title: 'Ações',
@@ -303,6 +309,7 @@ export default function ReceitasPage() {
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
           onOpen={async () => {
+            setPrefetchedPayments(undefined);
             // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
             try {
               const res = await getAllocations({ receita_id: record.id, page_size: 9999 });
@@ -413,6 +420,7 @@ export default function ReceitasPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -422,7 +430,7 @@ export default function ReceitasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingReceita(null);
-            setPrefetchedPayments([]);
+            setPrefetchedPayments(undefined);
             // loadReceitas() é chamado no handleSubmit após salvar com sucesso
           }}
           receita={editingReceita}

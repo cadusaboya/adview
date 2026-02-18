@@ -8,5 +8,5 @@ export const bancoCreateSchema: ValidationSchema<BancoCreate> = {
     minLength(3, "Nome deve ter pelo menos 3 caracteres"),
   ],
   descricao: [required("Descrição é obrigatória")],
-  saldo_atual: [required("Saldo inicial é obrigatório")],
+  saldo_atual: [],
 };

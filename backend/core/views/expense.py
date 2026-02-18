@@ -75,13 +75,62 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(data_vencimento__lte=end_date)
 
-        # ORDENAÇÃO (adiciona id para garantir ordenação determinística)
-        if situacoes and set(situacoes).issubset({"P", "V"}):
+        # ORDENAÇÃO
+        ORDERING_FIELDS = {'data_vencimento', '-data_vencimento', 'data_pagamento', '-data_pagamento',
+                           'valor', '-valor', 'nome', '-nome', 'responsavel__nome', '-responsavel__nome'}
+        ordering = params.get('ordering')
+        if ordering and ordering in ORDERING_FIELDS:
+            queryset = queryset.order_by(ordering, 'id')
+        elif situacoes and set(situacoes).issubset({"P", "V"}):
             queryset = queryset.order_by("-data_pagamento", "-data_vencimento", "id")
         else:
             queryset = queryset.order_by("data_vencimento", "id")
 
         return queryset
+
+    def create(self, request, *args, **kwargs):
+        import calendar
+        from datetime import date
+        from decimal import Decimal
+
+        try:
+            num_parcelas = max(1, int(request.data.get('num_parcelas', 1)))
+        except (ValueError, TypeError):
+            num_parcelas = 1
+
+        if num_parcelas == 1:
+            return super().create(request, *args, **kwargs)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vdata = serializer.validated_data
+
+        nome_base = vdata['nome']
+        valor_total = vdata['valor']
+        data_base = vdata['data_vencimento']
+
+        def add_months(d, months):
+            month = d.month - 1 + months
+            year = d.year + month // 12
+            month = month % 12 + 1
+            day = min(d.day, calendar.monthrange(year, month)[1])
+            return date(year, month, day)
+
+        valor_parcela = round(Decimal(str(valor_total)) / num_parcelas, 2)
+        common = {k: v for k, v in vdata.items() if k not in ('nome', 'valor', 'data_vencimento')}
+
+        for i in range(num_parcelas):
+            nome_i = f"{nome_base} ({i + 1}/{num_parcelas})"
+            valor_i = valor_parcela if i < num_parcelas - 1 else (valor_total - valor_parcela * (num_parcelas - 1))
+            Despesa.objects.create(
+                company=request.user.company,
+                nome=nome_i,
+                valor=valor_i,
+                data_vencimento=add_months(data_base, i),
+                **common
+            )
+
+        return Response({'parcelas_criadas': num_parcelas}, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         despesa = serializer.save(company=self.request.user.company)
@@ -180,6 +229,10 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
+        ORDERING_FIELDS = {'nome', '-nome', 'valor', '-valor', 'responsavel__nome', '-responsavel__nome'}
+        ordering = params.get('ordering')
+        if ordering and ordering in ORDERING_FIELDS:
+            return queryset.order_by(ordering, 'id')
         return queryset.order_by('nome', 'id')
 
     @action(detail=False, methods=['post'], url_path='gerar-mes')
@@ -319,9 +372,9 @@ class DespesaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet)
         recorrente = self.get_object()
         quantidade_meses = request.data.get('quantidade_meses', 1)
 
-        if not isinstance(quantidade_meses, int) or quantidade_meses < 1 or quantidade_meses > 24:
+        if not isinstance(quantidade_meses, int) or quantidade_meses < 1 or quantidade_meses > 60:
             return Response(
-                {'erro': 'Quantidade de meses deve ser um número entre 1 e 24'},
+                {'erro': 'Quantidade de meses deve ser um número entre 1 e 60'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

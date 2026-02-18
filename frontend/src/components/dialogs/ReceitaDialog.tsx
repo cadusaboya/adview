@@ -123,6 +123,9 @@ export default function ReceitaDialog({
   // Regras de comissão específicas da receita
   const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
+  // Installments state (only for creation)
+  const [numParcelas, setNumParcelas] = useState('');
+
   // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
   const [dataPagamento, setDataPagamento] = useState('');
@@ -196,6 +199,7 @@ export default function ReceitaDialog({
       });
       setComissoes([]);
       setValorDisplay('');
+      setNumParcelas('');
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -218,7 +222,7 @@ export default function ReceitaDialog({
         if (receita) {
           payload = { ...data, comissoes: comissoesPayload } as ReceitaUpdate;
         } else {
-          payload = { ...data, comissoes: comissoesPayload } as ReceitaCreate;
+          payload = { ...data, comissoes: comissoesPayload, num_parcelas: Math.max(1, parseInt(numParcelas) || 1) } as ReceitaCreate;
 
           // Add payment data if checkbox is checked
           if (marcarComoPago) {
@@ -303,8 +307,8 @@ export default function ReceitaDialog({
           />
         </div>
 
-        {/* Valor / Data / Tipo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Valor / Data / Tipo / Parcelas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <FormInput
             label="Valor (R$)"
             required
@@ -347,6 +351,15 @@ export default function ReceitaDialog({
             ]}
             error={getFieldProps('tipo').error}
           />
+
+          {!receita && (
+            <FormInput
+              label="Parcelas"
+              placeholder="1"
+              value={numParcelas}
+              onChange={(e) => setNumParcelas(e.target.value)}
+            />
+          )}
         </div>
 
         {/* Forma de Pagamento */}
@@ -376,8 +389,8 @@ export default function ReceitaDialog({
           emptyHint="Sem regras específicas — usará as regras do cliente"
         />
 
-        {/* Marcar como pago - only when creating */}
-        {!receita && (
+        {/* Marcar como pago - only when creating a single record */}
+        {!receita && (parseInt(numParcelas) || 1) === 1 && (
           <div className="space-y-4 border-t pt-4">
             <div className="flex items-center space-x-2">
               <Checkbox

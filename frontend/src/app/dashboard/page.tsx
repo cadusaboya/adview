@@ -42,6 +42,9 @@ interface DashboardData {
   receitasProjetadas: number;
   despesasProjetadas: number;
 
+  // Resultado do mês atual
+  resultadoMesAtual: number;
+
   // Alertas
   despesasVencidas: number;
   receitasVencidas: number;
@@ -323,20 +326,20 @@ export default function DashboardPage() {
               />
             </div>
             <StatCard
-              title="Resultado (30 dias)"
-              value={data.fluxoCaixaRealizado}
+              title="Resultado (Mês Atual)"
+              value={data.resultadoMesAtual}
               icon={<CreditCard className="w-6 h-6" />}
               color="primary"
-              trend={data.fluxoCaixaRealizado > 0 ? 'up' : 'down'}
+              trend={data.resultadoMesAtual > 0 ? 'up' : 'down'}
             />
             <StatCard
-              title="A Receber"
+              title="A Receber (30 dias)"
               value={data.receitasProjetadas}
               icon={<TrendingUp className="w-6 h-6" />}
               color="accent"
             />
             <StatCard
-              title="A Pagar"
+              title="A Pagar (30 dias)"
               value={data.despesasProjetadas}
               icon={<TrendingDown className="w-6 h-6" />}
               color="secondary"
@@ -541,7 +544,7 @@ export default function DashboardPage() {
             {/* Receita por Tipo */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6">
-                Receita por Tipo
+                Receita por Tipo (Mês Atual)
               </h2>
               {data.receitaPorTipoData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -584,7 +587,7 @@ export default function DashboardPage() {
             {/* Despesa por Tipo */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6">
-                Despesa por Tipo
+                Despesa por Tipo (Mês Atual)
               </h2>
               {data.despesaPorTipoData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>

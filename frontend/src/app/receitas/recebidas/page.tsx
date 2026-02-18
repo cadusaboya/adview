@@ -51,7 +51,7 @@ export default function ReceitaRecebidasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a receita sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
   // Paginação
   const [total, setTotal] = useState(0);
@@ -61,6 +61,9 @@ export default function ReceitaRecebidasPage() {
   // 🔎 Busca
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+
+  // Sort state
+  const [ordering, setOrdering] = useState('');
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -135,7 +138,8 @@ export default function ReceitaRecebidasPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
-        situacao: 'P', // Apenas receitas pagas
+        situacao: 'P',
+        ordering: ordering || undefined,
       });
 
       setReceitas(res.results);
@@ -146,7 +150,7 @@ export default function ReceitaRecebidasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadData();
@@ -269,24 +273,28 @@ export default function ReceitaRecebidasPage() {
       title: 'Data de Vencimento',
       dataIndex: 'data_vencimento',
       width: '15%',
+      sorter: true,
       render: (v: string) => formatDateBR(v),
     },
     {
       title: 'Cliente',
-      dataIndex: ['cliente', 'nome'],
+      dataIndex: 'cliente__nome',
       width: '25%',
-      render: (v?: string) => v ?? '—',
+      sorter: true,
+      render: (_: unknown, record: Receita) => (record.cliente as { nome?: string } | undefined)?.nome ?? '—',
     },
     {
       title: 'Descrição',
       dataIndex: 'nome',
       width: '30%',
+      sorter: true,
       render: (v?: string) => v ?? '—',
     },
     {
       title: 'Valor',
       dataIndex: 'valor',
       width: '15%',
+      sorter: true,
       render: (v: number) => formatCurrencyBR(v),
     },
     {
@@ -296,6 +304,7 @@ export default function ReceitaRecebidasPage() {
       render: (_: unknown, record: Receita) => (
         <ActionsDropdown
           onOpen={async () => {
+            setPrefetchedPayments(undefined);
             // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
             try {
               const res = await getAllocations({ receita_id: record.id, page_size: 9999 });
@@ -394,6 +403,7 @@ export default function ReceitaRecebidasPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -406,7 +416,7 @@ export default function ReceitaRecebidasPage() {
             onClose={() => {
               setOpenDialog(false);
               setEditingReceita(null);
-              setPrefetchedPayments([]);
+              setPrefetchedPayments(undefined);
             }}
             onSubmit={handleUpdateReceita}
             initialBancos={bancos}

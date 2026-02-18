@@ -103,6 +103,9 @@ export default function DespesaDialog({
     despesaCreateSchema
   );
 
+  // Installments state (only for creation)
+  const [numParcelas, setNumParcelas] = useState('');
+
   // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
   const [dataPagamento, setDataPagamento] = useState('');
@@ -132,6 +135,7 @@ export default function DespesaDialog({
         tipo: 'F',
       });
       setValorDisplay('');
+      setNumParcelas('');
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -147,7 +151,7 @@ export default function DespesaDialog({
         if (despesa) {
           payload = { ...data } as DespesaUpdate;
         } else {
-          payload = { ...data } as DespesaCreate;
+          payload = { ...data, num_parcelas: Math.max(1, parseInt(numParcelas) || 1) } as DespesaCreate;
 
           // Add payment data if checkbox is checked
           if (marcarComoPago) {
@@ -237,8 +241,8 @@ export default function DespesaDialog({
         </div>
 
 
-        {/* Valor / Vencimento / Tipo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Valor / Vencimento / Tipo / Parcelas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <FormInput
             label="Valor (R$)"
             required
@@ -282,10 +286,19 @@ export default function DespesaDialog({
             ]}
             error={getFieldProps('tipo').error}
           />
+
+          {!despesa && (
+            <FormInput
+              label="Parcelas"
+              placeholder="1"
+              value={numParcelas}
+              onChange={(e) => setNumParcelas(e.target.value)}
+            />
+          )}
         </div>
 
-        {/* Marcar como pago - only when creating */}
-        {!despesa && (
+        {/* Marcar como pago - only when creating a single record */}
+        {!despesa && (parseInt(numParcelas) || 1) === 1 && (
           <div className="space-y-4 border-t pt-4">
             <div className="flex items-center space-x-2">
               <Checkbox

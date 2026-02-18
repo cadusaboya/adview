@@ -59,6 +59,9 @@ export default function DespesasPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Sort state
+  const [ordering, setOrdering] = useState('');
+
   const [openRelatorioModal, setOpenRelatorioModal] = useState(false);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
 
@@ -69,7 +72,7 @@ export default function DespesasPage() {
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
   // Pagamentos pré-carregados para a despesa sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
+  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -99,6 +102,7 @@ export default function DespesasPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
+        ordering: ordering || undefined,
       });
 
       setDespesas(res.results);
@@ -109,7 +113,7 @@ export default function DespesasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadDespesas();
@@ -280,18 +284,21 @@ export default function DespesasPage() {
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
       width: '12%',
+      sorter: true,
       render: (value: string) => formatDateBR(value),
     },
     {
       title: 'Favorecido',
-      dataIndex: 'responsavel',
+      dataIndex: 'responsavel__nome',
       width: '22%',
-      render: (r: Responsavel | undefined) => r?.nome || '—',
+      sorter: true,
+      render: (_: unknown, record: Despesa) => (record.responsavel as Responsavel | undefined)?.nome || '—',
     },
     {
       title: 'Nome',
       dataIndex: 'nome',
       width: '24%',
+      sorter: true,
     },
     {
       title: 'Situação',
@@ -303,10 +310,11 @@ export default function DespesasPage() {
     },
     {
       title: 'Valor em Aberto',
-      dataIndex: 'valor_aberto',
+      dataIndex: 'valor',
       width: '16%',
-      render: (v: number | undefined, record: Despesa) =>
-        formatCurrencyBR(v ?? record.valor),
+      sorter: true,
+      render: (_v: unknown, record: Despesa) =>
+        formatCurrencyBR(record.valor_aberto ?? record.valor),
     },
     {
       title: 'Ações',
@@ -315,6 +323,7 @@ export default function DespesasPage() {
       render: (_: unknown, record: Despesa) => (
         <ActionsDropdown
           onOpen={async () => {
+            setPrefetchedPayments(undefined);
             // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
             try {
               const res = await getAllocations({ despesa_id: record.id, page_size: 9999 });
@@ -423,6 +432,7 @@ export default function DespesasPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -433,7 +443,7 @@ export default function DespesasPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingDespesa(null);
-            setPrefetchedPayments([]);
+            setPrefetchedPayments(undefined);
             // loadDespesas() é chamado no handleSubmit após salvar com sucesso
           }}
           onSubmit={handleSubmit}

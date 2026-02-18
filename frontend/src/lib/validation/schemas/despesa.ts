@@ -19,4 +19,5 @@ export const despesaCreateSchema: ValidationSchema<DespesaCreate> = {
   tipo: [required("Tipo é obrigatório")],
   data_pagamento: [], // Optional
   situacao: [], // Optional
+  num_parcelas: [], // Optional
 };

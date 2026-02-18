@@ -87,6 +87,10 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(allocations__transfer__to_bank__nome__icontains=search)
             ).distinct()
 
+        ORDERING_FIELDS = {'data_pagamento', '-data_pagamento', 'valor', '-valor'}
+        ordering = params.get('ordering')
+        if ordering and ordering in ORDERING_FIELDS:
+            return queryset.order_by(ordering, '-id')
         return queryset.order_by('-data_pagamento', '-id')
 
     def perform_create(self, serializer):
@@ -1184,6 +1188,14 @@ class ContaBancariaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = ContaBancariaSerializer
     pagination_class = DynamicPageSizePagination
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        ORDERING_FIELDS = {'nome', '-nome', 'saldo_atual', '-saldo_atual'}
+        ordering = self.request.query_params.get('ordering')
+        if ordering and ordering in ORDERING_FIELDS:
+            return queryset.order_by(ordering, 'id')
+        return queryset.order_by('nome', 'id')
+
 
 class CustodiaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     """API endpoint para gerenciar custódias (valores de terceiros - ativos e passivos)."""
@@ -1229,6 +1241,11 @@ class CustodiaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(funcionario__nome__icontains=search)
             )
 
+        ORDERING_FIELDS = {'nome', '-nome', 'valor_total', '-valor_total', 'criado_em', '-criado_em',
+                           'cliente__nome', '-cliente__nome'}
+        ordering = params.get('ordering')
+        if ordering and ordering in ORDERING_FIELDS:
+            return queryset.order_by(ordering, 'id')
         return queryset.order_by('-criado_em', 'id')
 
 

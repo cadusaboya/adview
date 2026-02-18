@@ -34,6 +34,7 @@ def dashboard_view(request):
 
     hoje = timezone.now().date()
     inicio_mes = date(hoje.year, hoje.month, 1)
+    fim_mes = (inicio_mes.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
     # Data de 30 dias atrás
     data_30_dias_atras = hoje - timedelta(days=30)
@@ -134,6 +135,36 @@ def dashboard_view(request):
         )['total']
         or Decimal('0.00')
     )
+
+    # ======================================================
+    # RESULTADO DO MÊS ATUAL
+    # ======================================================
+
+    receitas_mes_atual = (
+        Payment.objects.filter(
+            company=company,
+            tipo='E',
+            data_pagamento__gte=inicio_mes,
+            data_pagamento__lte=fim_mes
+        )
+        .exclude(allocations__transfer__isnull=False)
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+
+    despesas_mes_atual = (
+        Payment.objects.filter(
+            company=company,
+            tipo='S',
+            data_pagamento__gte=inicio_mes,
+            data_pagamento__lte=fim_mes
+        )
+        .exclude(allocations__transfer__isnull=False)
+        .aggregate(total=Sum('valor'))['total']
+        or Decimal('0.00')
+    )
+
+    resultado_mes_atual = receitas_mes_atual - despesas_mes_atual
 
     # ======================================================
     # ANIVERSARIANTES DO DIA
@@ -325,7 +356,9 @@ def dashboard_view(request):
         total = (
             Allocation.objects.filter(
                 company=company,
-                receita__tipo=tipo
+                receita__tipo=tipo,
+                payment__data_pagamento__gte=inicio_mes,
+                payment__data_pagamento__lte=fim_mes
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
@@ -342,7 +375,9 @@ def dashboard_view(request):
         total = (
             Allocation.objects.filter(
                 company=company,
-                despesa__tipo=tipo
+                despesa__tipo=tipo,
+                payment__data_pagamento__gte=inicio_mes,
+                payment__data_pagamento__lte=fim_mes
             )
             .aggregate(total=Sum('valor'))['total']
             or Decimal('0.00')
@@ -358,7 +393,7 @@ def dashboard_view(request):
     # PRÓXIMOS VENCIMENTOS
     # ======================================================
 
-    data_limite = hoje + timedelta(days=5)
+    data_limite = hoje + timedelta(days=7)
 
     receitas_proximas = (
         Receita.objects.filter(
@@ -395,6 +430,9 @@ def dashboard_view(request):
         # Projeções (próximos 30 dias)
         'receitasProjetadas': float(receitas_projetadas),
         'despesasProjetadas': float(despesas_projetadas),
+
+        # Resultado do mês atual
+        'resultadoMesAtual': float(resultado_mes_atual),
 
         # Alertas
         'despesasVencidas': despesas_vencidas,

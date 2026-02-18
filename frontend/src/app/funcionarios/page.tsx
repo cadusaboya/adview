@@ -57,6 +57,9 @@ export default function FuncionarioPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Sort state
+  const [ordering, setOrdering] = useState('');
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -69,7 +72,8 @@ export default function FuncionarioPage() {
       const res = await getFuncionarios({
         page,
         page_size: pageSize,
-        search: debouncedSearch
+        search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setFuncionarios(res.results);
       setTotal(res.count);
@@ -79,7 +83,7 @@ export default function FuncionarioPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadFuncionarios();
@@ -215,7 +219,7 @@ export default function FuncionarioPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Funcionario> = [
-    { title: 'Nome', dataIndex: 'nome', width: '39%' },
+    { title: 'Nome', dataIndex: 'nome', width: '39%', sorter: true },
     {
       title: 'CPF',
       dataIndex: 'cpf',
@@ -227,6 +231,7 @@ export default function FuncionarioPage() {
       title: 'Salário Mensal',
       dataIndex: 'salario_mensal',
       width: '15%',
+      sorter: true,
       render: (v: number | null) =>
         v ? formatCurrencyBR(v) : '—',
     },
@@ -329,6 +334,7 @@ export default function FuncionarioPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />

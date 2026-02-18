@@ -48,6 +48,7 @@ export default function ReceitasRecorrentesPage() {
   const [editingReceita, setEditingReceita] = useState<ReceitaRecorrente | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [ordering, setOrdering] = useState('');
   const [showGerarMesAlert, setShowGerarMesAlert] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState('');
   const [anoSelecionado, setAnoSelecionado] = useState('');
@@ -73,6 +74,7 @@ export default function ReceitasRecorrentesPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setReceitas(res.results);
       setTotal(res.count);
@@ -82,7 +84,7 @@ export default function ReceitasRecorrentesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadReceitas();
@@ -275,17 +277,20 @@ export default function ReceitasRecorrentesPage() {
       title: 'Nome',
       dataIndex: 'nome',
       width: '25%',
+      sorter: true,
     },
     {
       title: 'Cliente',
-      dataIndex: 'cliente',
+      dataIndex: 'cliente__nome',
       width: '16%',
-      render: (c: { nome: string }) => c?.nome || '—',
+      sorter: true,
+      render: (_: unknown, record: ReceitaRecorrente) => (record.cliente as { nome: string } | null)?.nome || '—',
     },
     {
       title: 'Valor',
       dataIndex: 'valor',
       width: '12%',
+      sorter: true,
       render: (v: number) => formatCurrencyBR(v),
     },
     {
@@ -431,6 +436,7 @@ export default function ReceitasRecorrentesPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -527,7 +533,7 @@ export default function ReceitasRecorrentesPage() {
             <div className="py-4 space-y-3">
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Quantidade de meses (1-24)
+                  Quantidade de meses (1-60)
                 </label>
                 <Input
                   placeholder="1"
@@ -535,7 +541,7 @@ export default function ReceitasRecorrentesPage() {
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^\d]/g, '');
                     const num = parseInt(val) || 1;
-                    setQuantidadeMeses(Math.max(1, Math.min(24, num)));
+                    setQuantidadeMeses(Math.max(1, Math.min(60, num)));
                   }}
                 />
               </div>

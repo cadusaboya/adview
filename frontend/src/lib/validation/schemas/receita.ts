@@ -19,4 +19,5 @@ export const receitaCreateSchema: ValidationSchema<ReceitaCreate> = {
   data_vencimento: [required("Data de vencimento é obrigatória")],
   tipo: [required("Tipo é obrigatório")],
   forma_pagamento: [], // Optional
+  num_parcelas: [], // Optional
 };

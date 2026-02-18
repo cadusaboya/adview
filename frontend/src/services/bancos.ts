@@ -2,7 +2,7 @@ import { api } from "./api";
 import { Banco, BancoCreate } from "@/types/bancos";
 
 // 🔹 Listar bancos
-export async function getBancos(params?: { page?: number; page_size?: number }) {
+export async function getBancos(params?: { page?: number; page_size?: number; ordering?: string }) {
   const res = await api.get<{ results: Banco[]; count: number }>('/api/contas-bancarias/', {
     params,
   });
