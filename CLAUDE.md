@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## AI Reports Directory
+
+- Save all AI-generated analysis/review reports in `reports/`.
+- Do not create these report files in the repository root.
+
 ## Project Overview
 
 ERP-Adv is a financial management system (ERP) for a Brazilian law firm. It consists of a Django REST API backend and a Next.js frontend.

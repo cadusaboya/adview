@@ -368,6 +368,13 @@ def dashboard_view(request):
             situacao__in=['A', 'V']
         )
         .select_related('cliente')
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
         .order_by('data_vencimento')[:5]
     )
 
@@ -379,6 +386,13 @@ def dashboard_view(request):
             situacao__in=['A', 'V']
         )
         .select_related('responsavel')
+        .annotate(
+            total_alocado=Coalesce(
+                Sum('allocations__valor'),
+                Decimal('0.00'),
+                output_field=DecimalField()
+            )
+        )
         .order_by('data_vencimento')[:5]
     )
 
@@ -417,7 +431,7 @@ def dashboard_view(request):
                 'id': r.id,
                 'nome': r.nome,
                 'cliente': r.cliente.nome,
-                'valor': float(r.valor),
+                'valor': float(r.valor - r.total_alocado),
                 'dataVencimento': r.data_vencimento.isoformat(),
                 'situacao': r.situacao,
             }
@@ -429,7 +443,7 @@ def dashboard_view(request):
                 'id': d.id,
                 'nome': d.nome,
                 'responsavel': d.responsavel.nome,
-                'valor': float(d.valor),
+                'valor': float(d.valor - d.total_alocado),
                 'dataVencimento': d.data_vencimento.isoformat(),
                 'situacao': d.situacao,
             }

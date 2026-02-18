@@ -18,7 +18,7 @@ def update_trial_plan(apps, schema_editor):
         plano__slug='essencial',
     ).update(plano=profissional)
 
-    print(f"  Atualizados {updated} trial(s) de Essencial → Profissional")
+    print(f"  Atualizados {updated} trial(s) de Essencial -> Profissional")
 
 
 def revert_trial_plan(apps, schema_editor):

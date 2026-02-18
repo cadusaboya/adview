@@ -5,6 +5,10 @@
 # Documentos de revisão e auditoria
 REVIEW_*.md
 AUDIT_*.md
+reports/
+
+# Claude Code (configurações locais)
+.claude/
 
 # Sistema operacional
 .DS_Store
