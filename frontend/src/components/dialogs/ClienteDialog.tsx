@@ -46,6 +46,7 @@ export default function ClienteDialog({
     },
     onOpen: open,
     errorMessage: 'Erro ao carregar funcionários',
+    cacheData: false,
   });
 
   // Form validation

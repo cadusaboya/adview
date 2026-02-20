@@ -68,6 +68,7 @@ export default function DespesaDialog({
     },
     onOpen: open && !initialFavorecidos, // Only load if not provided
     errorMessage: 'Erro ao carregar favorecidos',
+    cacheData: false,
   });
 
   // Use initial data if provided, otherwise use hook data

@@ -40,6 +40,7 @@ export default function DespesaRecorrenteDialog({
     loadFn: async () => (await getFavorecidos({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar favorecidos',
+    cacheData: false,
   });
 
   const {

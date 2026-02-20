@@ -44,12 +44,14 @@ export default function ReceitaRecorrenteDialog({
     loadFn: async () => (await getClientes({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar clientes',
+    cacheData: false,
   });
 
   const { data: funcionarios } = useLoadAuxiliaryData({
     loadFn: async () => (await getFuncionarios({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar funcionários',
+    cacheData: false,
   });
 
   const {

@@ -75,6 +75,7 @@ export default function ReceitaDialog({
     },
     onOpen: open && !initialClientes, // Only load if not provided
     errorMessage: 'Erro ao carregar clientes',
+    cacheData: false,
   });
 
   const { data: funcionarios } = useLoadAuxiliaryData({
@@ -84,6 +85,7 @@ export default function ReceitaDialog({
     },
     onOpen: open,
     errorMessage: 'Erro ao carregar funcionários',
+    cacheData: false,
   });
 
   // Use initial data if provided, otherwise use hook data

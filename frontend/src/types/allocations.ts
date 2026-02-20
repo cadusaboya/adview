@@ -3,9 +3,11 @@
 // =========================
 export interface PaymentInfo {
   id: number;
+  tipo: 'E' | 'S';
   valor: number;
   data_pagamento: string;
   conta_bancaria: string;
+  conta_bancaria_nome?: string;
 }
 
 export interface ReceitaInfo {
