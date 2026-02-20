@@ -535,7 +535,7 @@ export default function PaymentDialog({
                 setFormData({ ...formData, conta_bancaria: val })
               }
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />
@@ -726,7 +726,7 @@ export default function PaymentDialog({
                       size="large"
                       style={{ width: '100%' }}
                       filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                       }
                       dropdownRender={(menu) => (
                         <>
@@ -829,7 +829,7 @@ export default function PaymentDialog({
                             value={criarClienteId}
                             options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                             onChange={setCriarClienteId}
-                            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                             style={{ width: '100%' }}
                             size="small"
                           />
@@ -845,7 +845,7 @@ export default function PaymentDialog({
                             value={criarFavorecidoId}
                             options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
                             onChange={setCriarFavorecidoId}
-                            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                             style={{ width: '100%' }}
                             size="small"
                           />
@@ -888,7 +888,7 @@ export default function PaymentDialog({
                               value={criarCustodiaContraparteId}
                               options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                               onChange={setCriarCustodiaContraparteId}
-                              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                               style={{ width: '200px' }}
                               size="small"
                             />
@@ -900,7 +900,7 @@ export default function PaymentDialog({
                               value={criarCustodiaContraparteId}
                               options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
                               onChange={setCriarCustodiaContraparteId}
-                              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                               style={{ width: '200px' }}
                               size="small"
                             />

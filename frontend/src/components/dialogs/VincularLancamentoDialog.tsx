@@ -815,7 +815,7 @@ export default function VincularLancamentoDialog({
                     className="h-9 [&_.ant-select-selector]:!h-9 [&_.ant-select-selector]:!py-0 [&_.ant-select-selection-search]:!h-9 [&_.ant-select-selection-item]:!leading-9"
                     style={{ width: '100%' }}
                     filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     dropdownRender={(menu) => (
                       <>
@@ -926,7 +926,7 @@ export default function VincularLancamentoDialog({
                           value={criarClienteId}
                           options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                           onChange={setCriarClienteId}
-                          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                          filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                           style={{ width: '100%' }}
                           className="[&_.ant-select-selector]:!h-8 [&_.ant-select-selection-item]:!leading-8 [&_.ant-select-selection-search]:!h-8"
                           size="small"
@@ -943,7 +943,7 @@ export default function VincularLancamentoDialog({
                           value={criarFavorecidoId}
                           options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
                           onChange={setCriarFavorecidoId}
-                          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                          filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                           style={{ width: '100%' }}
                           className="[&_.ant-select-selector]:!h-8 [&_.ant-select-selection-item]:!leading-8 [&_.ant-select-selection-search]:!h-8"
                           size="small"
@@ -987,7 +987,7 @@ export default function VincularLancamentoDialog({
                             value={criarCustodiaContraparteId}
                             options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                             onChange={setCriarCustodiaContraparteId}
-                            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                             style={{ width: '200px' }}
                             size="small"
                           />
@@ -999,7 +999,7 @@ export default function VincularLancamentoDialog({
                             value={criarCustodiaContraparteId}
                             options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
                             onChange={setCriarCustodiaContraparteId}
-                            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                             style={{ width: '200px' }}
                             size="small"
                           />

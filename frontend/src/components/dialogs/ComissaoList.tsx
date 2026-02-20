@@ -64,7 +64,7 @@ export default function ComissaoList({ comissoes, setComissoes, funcionarios, em
               }))}
               onChange={(val) => update(item.id, { funcionario_id: val ?? null })}
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />

@@ -306,7 +306,7 @@ export default function DashboardPage() {
     <div className="flex">
       <NavbarNested />
       <div className="main-content-with-navbar bg-muted min-h-screen w-full px-6 pt-4 pb-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
           {/* Header */}
           <div className="mb-4">
             <h1 className="text-2xl font-serif font-bold text-navy">Dashboard</h1>
@@ -326,7 +326,7 @@ export default function DashboardPage() {
               />
             </div>
             <StatCard
-              title="Resultado (Mês Atual)"
+              title={`Resultado (${new Date().toLocaleDateString('pt-BR', { month: 'long' }).replace(/^./, (c) => c.toUpperCase())})`}
               value={data.resultadoMesAtual}
               icon={<CreditCard className="w-6 h-6" />}
               color="primary"

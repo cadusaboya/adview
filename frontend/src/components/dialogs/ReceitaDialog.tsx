@@ -320,7 +320,7 @@ export default function ReceitaDialog({
               onSearch={setClienteSearch}
               searchValue={clienteSearch}
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
               status={getFieldProps('cliente_id').error ? 'error' : undefined}
@@ -515,7 +515,7 @@ export default function ReceitaDialog({
                     })) || []}
                     onChange={(val) => setContaBancariaId(val)}
                     filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     style={{ width: '100%' }}
                   />
