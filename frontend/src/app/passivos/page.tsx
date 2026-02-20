@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button, Grid, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
 
@@ -28,15 +28,15 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { getFuncionarios } from '@/services/funcionarios';
 import { getClientes } from '@/services/clientes';
 import { getBancos } from '@/services/bancos';
-import { getAllocations } from '@/services/allocations';
 import { Funcionario } from '@/types/funcionarios';
 import { Cliente } from '@/types/clientes';
-import { PaymentUI } from '@/types/payments';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
 import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
 import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
+
+const { useBreakpoint } = Grid;
 
 export default function PassivosPage() {
   const [custodias, setCustodias] = useState<Custodia[]>([]);
@@ -45,6 +45,7 @@ export default function PassivosPage() {
   const [editingCustodia, setEditingCustodia] = useState<Custodia | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [ordering, setOrdering] = useState('');
 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -52,6 +53,8 @@ export default function PassivosPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const screens = useBreakpoint();
 
   // Auxiliary data for prefetch
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -61,20 +64,18 @@ export default function PassivosPage() {
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
-  // Pagamentos pré-carregados para a custódia sendo editada
-  const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[]>([]);
-
   // ======================
   // 🔄 LOAD DATA
   // ======================
   const loadCustodias = useCallback(async () => {
     try {
       setLoading(true);
-      const params: { page: number; page_size: number; search: string; tipo: 'A' | 'P' } = {
+      const params: { page: number; page_size: number; search: string; tipo: 'A' | 'P'; ordering?: string } = {
         page,
         page_size: pageSize,
         search: debouncedSearch,
         tipo: 'P',
+        ordering: ordering || undefined,
       };
 
       const res = await getCustodias(params);
@@ -86,7 +87,7 @@ export default function PassivosPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadCustodias();
@@ -267,7 +268,7 @@ export default function PassivosPage() {
     );
   };
 
-  const columns: TableColumnsType<Custodia> = [
+  const baseColumns: TableColumnsType<Custodia> = [
     {
       title: 'Contraparte',
       key: 'contraparte',
@@ -283,9 +284,11 @@ export default function PassivosPage() {
       },
     },
     {
+      key: 'nome',
       title: 'Nome',
       dataIndex: 'nome',
       width: '30%',
+      sorter: true,
     },
     {
       title: 'Saldo',
@@ -297,6 +300,7 @@ export default function PassivosPage() {
       },
     },
     {
+      key: 'status',
       title: 'Status',
       dataIndex: 'status_display',
       width: '15%',
@@ -309,22 +313,7 @@ export default function PassivosPage() {
       render: (_: unknown, record: Custodia) => (
         <ActionsDropdown
           onOpen={async () => {
-            // Prefetch apenas pagamentos (dados auxiliares já foram carregados no mount)
-            try {
-              const res = await getAllocations({ custodia_id: record.id, page_size: 9999 });
-              setPrefetchedPayments(
-                res.results.map((alloc) => ({
-                  id: alloc.payment,
-                  allocation_id: alloc.id,
-                  data_pagamento: alloc.payment_info?.data_pagamento || '',
-                  conta_bancaria: Number(alloc.payment_info?.conta_bancaria) || 0,
-                  valor: alloc.valor,
-                  observacao: alloc.observacao || '',
-                }))
-              );
-            } catch (error) {
-              console.error('Erro ao prefetch pagamentos:', error);
-            }
+            // sem prefetch — CustodiaPaymentsTabs carrega dados próprios
           }}
           actions={[
             {
@@ -346,6 +335,11 @@ export default function PassivosPage() {
       ),
     },
   ];
+  const columns = screens.md
+    ? baseColumns
+    : baseColumns
+        .filter(col => ['contraparte', 'saldo', 'actions'].includes(String(col.key)))
+        .map(col => ({ ...col, width: col.key === 'actions' ? 50 : undefined }));
 
   // ======================
   // 🧱 RENDER
@@ -395,6 +389,7 @@ export default function PassivosPage() {
           columns={columns}
           data={custodias}
           loading={loading}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           pagination={{
             current: page,
             pageSize,
@@ -416,7 +411,6 @@ export default function PassivosPage() {
           onClose={() => {
             setOpenDialog(false);
             setEditingCustodia(null);
-            setPrefetchedPayments([]);
             loadCustodias();
           }}
           onSubmit={handleSubmit}
@@ -425,7 +419,6 @@ export default function PassivosPage() {
           initialFuncionarios={funcionarios}
           initialClientes={clientes}
           initialBancos={bancos}
-          initialPayments={prefetchedPayments}
         />
 
         <DeleteConfirmationDialog

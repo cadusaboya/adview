@@ -297,6 +297,7 @@ class AllocationSerializer(serializers.ModelSerializer):
         if obj.payment:
             return {
                 'id': obj.payment.id,
+                'tipo': obj.payment.tipo,
                 'valor': obj.payment.valor,
                 'data_pagamento': obj.payment.data_pagamento,
                 'conta_bancaria': obj.payment.conta_bancaria.id if obj.payment.conta_bancaria else None,

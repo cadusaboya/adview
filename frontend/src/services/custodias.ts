@@ -9,6 +9,7 @@ export interface CustodiaListParams {
   page?: number;
   page_size?: number;
   search?: string;
+  ordering?: string;
   tipo?: 'P' | 'A'; // P = Passivo, A = Ativo
   status?: string | string[];
 }

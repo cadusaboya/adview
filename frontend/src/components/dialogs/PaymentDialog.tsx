@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,16 +11,19 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { formatCurrencyInput, parseCurrencyBR, formatDateBR } from '@/lib/formatters';
+import { toast } from 'sonner';
 
 import { getBancos } from '@/services/bancos';
-import { getReceitasAbertas } from '@/services/receitas';
-import { getDespesasAbertas } from '@/services/despesas';
-import { getCustodiasAbertas } from '@/services/custodias';
+import { getReceitasAbertas, createReceita } from '@/services/receitas';
+import { getDespesasAbertas, createDespesa } from '@/services/despesas';
+import { getCustodiasAbertas, createCustodia } from '@/services/custodias';
 import { transfersService } from '@/services/transfers';
+import { getClientes } from '@/services/clientes';
+import { getFavorecidos } from '@/services/favorecidos';
 
 import { Banco } from '@/types/bancos';
 import { Receita } from '@/types/receitas';
@@ -28,6 +31,8 @@ import { Despesa } from '@/types/despesas';
 import { Custodia } from '@/types/custodias';
 import { Transfer } from '@/types/transfer';
 import { Payment, PaymentCreate } from '@/types/payments';
+import { Cliente } from '@/types/clientes';
+import { Favorecido } from '@/types/favorecidos';
 
 // Tipo para uma alocação no formulário
 interface AllocationForm {
@@ -76,6 +81,27 @@ export default function PaymentDialog({
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [custodias, setCustodias] = useState<Custodia[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+
+  // Listas para criação inline (lazy-loaded)
+  const [clientesLista, setClientesLista] = useState<Cliente[]>([]);
+  const [favorecidosLista, setFavorecidosLista] = useState<Favorecido[]>([]);
+
+  // Estado de criação inline
+  const [criarNovoId, setCriarNovoId] = useState<string | null>(null);
+  const [criarEntityTipo, setCriarEntityTipo] = useState<'receita' | 'despesa' | 'custodia'>('receita');
+  const [criarNome, setCriarNome] = useState('');
+  const [criarValor, setCriarValor] = useState(0);
+  const [criarValorDisplay, setCriarValorDisplay] = useState('');
+  const [criarData, setCriarData] = useState('');
+  const [criarClienteId, setCriarClienteId] = useState<number | undefined>();
+  const [criarReceitaTipo, setCriarReceitaTipo] = useState<'F' | 'V' | 'E'>('F');
+  const [criarFormaPagamento, setCriarFormaPagamento] = useState<'P' | 'B'>('P');
+  const [criarFavorecidoId, setCriarFavorecidoId] = useState<number | undefined>();
+  const [criarDespesaTipo, setCriarDespesaTipo] = useState<'F' | 'V' | 'C' | 'R'>('F');
+  const [criarCustodiaTipo, setCriarCustodiaTipo] = useState<'P' | 'A'>('P');
+  const [criarCustodiaContraparteTipo, setCriarCustodiaContraparteTipo] = useState<'cliente' | 'favorecido' | null>(null);
+  const [criarCustodiaContraparteId, setCriarCustodiaContraparteId] = useState<number | undefined>();
+  const [criando, setCriando] = useState(false);
 
   // ======================
   // 🔄 LOAD EDIT
@@ -284,6 +310,107 @@ export default function PaymentDialog({
   };
 
   // ======================
+  // ➕ CRIAR ENTIDADE INLINE
+  // ======================
+  const loadCriarListas = async () => {
+    if (clientesLista.length > 0 && favorecidosLista.length > 0) return;
+    try {
+      const [clientesRes, favorecidosRes] = await Promise.all([
+        getClientes({ page_size: 9999 }),
+        getFavorecidos({ page_size: 9999 }),
+      ]);
+      setClientesLista(clientesRes.results);
+      setFavorecidosLista(favorecidosRes.results);
+    } catch {
+      toast.error('Erro ao carregar listas');
+    }
+  };
+
+  const abrirCriarNovo = (allocationId: string, entityTipo: 'receita' | 'despesa' | 'custodia') => {
+    setCriarNovoId(allocationId);
+    setCriarEntityTipo(entityTipo);
+    setCriarNome('');
+    const currentTotal = allocations
+      .filter((a) => !a.isDeleted)
+      .reduce((sum, a) => sum + (a.valor || 0), 0);
+    const valorPreenchido = Math.max(0, (formData.valor || 0) - currentTotal);
+    setCriarValor(valorPreenchido);
+    setCriarValorDisplay(valorPreenchido ? formatCurrencyInput(valorPreenchido) : '');
+    setCriarData(formData.data_pagamento || '');
+    setCriarClienteId(undefined);
+    setCriarReceitaTipo('F');
+    setCriarFormaPagamento('P');
+    setCriarFavorecidoId(undefined);
+    setCriarDespesaTipo('F');
+    setCriarCustodiaTipo('P');
+    setCriarCustodiaContraparteTipo('cliente');
+    setCriarCustodiaContraparteId(undefined);
+    loadCriarListas();
+  };
+
+  const handleCriarEntidade = async () => {
+    if (!criarNome.trim()) { toast.error('Nome é obrigatório'); return; }
+    if (!criarNovoId) return;
+
+    setCriando(true);
+    try {
+      if (criarEntityTipo === 'receita') {
+        if (!criarClienteId) { toast.error('Cliente é obrigatório'); return; }
+        if (!criarValor || criarValor <= 0) { toast.error('Valor é obrigatório'); return; }
+        if (!criarData) { toast.error('Data de vencimento é obrigatória'); return; }
+        const nova = await createReceita({
+          nome: criarNome.trim(),
+          cliente_id: criarClienteId,
+          valor: criarValor,
+          data_vencimento: criarData,
+          tipo: criarReceitaTipo,
+          forma_pagamento: criarFormaPagamento,
+        });
+        setReceitas((prev) => [...prev, nova]);
+        updateAllocation(criarNovoId, 'entidade_id', nova.id);
+        updateAllocation(criarNovoId, 'valor', nova.valor_aberto ?? nova.valor);
+        updateAllocation(criarNovoId, 'valorDisplay', formatCurrencyInput(nova.valor_aberto ?? nova.valor));
+        toast.success(`Receita "${nova.nome}" criada com sucesso`);
+      } else if (criarEntityTipo === 'despesa') {
+        if (!criarFavorecidoId) { toast.error('Favorecido é obrigatório'); return; }
+        if (!criarValor || criarValor <= 0) { toast.error('Valor é obrigatório'); return; }
+        if (!criarData) { toast.error('Data de vencimento é obrigatória'); return; }
+        const nova = await createDespesa({
+          nome: criarNome.trim(),
+          responsavel_id: criarFavorecidoId,
+          valor: criarValor,
+          data_vencimento: criarData,
+          tipo: criarDespesaTipo,
+        });
+        setDespesas((prev) => [...prev, nova]);
+        updateAllocation(criarNovoId, 'entidade_id', nova.id);
+        updateAllocation(criarNovoId, 'valor', nova.valor_aberto ?? nova.valor);
+        updateAllocation(criarNovoId, 'valorDisplay', formatCurrencyInput(nova.valor_aberto ?? nova.valor));
+        toast.success(`Despesa "${nova.nome}" criada com sucesso`);
+      } else if (criarEntityTipo === 'custodia') {
+        if (!criarValor || criarValor <= 0) { toast.error('Valor é obrigatório'); return; }
+        const nova = await createCustodia({
+          nome: criarNome.trim(),
+          tipo: criarCustodiaTipo,
+          valor_total: criarValor,
+          cliente_id: criarCustodiaContraparteTipo === 'cliente' ? criarCustodiaContraparteId ?? null : null,
+          funcionario_id: criarCustodiaContraparteTipo === 'favorecido' ? criarCustodiaContraparteId ?? null : null,
+        });
+        setCustodias((prev) => [...prev, nova]);
+        updateAllocation(criarNovoId, 'entidade_id', nova.id);
+        updateAllocation(criarNovoId, 'valor', nova.valor_total);
+        updateAllocation(criarNovoId, 'valorDisplay', formatCurrencyInput(nova.valor_total));
+        toast.success(`Custódia "${nova.nome}" criada com sucesso`);
+      }
+      setCriarNovoId(null);
+    } catch {
+      toast.error('Erro ao criar registro');
+    } finally {
+      setCriando(false);
+    }
+  };
+
+  // ======================
   // 🔹 ALLOCATION MANAGEMENT
   // ======================
   const addAllocation = () => {
@@ -408,7 +535,7 @@ export default function PaymentDialog({
                 setFormData({ ...formData, conta_bancaria: val })
               }
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
             />
@@ -465,7 +592,8 @@ export default function PaymentDialog({
           {/* Lista de Alocações */}
           <div className="space-y-2">
             {allocations.filter((a) => !a.isDeleted).map((alloc) => (
-                <div key={alloc.id} className={`grid grid-cols-12 gap-2 items-end p-2 rounded ${
+                <Fragment key={alloc.id}>
+                <div className={`grid grid-cols-12 gap-2 items-end p-2 rounded ${
                   alloc.isExisting ? 'bg-blue-50 border border-blue-200' : ''
                 }`}>
                   {/* Tipo */}
@@ -489,7 +617,7 @@ export default function PaymentDialog({
                         );
                       }}
                     >
-                      <SelectTrigger className="h-9">
+                      <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -595,11 +723,28 @@ export default function PaymentDialog({
                           updateAllocation(alloc.id, 'valor', valorAlocar);
                         }
                       }}
-                      className="h-9 [&_.ant-select-selector]:!h-9 [&_.ant-select-selector]:!py-0 [&_.ant-select-selection-search]:!h-9 [&_.ant-select-selection-item]:!leading-9"
+                      size="large"
                       style={{ width: '100%' }}
                       filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                       }
+                      dropdownRender={(menu) => (
+                        <>
+                          {menu}
+                          {alloc.tipo !== 'transfer' && (
+                            <div className="border-t px-3 py-2">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => abrirCriarNovo(alloc.id, alloc.tipo as 'receita' | 'despesa' | 'custodia')}
+                                className="w-full text-left text-xs text-primary hover:underline py-1"
+                              >
+                                + Criar nova {alloc.tipo === 'receita' ? 'Receita' : alloc.tipo === 'despesa' ? 'Despesa' : 'Custódia'}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
                     />
                   </div>
 
@@ -642,7 +787,6 @@ export default function PaymentDialog({
                         );
                         updateAllocation(alloc.id, 'valor', parsed);
                       }}
-                      className="h-9"
                     />
                   </div>
 
@@ -659,6 +803,188 @@ export default function PaymentDialog({
                     </Button>
                   </div>
                 </div>
+
+                {/* Painel inline de criação */}
+                {criarNovoId === alloc.id && (
+                  <div className="border border-dashed border-primary/50 rounded-md p-3 bg-primary/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-primary">
+                        Nova {criarEntityTipo === 'receita' ? 'Receita' : criarEntityTipo === 'despesa' ? 'Despesa' : 'Custódia'}
+                      </p>
+                      <button type="button" onClick={() => setCriarNovoId(null)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Nome *</label>
+                        <Input placeholder="Nome" value={criarNome} onChange={(e) => setCriarNome(e.target.value)} className="h-8 text-xs" />
+                      </div>
+
+                      {criarEntityTipo === 'receita' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Cliente *</label>
+                          <AntdSelect
+                            showSearch
+                            placeholder="Selecione um cliente"
+                            value={criarClienteId}
+                            options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
+                            onChange={setCriarClienteId}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            style={{ width: '100%' }}
+                            size="small"
+                          />
+                        </div>
+                      )}
+
+                      {criarEntityTipo === 'despesa' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Favorecido *</label>
+                          <AntdSelect
+                            showSearch
+                            placeholder="Selecione um favorecido"
+                            value={criarFavorecidoId}
+                            options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
+                            onChange={setCriarFavorecidoId}
+                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                            style={{ width: '100%' }}
+                            size="small"
+                          />
+                        </div>
+                      )}
+
+                      {criarEntityTipo === 'custodia' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Tipo *</label>
+                          <div className="flex gap-2">
+                            {(['P', 'A'] as const).map((t) => (
+                              <button key={t} type="button" onClick={() => setCriarCustodiaTipo(t)}
+                                className={`text-xs px-3 py-1 rounded border transition-colors ${criarCustodiaTipo === t ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
+                                {t === 'P' ? 'Passivo' : 'Ativo'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Contraparte da Custódia */}
+                    {criarEntityTipo === 'custodia' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-medium">Contraparte *</label>
+                          <div className="flex gap-1">
+                            {(['cliente', 'favorecido'] as const).map((t) => (
+                              <button key={t} type="button"
+                                onClick={() => { setCriarCustodiaContraparteTipo(t); setCriarCustodiaContraparteId(undefined); }}
+                                className={`text-xs px-2 py-1 rounded border transition-colors ${criarCustodiaContraparteTipo === t ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
+                                {t === 'cliente' ? 'Cliente' : 'Favorecido'}
+                              </button>
+                            ))}
+                          </div>
+                          {criarCustodiaContraparteTipo === 'cliente' && (
+                            <AntdSelect
+                              showSearch
+                              placeholder="Selecione um cliente"
+                              value={criarCustodiaContraparteId}
+                              options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
+                              onChange={setCriarCustodiaContraparteId}
+                              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                              style={{ width: '200px' }}
+                              size="small"
+                            />
+                          )}
+                          {criarCustodiaContraparteTipo === 'favorecido' && (
+                            <AntdSelect
+                              showSearch
+                              placeholder="Selecione um favorecido"
+                              value={criarCustodiaContraparteId}
+                              options={favorecidosLista.map((f) => ({ value: f.id, label: f.nome }))}
+                              onChange={setCriarCustodiaContraparteId}
+                              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                              style={{ width: '200px' }}
+                              size="small"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-4 gap-2">
+                      {criarEntityTipo === 'receita' && (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Tipo *</label>
+                            <div className="flex gap-1">
+                              {(['F', 'V', 'E'] as const).map((t) => (
+                                <button key={t} type="button" onClick={() => setCriarReceitaTipo(t)}
+                                  className={`text-xs px-2 py-1 rounded border transition-colors ${criarReceitaTipo === t ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
+                                  {t === 'F' ? 'Fixo' : t === 'V' ? 'Variável' : 'Êxito'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Pagamento</label>
+                            <div className="flex gap-1">
+                              {(['P', 'B'] as const).map((p) => (
+                                <button key={p} type="button" onClick={() => setCriarFormaPagamento(p)}
+                                  className={`text-xs px-2 py-1 rounded border transition-colors ${criarFormaPagamento === p ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
+                                  {p === 'P' ? 'Pix' : 'Boleto'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {criarEntityTipo === 'despesa' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Tipo *</label>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['F', 'V', 'C', 'R'] as const).map((t) => (
+                              <button key={t} type="button" onClick={() => setCriarDespesaTipo(t)}
+                                className={`text-xs px-2 py-1 rounded border transition-colors ${criarDespesaTipo === t ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
+                                {t === 'F' ? 'Fixa' : t === 'V' ? 'Variável' : t === 'C' ? 'Comissão' : 'Reembolso'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Valor (R$) *</label>
+                        <Input
+                          placeholder="0,00"
+                          value={criarValorDisplay}
+                          onChange={(e) => setCriarValorDisplay(e.target.value)}
+                          onBlur={() => {
+                            const parsed = parseCurrencyBR(criarValorDisplay);
+                            setCriarValor(parsed);
+                            setCriarValorDisplay(parsed ? formatCurrencyInput(parsed) : '');
+                          }}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      {criarEntityTipo !== 'custodia' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Vencimento *</label>
+                          <Input type="date" value={criarData} onChange={(e) => setCriarData(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1 border-t">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setCriarNovoId(null)} className="h-7 text-xs">
+                        Cancelar
+                      </Button>
+                      <Button type="button" size="sm" onClick={handleCriarEntidade} disabled={criando} className="h-7 text-xs">
+                        {criando ? 'Criando...' : 'Criar e vincular'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                </Fragment>
               ))}
             </div>
           </div>

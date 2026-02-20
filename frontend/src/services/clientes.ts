@@ -15,6 +15,7 @@ export async function getClientes(params?: {
   page?: number;
   page_size?: number;
   search?: string;
+  ordering?: string;
 }) {
   const res = await api.get<PaginatedResponse<Cliente>>(
     '/api/clientes/',

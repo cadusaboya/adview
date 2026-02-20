@@ -187,7 +187,7 @@ export default function RelatorioFiltrosModal({
               showSearch
               optionFilterProp="children"
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={clientes.map((c) => ({
                 value: c.id,
@@ -209,7 +209,7 @@ export default function RelatorioFiltrosModal({
               showSearch
               optionFilterProp="children"
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={favorecidos.map((f) => ({
                 value: f.id,
@@ -231,7 +231,7 @@ export default function RelatorioFiltrosModal({
               showSearch
               optionFilterProp="children"
               filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={contas.map((c) => ({
                 value: c.id,

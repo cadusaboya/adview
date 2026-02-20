@@ -48,6 +48,7 @@ export default function DespesasRecorrentesPage() {
   const [editingDespesa, setEditingDespesa] = useState<DespesaRecorrente | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [ordering, setOrdering] = useState('');
   const [showGerarMesAlert, setShowGerarMesAlert] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState('');
   const [anoSelecionado, setAnoSelecionado] = useState('');
@@ -73,6 +74,7 @@ export default function DespesasRecorrentesPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setDespesas(res.results);
       setTotal(res.count);
@@ -82,7 +84,7 @@ export default function DespesasRecorrentesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadDespesas();
@@ -275,17 +277,20 @@ export default function DespesasRecorrentesPage() {
       title: 'Nome',
       dataIndex: 'nome',
       width: '25%',
+      sorter: true,
     },
     {
       title: 'Favorecido',
-      dataIndex: 'responsavel',
+      dataIndex: 'responsavel__nome',
       width: '16%',
-      render: (r: { nome: string }) => r?.nome || '—',
+      sorter: true,
+      render: (_: unknown, record: DespesaRecorrente) => (record.responsavel as { nome: string } | null)?.nome || '—',
     },
     {
       title: 'Valor',
       dataIndex: 'valor',
       width: '12%',
+      sorter: true,
       render: (v: number) => formatCurrencyBR(v),
     },
     {
@@ -431,6 +436,7 @@ export default function DespesasRecorrentesPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />
@@ -527,7 +533,7 @@ export default function DespesasRecorrentesPage() {
             <div className="py-4 space-y-3">
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Quantidade de meses (1-24)
+                  Quantidade de meses (1-60)
                 </label>
                 <Input
                   placeholder="1"
@@ -535,7 +541,7 @@ export default function DespesasRecorrentesPage() {
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^\d]/g, '');
                     const num = parseInt(val) || 1;
-                    setQuantidadeMeses(Math.max(1, Math.min(24, num)));
+                    setQuantidadeMeses(Math.max(1, Math.min(60, num)));
                   }}
                 />
               </div>

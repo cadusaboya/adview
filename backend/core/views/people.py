@@ -16,6 +16,8 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     pagination_class = DynamicPageSizePagination
     # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
+    ORDERING_FIELDS = {'nome', '-nome', 'tipo', '-tipo', 'cpf', '-cpf', 'email', '-email'}
+
     def get_queryset(self):
         queryset = super().get_queryset().prefetch_related('formas_cobranca', 'comissoes__funcionario')
 
@@ -28,6 +30,12 @@ class ClienteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(email__icontains=search) |
                 Q(telefone__icontains=search)
             )
+
+        ordering = self.request.query_params.get('ordering')
+        if ordering and ordering in self.ORDERING_FIELDS:
+            queryset = queryset.order_by(ordering, 'id')
+        else:
+            queryset = queryset.order_by('nome', 'id')
 
         return queryset
 
@@ -83,6 +91,8 @@ class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     serializer_class = FuncionarioSerializer
     pagination_class = DynamicPageSizePagination
 
+    ORDERING_FIELDS = {'nome', '-nome', 'tipo', '-tipo', 'salario_mensal', '-salario_mensal'}
+
     def get_queryset(self):
         queryset = super().get_queryset().filter(tipo__in=['F', 'P'])
 
@@ -96,13 +106,20 @@ class FuncionarioViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(telefone__icontains=search)
             )
 
+        ordering = self.request.query_params.get('ordering')
+        if ordering and ordering in self.ORDERING_FIELDS:
+            queryset = queryset.order_by(ordering, 'id')
+        else:
+            queryset = queryset.order_by('nome', 'id')
+
         return queryset
-    # CompanyScopedViewSetMixin handles permissions and queryset filtering
 
 class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
     pagination_class = DynamicPageSizePagination
+
+    ORDERING_FIELDS = {'nome', '-nome', 'cpf', '-cpf', 'email', '-email'}
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(tipo='O')
@@ -116,6 +133,12 @@ class FornecedorViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                 Q(email__icontains=search) |
                 Q(telefone__icontains=search)
             )
+
+        ordering = self.request.query_params.get('ordering')
+        if ordering and ordering in self.ORDERING_FIELDS:
+            queryset = queryset.order_by(ordering, 'id')
+        else:
+            queryset = queryset.order_by('nome', 'id')
 
         return queryset
 

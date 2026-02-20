@@ -51,6 +51,7 @@ export interface ReceitaRecorrenteListParams {
   page?: number;
   page_size?: number;
   search?: string;
+  ordering?: string;
   status?: 'A' | 'P';
   tipo?: 'F' | 'V';
   cliente_id?: number;

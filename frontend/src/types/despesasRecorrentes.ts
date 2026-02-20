@@ -46,6 +46,7 @@ export interface DespesaRecorrenteListParams {
   page?: number;
   page_size?: number;
   search?: string;
+  ordering?: string;
   status?: 'A' | 'P';
   tipo?: 'F' | 'V';
   responsavel_id?: number;

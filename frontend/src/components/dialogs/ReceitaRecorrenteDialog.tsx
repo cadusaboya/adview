@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DialogBase from './DialogBase';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
@@ -44,12 +44,14 @@ export default function ReceitaRecorrenteDialog({
     loadFn: async () => (await getClientes({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar clientes',
+    cacheData: false,
   });
 
   const { data: funcionarios } = useLoadAuxiliaryData({
     loadFn: async () => (await getFuncionarios({ page_size: 1000 })).results,
     onOpen: open,
     errorMessage: 'Erro ao carregar funcionários',
+    cacheData: false,
   });
 
   const {

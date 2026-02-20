@@ -10,10 +10,12 @@ export interface ReceitaListParams {
   page?: number;
   page_size?: number;
   search?: string;
+  ordering?: string;
 
   situacao?: string | string[];
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
+  funcionario_id?: number;
 }
 
 /* =========================

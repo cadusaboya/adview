@@ -83,6 +83,9 @@ export default function ClientePage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Sort state
+  const [ordering, setOrdering] = useState('');
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -101,7 +104,8 @@ export default function ClientePage() {
       const res = await getClientes({
         page,
         page_size: pageSize,
-        search: debouncedSearch
+        search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setClientes(res.results);
       setTotal(res.count);
@@ -111,7 +115,7 @@ export default function ClientePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadClientes();
@@ -283,14 +287,14 @@ export default function ClientePage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Cliente> = [
-    { title: 'Nome', dataIndex: 'nome', width: '45%' },
+    { title: 'Nome', dataIndex: 'nome', width: '45%', sorter: true },
     {
       title: 'CPF / CNPJ',
       dataIndex: 'cpf',
       width: '16%',
       render: (cpf: string) => formatCpfCnpj(cpf),
     },
-    { title: 'Email', dataIndex: 'email', width: '20%' },
+    { title: 'Email', dataIndex: 'email', width: '20%', sorter: true },
     { title: 'Tipo', dataIndex: 'tipo_display', width: '8%' },
     {
       title: 'Ações',
@@ -400,6 +404,7 @@ export default function ClientePage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />

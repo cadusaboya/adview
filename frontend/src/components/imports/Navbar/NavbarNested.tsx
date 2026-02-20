@@ -12,7 +12,7 @@ import {
   IconAlertTriangle,
   IconReceipt,
 } from '@tabler/icons-react';
-import { Group, ScrollArea } from '@mantine/core';
+import { Group } from '@mantine/core';
 import Image from 'next/image';
 import classes from './NavbarNested.module.css';
 import { LinksGroup } from '../Navbar/NavbarLinksGroup';
@@ -152,9 +152,9 @@ export function NavbarNested() {
         </Group>
       </div>
 
-      <ScrollArea className={classes.links} type="auto">
+      <div className={classes.links}>
         <div className={classes.linksInner}>{links}</div>
-      </ScrollArea>
+      </div>
 
       <div className={classes.footer}>
         {showTrialBadge && (

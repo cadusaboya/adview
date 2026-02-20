@@ -225,6 +225,7 @@ export default function BancosPage() {
       title: "Nome",
       dataIndex: "nome",
       width: "15%",
+      sorter: (a: Banco, b: Banco) => a.nome.localeCompare(b.nome),
     },
     {
       title: "Descrição",
@@ -235,6 +236,7 @@ export default function BancosPage() {
       title: "Saldo Atual",
       dataIndex: "saldo_atual",
       width: "20%",
+      sorter: (a: Banco, b: Banco) => Number(a.saldo_atual) - Number(b.saldo_atual),
       render: (value: number) => formatCurrencyBR(value),
     },
     {

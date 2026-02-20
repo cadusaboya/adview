@@ -58,6 +58,9 @@ export default function FornecedorPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // Sort state
+  const [ordering, setOrdering] = useState('');
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -70,7 +73,8 @@ export default function FornecedorPage() {
       const res = await getFornecedores({
         page,
         page_size: pageSize,
-        search: debouncedSearch
+        search: debouncedSearch,
+        ordering: ordering || undefined,
       });
       setFornecedores(res.results);
       setTotal(res.count);
@@ -80,7 +84,7 @@ export default function FornecedorPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, ordering]);
 
   useEffect(() => {
     loadFornecedores();
@@ -222,7 +226,7 @@ export default function FornecedorPage() {
   // 📊 TABELA
   // ======================
   const columns: TableColumnsType<Fornecedor> = [
-    { title: 'Nome', dataIndex: 'nome', width: '45%' },
+    { title: 'Nome', dataIndex: 'nome', width: '45%', sorter: true },
     {
       title: 'CPF / CNPJ',
       dataIndex: 'cpf',
@@ -331,6 +335,7 @@ export default function FornecedorPage() {
               setPage(1);
             },
           }}
+          onSortChange={(o) => { setOrdering(o); setPage(1); }}
           selectedRowKeys={selectedRowKeys}
           onSelectionChange={handleSelectionChange}
         />

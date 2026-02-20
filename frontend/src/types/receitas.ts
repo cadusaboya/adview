@@ -24,6 +24,7 @@ export type ReceitaCreate = {
   tipo: 'F' | 'V' | 'E';
   forma_pagamento?: 'P' | 'B';
   comissoes?: { funcionario_id: number; percentual: number }[];
+  num_parcelas?: number;
 };
 
 export type ReceitaUpdate = Partial<ReceitaCreate>;
