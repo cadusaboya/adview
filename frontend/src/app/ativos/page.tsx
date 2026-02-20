@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button, Grid, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
 
@@ -38,6 +38,8 @@ import { Pencil, Trash } from 'lucide-react';
 import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
 import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
 
+const { useBreakpoint } = Grid;
+
 export default function AtivosPage() {
   const [custodias, setCustodias] = useState<Custodia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,6 +55,8 @@ export default function AtivosPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const screens = useBreakpoint();
 
   // Auxiliary data for prefetch
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -275,7 +279,7 @@ export default function AtivosPage() {
     );
   };
 
-  const columns: TableColumnsType<Custodia> = [
+  const baseColumns: TableColumnsType<Custodia> = [
     {
       title: 'Contraparte',
       key: 'contraparte',
@@ -291,6 +295,7 @@ export default function AtivosPage() {
       },
     },
     {
+      key: 'nome',
       title: 'Nome',
       dataIndex: 'nome',
       width: '30%',
@@ -306,6 +311,7 @@ export default function AtivosPage() {
       },
     },
     {
+      key: 'status',
       title: 'Status',
       dataIndex: 'status_display',
       width: '15%',
@@ -356,6 +362,11 @@ export default function AtivosPage() {
       ),
     },
   ];
+  const columns = screens.md
+    ? baseColumns
+    : baseColumns
+        .filter(col => ['contraparte', 'saldo', 'actions'].includes(String(col.key)))
+        .map(col => ({ ...col, width: col.key === 'actions' ? 50 : undefined }));
 
   // ======================
   // 🧱 RENDER

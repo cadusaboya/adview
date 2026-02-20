@@ -43,6 +43,7 @@ export default function GenericTable<T extends object>({
         selectedRowKeys,
         onChange: onSelectionChange,
         preserveSelectedRowKeys: false,
+        columnWidth: 48,
       }
     : undefined;
 

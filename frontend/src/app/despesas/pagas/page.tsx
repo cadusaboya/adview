@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import { Button, Grid, message } from 'antd';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
@@ -32,6 +32,8 @@ import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
 import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
 import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
+
+const { useBreakpoint } = Grid;
 
 export default function DespesasPagasPage() {
   const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
@@ -70,6 +72,8 @@ export default function DespesasPagasPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const screens = useBreakpoint();
 
   // Reset page when search changes
   useEffect(() => {
@@ -268,8 +272,9 @@ export default function DespesasPagasPage() {
   // ======================
   // 📊 TABELA
   // ======================
-  const columns: TableColumnsType<Despesa> = [
+  const baseColumns: TableColumnsType<Despesa> = [
     {
+      key: 'vencimento',
       title: 'Data de Vencimento',
       dataIndex: 'data_vencimento',
       width: '15%',
@@ -277,6 +282,7 @@ export default function DespesasPagasPage() {
       render: (value) => formatDateBR(value),
     },
     {
+      key: 'favorecido',
       title: 'Favorecido',
       dataIndex: 'responsavel__nome',
       width: '25%',
@@ -284,6 +290,7 @@ export default function DespesasPagasPage() {
       render: (_: unknown, record: Despesa) => (record.responsavel as { nome?: string } | undefined)?.nome ?? '—',
     },
     {
+      key: 'nome',
       title: 'Nome',
       dataIndex: 'nome',
       width: '30%',
@@ -291,6 +298,7 @@ export default function DespesasPagasPage() {
       render: (nome) => nome ?? '—',
     },
     {
+      key: 'valor',
       title: 'Valor',
       dataIndex: 'valor',
       width: '15%',
@@ -339,6 +347,11 @@ export default function DespesasPagasPage() {
       ),
     },
   ];
+  const columns = screens.md
+    ? baseColumns
+    : baseColumns
+        .filter(col => ['favorecido', 'valor', 'actions'].includes(String(col.key)))
+        .map(col => ({ ...col, width: col.key === 'actions' ? 50 : undefined }));
 
   // ======================
   // 🧱 RENDER

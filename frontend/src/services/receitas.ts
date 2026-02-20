@@ -15,6 +15,7 @@ export interface ReceitaListParams {
   situacao?: string | string[];
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
+  funcionario_id?: number;
 }
 
 /* =========================

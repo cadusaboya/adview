@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button } from 'antd';
+import { Button, Grid } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
 
@@ -44,6 +44,8 @@ import { formatDateBR, formatCurrencyBR } from '@/lib/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
 import StatusBadge from '@/components/ui/StatusBadge';
 
+const { useBreakpoint } = Grid;
+
 interface Responsavel {
   nome: string;
 }
@@ -80,6 +82,8 @@ export default function DespesasPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const screens = useBreakpoint();
 
   // Reset page when search changes
   useEffect(() => {
@@ -279,8 +283,9 @@ export default function DespesasPage() {
   // ======================
   // 📊 TABELA
   // ======================
-  const columns: TableColumnsType<Despesa> = [
+  const baseColumns: TableColumnsType<Despesa> = [
     {
+      key: 'vencimento',
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
       width: '12%',
@@ -288,6 +293,7 @@ export default function DespesasPage() {
       render: (value: string) => formatDateBR(value),
     },
     {
+      key: 'favorecido',
       title: 'Favorecido',
       dataIndex: 'responsavel__nome',
       width: '22%',
@@ -295,12 +301,14 @@ export default function DespesasPage() {
       render: (_: unknown, record: Despesa) => (record.responsavel as Responsavel | undefined)?.nome || '—',
     },
     {
+      key: 'nome',
       title: 'Nome',
       dataIndex: 'nome',
       width: '24%',
       sorter: true,
     },
     {
+      key: 'situacao',
       title: 'Situação',
       dataIndex: 'situacao',
       width: '12%',
@@ -309,6 +317,7 @@ export default function DespesasPage() {
       ),
     },
     {
+      key: 'valor',
       title: 'Valor em Aberto',
       dataIndex: 'valor',
       width: '16%',
@@ -361,6 +370,11 @@ export default function DespesasPage() {
       ),
     },
   ];
+  const columns = screens.md
+    ? baseColumns
+    : baseColumns
+        .filter(col => ['favorecido', 'valor', 'actions'].includes(String(col.key)))
+        .map(col => ({ ...col, width: col.key === 'actions' ? 50 : undefined }));
 
   // ======================
   // 🧱 RENDER

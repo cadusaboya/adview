@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Button } from 'antd';
+import { Button, Grid } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { toast } from 'sonner';
 import type { TableColumnsType } from 'antd';
@@ -28,6 +28,8 @@ import {
 
 import { getClientes } from '@/services/clientes';
 import { Cliente } from '@/types/clientes';
+import { getFuncionarios } from '@/services/funcionarios';
+import { Funcionario } from '@/types/funcionarios';
 import { getBancos } from '@/services/bancos';
 import { getAllocations } from '@/services/allocations';
 import { PaymentUI } from '@/types/payments';
@@ -45,6 +47,9 @@ import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmatio
 // ✅ Dropdown reutilizável
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Pencil, Trash } from 'lucide-react';
+import { Select } from 'antd';
+
+const { useBreakpoint } = Grid;
 
 export default function ReceitasPage() {
   const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
@@ -67,6 +72,10 @@ export default function ReceitasPage() {
   const [bancos, setBancos] = useState<{ id: number; nome: string }[]>([]);
   const [bancosLoaded, setBancosLoaded] = useState(false);
 
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [funcionariosLoaded, setFuncionariosLoaded] = useState(false);
+  const [funcionarioFiltro, setFuncionarioFiltro] = useState<number | undefined>(undefined);
+
   // Pagamentos pré-carregados para a receita sendo editada
   const [prefetchedPayments, setPrefetchedPayments] = useState<PaymentUI[] | undefined>(undefined);
 
@@ -76,6 +85,8 @@ export default function ReceitasPage() {
 
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const screens = useBreakpoint();
 
   // ======================
   // 🔄 LOAD
@@ -88,6 +99,7 @@ export default function ReceitasPage() {
         page_size: pageSize,
         search: debouncedSearch,
         ordering: ordering || undefined,
+        funcionario_id: funcionarioFiltro,
       });
       setReceitas(res.results);
       setTotal(res.count);
@@ -97,7 +109,7 @@ export default function ReceitasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, ordering]);
+  }, [page, pageSize, debouncedSearch, ordering, funcionarioFiltro]);
 
   useEffect(() => {
     loadReceitas();
@@ -112,10 +124,10 @@ export default function ReceitasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Só executa uma vez na montagem
 
-  // Reset page when search changes
+  // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, funcionarioFiltro]);
 
   // Clear selection when page or pageSize changes
   useEffect(() => {
@@ -136,6 +148,20 @@ export default function ReceitasPage() {
       toast.error('Erro ao carregar lista de clientes');
     }
   }, [clientesLoaded]);
+
+  // ======================
+  // 👥 FUNCIONÁRIOS (FILTRO)
+  // ======================
+  const loadFuncionarios = async () => {
+    if (funcionariosLoaded) return;
+    try {
+      const res = await getFuncionarios({ page_size: 1000 });
+      setFuncionarios(res.results.filter((f: Funcionario) => f.tipo === 'F' || f.tipo === 'P'));
+      setFuncionariosLoaded(true);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  };
 
   // ======================
   // 🏦 BANCOS (LAZY)
@@ -159,6 +185,7 @@ export default function ReceitasPage() {
     await Promise.all([
       loadClientes(),
       loadBancos(),
+      loadFuncionarios(),
     ]);
   };
 
@@ -272,8 +299,9 @@ export default function ReceitasPage() {
   // ======================
   // 📊 COLUNAS
   // ======================
-  const columns: TableColumnsType<Receita> = [
+  const baseColumns: TableColumnsType<Receita> = [
     {
+      key: 'vencimento',
       title: 'Vencimento',
       dataIndex: 'data_vencimento',
       width: '12%',
@@ -281,20 +309,23 @@ export default function ReceitasPage() {
       render: (v: string) => formatDateBR(v),
     },
     {
+      key: 'cliente',
       title: 'Cliente',
       dataIndex: 'cliente__nome',
       width: '25%',
       sorter: true,
       render: (_: unknown, record: Receita) => (record.cliente as { nome?: string } | undefined)?.nome || '—',
     },
-    { title: 'Nome', dataIndex: 'nome', width: '25%', sorter: true },
+    { key: 'nome', title: 'Nome', dataIndex: 'nome', width: '25%', sorter: true },
     {
+      key: 'situacao',
       title: 'Situação',
       dataIndex: 'situacao',
       width: '12%',
       render: (v: 'A' | 'P' | 'V') => <StatusBadge status={v} />,
     },
     {
+      key: 'valor',
       title: 'Valor',
       dataIndex: 'valor',
       width: '12%',
@@ -347,6 +378,11 @@ export default function ReceitasPage() {
       ),
     },
   ];
+  const columns = screens.md
+    ? baseColumns
+    : baseColumns
+        .filter(col => ['cliente', 'valor', 'actions'].includes(String(col.key)))
+        .map(col => ({ ...col, width: col.key === 'actions' ? 50 : undefined }));
 
   // ======================
   // 🧱 RENDER
@@ -367,6 +403,17 @@ export default function ReceitasPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full md:w-80"
+            />
+
+            <Select
+              allowClear
+              placeholder="Filtrar por comissionado"
+              style={{ width: 220 }}
+              value={funcionarioFiltro}
+              onChange={(val) => setFuncionarioFiltro(val ?? undefined)}
+              options={funcionarios.map((f) => ({ value: f.id, label: f.nome }))}
+              showSearch
+              optionFilterProp="label"
             />
 
             {selectedRowKeys.length > 0 && (

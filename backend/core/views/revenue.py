@@ -2,10 +2,10 @@ import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 from .mixins import CompanyScopedViewSetMixin
-from ..models import Receita, ReceitaRecorrente
+from ..models import Receita, ReceitaRecorrente, ReceitaComissao, ClienteComissao
 from ..serializers import ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer
 from ..pagination import DynamicPageSizePagination
 
@@ -42,7 +42,7 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         queryset = super().get_queryset().select_related(
             "cliente", "company"
         ).prefetch_related(
-            "allocations"
+            "allocations", "comissoes__funcionario"
         )
 
         params = self.request.query_params
@@ -66,6 +66,30 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         cliente_id = params.get("cliente_id")
         if cliente_id:
             queryset = queryset.filter(cliente_id=cliente_id)
+
+        funcionario_id = params.get("funcionario_id")
+        if funcionario_id:
+            # Receitas que têm comissão específica para este funcionário
+            tem_comissao_receita = Exists(
+                ReceitaComissao.objects.filter(
+                    receita=OuterRef('pk'),
+                    funcionario_id=funcionario_id
+                )
+            )
+            # Receitas sem comissão própria (herdam do cliente) cujo cliente
+            # tem comissão para este funcionário
+            sem_comissao_receita = ~Exists(
+                ReceitaComissao.objects.filter(receita=OuterRef('pk'))
+            )
+            tem_comissao_cliente = Exists(
+                ClienteComissao.objects.filter(
+                    cliente=OuterRef('cliente'),
+                    funcionario_id=funcionario_id
+                )
+            )
+            queryset = queryset.filter(
+                tem_comissao_receita | (sem_comissao_receita & tem_comissao_cliente)
+            )
 
         start_date = params.get("start_date")
         end_date = params.get("end_date")
