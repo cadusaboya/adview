@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DialogBase from './DialogBase';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';

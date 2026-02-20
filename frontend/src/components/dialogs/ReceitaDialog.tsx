@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 import { toast } from 'sonner';
 
 
@@ -20,7 +20,7 @@ import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import ComissaoList, { ComissaoItem } from '@/components/dialogs/ComissaoList';
 
 import { getBancos } from '@/services/bancos';
-import { getClientes } from '@/services/clientes';
+import { getClientes, createCliente } from '@/services/clientes';
 import { getFuncionarios } from '@/services/funcionarios';
 
 import { Cliente } from '@/types/clientes';
@@ -123,8 +123,32 @@ export default function ReceitaDialog({
   // Regras de comissão específicas da receita
   const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
+  // Criar cliente inline
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [clienteNovoTipo, setClienteNovoTipo] = useState<'F' | 'A'>('A');
+  const [criandoCliente, setCriandoCliente] = useState(false);
+
+  const handleCriarCliente = async () => {
+    const nome = clienteSearch.trim();
+    if (!nome) return;
+    setCriandoCliente(true);
+    try {
+      const novo = await createCliente({ nome, tipo: clienteNovoTipo, formas_cobranca: [] });
+      // Adiciona à lista local e seleciona
+      clientes?.push(novo);
+      setFormData((prev) => ({ ...prev, cliente_id: novo.id }));
+      setClienteSearch('');
+      toast.success(`Cliente "${novo.nome}" criado com sucesso`);
+    } catch {
+      toast.error('Erro ao criar cliente');
+    } finally {
+      setCriandoCliente(false);
+    }
+  };
+
   // Installments state (only for creation)
   const [numParcelas, setNumParcelas] = useState('');
+  const [parcelasError, setParcelasError] = useState<string | null>(null);
 
   // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
@@ -200,6 +224,7 @@ export default function ReceitaDialog({
       setComissoes([]);
       setValorDisplay('');
       setNumParcelas('');
+      setParcelasError(null);
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -208,6 +233,14 @@ export default function ReceitaDialog({
   }, [receita, open, setFormData]);
 
   const handleSubmitWrapper = async () => {
+    if (numParcelas !== '') {
+      const parsed = parseInt(numParcelas, 10);
+      if (isNaN(parsed) || parsed < 1) {
+        setParcelasError('Número de parcelas inválido');
+        return;
+      }
+    }
+
     const comissoesPayload = comissoes
       .filter((c) => c.funcionario_id !== null && c.percentual !== '' && c.percentual !== 0)
       .map((c) => ({
@@ -282,11 +315,49 @@ export default function ReceitaDialog({
               onChange={(val) =>
                 setFormData((prev) => ({ ...prev, cliente_id: val }))
               }
+              onSearch={setClienteSearch}
+              searchValue={clienteSearch}
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
               status={getFieldProps('cliente_id').error ? 'error' : undefined}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  {clienteSearch.trim() && (
+                    <div className="border-t px-3 py-2 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Criar <strong>&quot;{clienteSearch.trim()}&quot;</strong> como:
+                      </p>
+                      <div className="flex gap-2 items-center">
+                        <button
+                          type="button"
+                          onClick={() => setClienteNovoTipo('A')}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${clienteNovoTipo === 'A' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                        >
+                          Avulso
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClienteNovoTipo('F')}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${clienteNovoTipo === 'F' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                        >
+                          Fixo
+                        </button>
+                        <button
+                          type="button"
+                          disabled={criandoCliente}
+                          onClick={handleCriarCliente}
+                          className="ml-auto text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {criandoCliente ? 'Criando...' : '+ Criar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             />
             {getFieldProps('cliente_id').error && (
               <p className="text-xs text-red-500 flex items-center gap-1">
@@ -357,7 +428,20 @@ export default function ReceitaDialog({
               label="Parcelas"
               placeholder="1"
               value={numParcelas}
-              onChange={(e) => setNumParcelas(e.target.value)}
+              onChange={(e) => {
+                setNumParcelas(e.target.value);
+                setParcelasError(null);
+              }}
+              onBlur={() => {
+                if (numParcelas === '') return;
+                const parsed = parseInt(numParcelas, 10);
+                if (isNaN(parsed) || parsed < 1) {
+                  setNumParcelas('');
+                } else {
+                  setNumParcelas(String(parsed));
+                }
+              }}
+              error={parcelasError ?? undefined}
             />
           )}
         </div>

@@ -62,6 +62,7 @@ export default function PaymentsTabs({ tipo, entityId, contasBancarias, custodia
   const loadPayments = useCallback(async () => {
     // Se já tem dados iniciais, não precisa carregar
     if (initialPayments) {
+      setPayments(initialPayments); // Atualiza estado caso prefetch tenha chegado depois do mount
       setIsLoading(false);
       return;
     }

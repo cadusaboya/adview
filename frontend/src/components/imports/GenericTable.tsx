@@ -34,9 +34,7 @@ export default function GenericTable<T extends object>({
   // Aplica ellipsis em todas as colunas que não têm configuração explícita
   const columnsWithEllipsis = columns.map((col) => ({
     ...col,
-    ellipsis: col.ellipsis !== undefined ? col.ellipsis : {
-      showTitle: true,
-    },
+    ellipsis: col.ellipsis !== undefined ? col.ellipsis : true,
   }));
 
   // Row selection configuration
@@ -93,6 +91,7 @@ export default function GenericTable<T extends object>({
       tableLayout="fixed"
       onChange={handleTableChange}
       rowSelection={rowSelection}
+      showSorterTooltip={false}
       className='shadow-soft bg-white rounded border border-border'
       style={{ width: '100%' }}
     />

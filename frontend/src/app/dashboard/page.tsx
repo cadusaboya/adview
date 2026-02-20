@@ -544,7 +544,7 @@ export default function DashboardPage() {
             {/* Receita por Tipo */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6">
-                Receita por Tipo (Mês Atual)
+                Receita por Tipo ({new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase())})
               </h2>
               {data.receitaPorTipoData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -587,7 +587,7 @@ export default function DashboardPage() {
             {/* Despesa por Tipo */}
             <Card>
               <h2 className="text-lg font-bold text-gray-900 mb-6">
-                Despesa por Tipo (Mês Atual)
+                Despesa por Tipo ({new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase())})
               </h2>
               {data.despesaPorTipoData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>

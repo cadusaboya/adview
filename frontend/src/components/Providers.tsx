@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { MantineProvider } from '@mantine/core';
 import { ConfigProvider } from 'antd';
+import pt_BR from 'antd/locale/pt_BR';
 import { Toaster } from 'sonner';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 import { isLoggedIn } from '@/services/auth';
@@ -35,6 +36,7 @@ function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ConfigProvider
+      locale={pt_BR}
       theme={{
         token: {
           colorPrimary: '#0A192F',

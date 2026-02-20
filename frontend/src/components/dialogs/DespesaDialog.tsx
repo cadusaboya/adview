@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 import { toast } from 'sonner';
-
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
 import { despesaCreateSchema } from '@/lib/validation/schemas/despesa';
@@ -17,7 +16,7 @@ import { formatCurrencyInput, parseCurrencyBR } from '@/lib/formatters';
 import PaymentsTabs from '@/components/imports/PaymentsTabs';
 import { getBancos } from '@/services/bancos';
 import { Favorecido } from '@/types/favorecidos';
-import { getFavorecidos } from '@/services/favorecidos';
+import { getFavorecidos, createFavorecido } from '@/services/favorecidos';
 
 import {
   Despesa,
@@ -103,8 +102,31 @@ export default function DespesaDialog({
     despesaCreateSchema
   );
 
+  // Criar favorecido inline
+  const [favorecidoSearch, setFavorecidoSearch] = useState('');
+  const [favorecidoNovoTipo, setFavorecidoNovoTipo] = useState<'F' | 'P' | 'O'>('O');
+  const [criandoFavorecido, setCriandoFavorecido] = useState(false);
+
+  const handleCriarFavorecido = async () => {
+    const nome = favorecidoSearch.trim();
+    if (!nome) return;
+    setCriandoFavorecido(true);
+    try {
+      const novo = await createFavorecido({ nome, tipo: favorecidoNovoTipo });
+      favorecidos?.push(novo);
+      setFormData((prev) => ({ ...prev, responsavel_id: novo.id }));
+      setFavorecidoSearch('');
+      toast.success(`Favorecido "${novo.nome}" criado com sucesso`);
+    } catch {
+      toast.error('Erro ao criar favorecido');
+    } finally {
+      setCriandoFavorecido(false);
+    }
+  };
+
   // Installments state (only for creation)
   const [numParcelas, setNumParcelas] = useState('');
+  const [parcelasError, setParcelasError] = useState<string | null>(null);
 
   // Payment fields state (only for creation)
   const [marcarComoPago, setMarcarComoPago] = useState(false);
@@ -136,6 +158,7 @@ export default function DespesaDialog({
       });
       setValorDisplay('');
       setNumParcelas('');
+      setParcelasError(null);
       setMarcarComoPago(false);
       setDataPagamento('');
       setContaBancariaId(undefined);
@@ -144,6 +167,14 @@ export default function DespesaDialog({
   }, [despesa, open, setFormData]);
 
   const handleSubmitWrapper = async () => {
+    if (numParcelas !== '') {
+      const parsed = parseInt(numParcelas, 10);
+      if (isNaN(parsed) || parsed < 1) {
+        setParcelasError('Número de parcelas inválido');
+        return;
+      }
+    }
+
     await handleSubmit(async (data) => {
       try {
         let payload: DespesaUpdate | DespesaCreate | DespesaCreateWithPayment;
@@ -215,11 +246,56 @@ export default function DespesaDialog({
                   responsavel_id: val ?? 0,
                 }))
               }
+              onSearch={setFavorecidoSearch}
+              searchValue={favorecidoSearch}
               filterOption={(input, option) =>
                 String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
               status={getFieldProps('responsavel_id').error ? 'error' : undefined}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  {favorecidoSearch.trim() && (
+                    <div className="border-t px-3 py-2 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Criar <strong>&quot;{favorecidoSearch.trim()}&quot;</strong> como:
+                      </p>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setFavorecidoNovoTipo('O')}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'O' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                        >
+                          Fornecedor
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFavorecidoNovoTipo('F')}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'F' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                        >
+                          Funcionário
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFavorecidoNovoTipo('P')}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'P' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                        >
+                          Parceiro
+                        </button>
+                        <button
+                          type="button"
+                          disabled={criandoFavorecido}
+                          onClick={handleCriarFavorecido}
+                          className="ml-auto text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {criandoFavorecido ? 'Criando...' : '+ Criar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             />
             {getFieldProps('responsavel_id').error && (
               <p className="text-xs text-red-500 flex items-center gap-1">
@@ -292,7 +368,20 @@ export default function DespesaDialog({
               label="Parcelas"
               placeholder="1"
               value={numParcelas}
-              onChange={(e) => setNumParcelas(e.target.value)}
+              onChange={(e) => {
+                setNumParcelas(e.target.value);
+                setParcelasError(null);
+              }}
+              onBlur={() => {
+                if (numParcelas === '') return;
+                const parsed = parseInt(numParcelas, 10);
+                if (isNaN(parsed) || parsed < 1) {
+                  setNumParcelas('');
+                } else {
+                  setNumParcelas(String(parsed));
+                }
+              }}
+              error={parcelasError ?? undefined}
             />
           )}
         </div>

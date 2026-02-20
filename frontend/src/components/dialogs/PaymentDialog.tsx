@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { formatCurrencyInput, parseCurrencyBR, formatDateBR } from '@/lib/formatters';

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
-import { Select as AntdSelect } from 'antd';
+import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
 import { toast } from 'sonner';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
