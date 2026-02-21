@@ -50,17 +50,27 @@ export interface RelatorioBalancoPayload {
   incluir_custodias?: boolean;
 }
 
+// 🔹 Payload específico para DRE Detalhe (por tipo)
+export interface RelatorioDREDetalhePayload {
+  mes: number;
+  ano: number;
+  tipo_relatorio: 'receita' | 'despesa';
+  tipo: string;
+}
+
 type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
 type TipoRelatorioComissionamento = 'comissionamento';
 type TipoRelatorioBalanco = 'balanco';
+type TipoRelatorioDREDetalhe = 'dre-detalhe';
 
 export type TipoRelatorio =
   | TipoRelatorioLista
   | TipoRelatorioDRE
   | TipoRelatorioRecibo
   | TipoRelatorioComissionamento
-  | TipoRelatorioBalanco;
+  | TipoRelatorioBalanco
+  | TipoRelatorioDREDetalhe;
 
 /* =========================
    CONFIG
@@ -116,6 +126,10 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
     endpoint: '/api/pdf/balanco/',
     nomeArquivo: 'relatorio_balanco.pdf',
   },
+  'dre-detalhe': {
+    endpoint: '/api/pdf/dre-detalhe/',
+    nomeArquivo: 'relatorio_dre_detalhe.pdf',
+  },
 };
 
 /* =========================
@@ -152,10 +166,16 @@ export async function gerarRelatorioPDF(
   filtros: RelatorioBalancoPayload
 ): Promise<void>;
 
+// 🔹 DRE Detalhe
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioDREDetalhe,
+  filtros: RelatorioDREDetalhePayload
+): Promise<void>;
+
 // 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload | RelatorioDREDetalhePayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -271,6 +291,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'recibo-pagamento': 'Recibo de Pagamento',
     'comissionamento': 'Relatório de Comissionamento',
     'balanco': 'Fluxo de Caixa Realizado (Balanço)',
+    'dre-detalhe': 'Relatório DRE por Tipo',
   };
 
   return nomes[tipoRelatorio];

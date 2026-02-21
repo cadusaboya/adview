@@ -47,6 +47,7 @@ def relatorio_receitas_pagas(request):
     cliente_id = request.query_params.get("cliente_id")
     data_inicio = request.query_params.get("data_inicio")
     data_fim = request.query_params.get("data_fim")
+    tipo = request.query_params.get("tipo")
 
     # Filtra payments que têm alocações com receita
     pagamentos = Payment.objects.filter(
@@ -69,6 +70,8 @@ def relatorio_receitas_pagas(request):
         pagamentos = pagamentos.filter(data_pagamento__gte=data_inicio)
     if data_fim:
         pagamentos = pagamentos.filter(data_pagamento__lte=data_fim)
+    if tipo:
+        pagamentos = pagamentos.filter(allocations__receita__tipo=tipo)
 
     rows = []
     total = Decimal("0.00")
@@ -76,7 +79,7 @@ def relatorio_receitas_pagas(request):
     # Itera sobre payments e suas allocations de receita
     for p in pagamentos:
         for allocation in p.allocations.all():
-            if allocation.receita:
+            if allocation.receita and (not tipo or allocation.receita.tipo == tipo):
                 rows.append({
                     "data": format_date_br(p.data_pagamento),
                     "cliente": truncate_text(allocation.receita.cliente.nome, 25),
@@ -2308,6 +2311,154 @@ def relatorio_balanco_pdf(request):
     pdf.drawString(margin, margin, f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
     pdf.drawRightString(right_col, margin, "Página 1")
 
+    pdf.showPage()
+    pdf.save()
+
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def relatorio_dre_detalhe(request):
+    """
+    Gera um relatório PDF detalhado com todos os lançamentos de um tipo específico da DRE.
+
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+    - tipo_relatorio: 'receita' ou 'despesa'
+    - tipo: código do tipo ('F', 'V', 'E' para receitas; 'F', 'V', 'C', 'R' para despesas)
+    """
+
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+
+    mes = request.query_params.get('mes')
+    ano = request.query_params.get('ano')
+    tipo_relatorio = request.query_params.get('tipo_relatorio', '').lower()
+    tipo = request.query_params.get('tipo', '')
+
+    if tipo_relatorio not in ('receita', 'despesa'):
+        return Response({"error": "Parâmetro 'tipo_relatorio' deve ser 'receita' ou 'despesa'."}, status=400)
+
+    if not tipo:
+        return Response({"error": "Parâmetro 'tipo' é obrigatório."}, status=400)
+
+    if not mes or not ano:
+        hoje = datetime.now()
+        mes = hoje.month
+        ano = hoje.year
+    else:
+        mes = int(mes)
+        ano = int(ano)
+
+    data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+    if mes == 12:
+        data_fim_raw = f"{ano + 1}-01-01"
+    else:
+        data_fim_raw = f"{ano}-{str(mes + 1).zfill(2)}-01"
+    data_fim = (datetime.strptime(data_fim_raw, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    meses_nomes = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    periodo_str = f"{meses_nomes[mes - 1]} de {ano}"
+
+    SITUACAO_MAP = {'P': 'Pago', 'A': 'Em Aberto', 'V': 'Vencido'}
+
+    rows = []
+    total = Decimal('0.00')
+
+    if tipo_relatorio == 'receita':
+        TIPO_LABEL_MAP = {'F': 'Receitas Fixas', 'V': 'Receitas Variáveis', 'E': 'Estornos'}
+        titulo_tipo = TIPO_LABEL_MAP.get(tipo, f'Receitas (Tipo {tipo})')
+        titulo = f"Relatório DRE — {titulo_tipo}"
+
+        qs = Receita.objects.filter(
+            company=company,
+            tipo=tipo,
+            data_vencimento__gte=data_inicio,
+            data_vencimento__lte=data_fim,
+        ).select_related('cliente').order_by('data_vencimento')
+
+        for receita in qs:
+            rows.append({
+                'data': format_date_br(receita.data_vencimento),
+                'pessoa': truncate_text(receita.cliente.nome, 28),
+                'descricao': truncate_text(receita.nome, 38),
+                'situacao': SITUACAO_MAP.get(receita.situacao, receita.situacao),
+                'valor': receita.valor,
+            })
+            total += receita.valor
+
+        col_pessoa_label = "Cliente"
+        filename = f"dre_receitas_{tipo.lower()}_{mes:02d}_{ano}.pdf"
+
+    else:  # despesa
+        TIPO_LABEL_MAP = {'F': 'Despesas Fixas', 'V': 'Despesas Variáveis', 'C': 'Comissões', 'R': 'Reembolsos'}
+        titulo_tipo = TIPO_LABEL_MAP.get(tipo, f'Despesas (Tipo {tipo})')
+        titulo = f"Relatório DRE — {titulo_tipo}"
+
+        qs = Despesa.objects.filter(
+            company=company,
+            tipo=tipo,
+            data_vencimento__gte=data_inicio,
+            data_vencimento__lte=data_fim,
+        ).select_related('responsavel').order_by('data_vencimento')
+
+        for despesa in qs:
+            rows.append({
+                'data': format_date_br(despesa.data_vencimento),
+                'pessoa': truncate_text(despesa.responsavel.nome, 28),
+                'descricao': truncate_text(despesa.nome, 38),
+                'situacao': SITUACAO_MAP.get(despesa.situacao, despesa.situacao),
+                'valor': despesa.valor,
+            })
+            total += despesa.valor
+
+        col_pessoa_label = "Favorecido"
+        filename = f"dre_despesas_{tipo.lower()}_{mes:02d}_{ano}.pdf"
+
+    # ── PDF ────────────────────────────────────────────────────────────────────
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename={filename}"
+
+    pdf = canvas.Canvas(response, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    margin = 40
+
+    report = PDFReportBase(titulo, company.name, company.logo)
+    y = report.draw_header(pdf, width, height, "", periodo_str)
+
+    columns = [
+        {"label": "Data", "key": "data", "x": margin},
+        {"label": col_pessoa_label, "key": "pessoa", "x": margin + 90},
+        {"label": "Descrição", "key": "descricao", "x": margin + 240},
+        {"label": "Situação", "key": "situacao", "x": width - 200},
+        {"label": "Valor", "key": "valor", "x": width - 100, "is_amount": True},
+    ]
+
+    y = report.draw_table_header(pdf, y, columns, width, height)
+
+    for row in rows:
+        y = report.check_page_break(pdf, y, width, height, columns)
+        y = report.draw_row(pdf, y, row, columns)
+
+    if rows:
+        y -= 5
+        report.draw_total_row(
+            pdf,
+            y,
+            "TOTAL",
+            total,
+            columns[-2]["x"],
+            columns[-1]["x"],
+        )
+
+    report.draw_footer(pdf, width)
     pdf.showPage()
     pdf.save()
 

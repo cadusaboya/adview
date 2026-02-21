@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
+import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +18,8 @@ import { getDREConsolidado, DREData } from "@/services/relatorios";
 type LineItem = {
   label: string;
   value: number;
+  tipoRelatorio?: 'receita' | 'despesa';
+  tipo?: string;
 };
 
 export default function DREPage() {
@@ -36,6 +39,7 @@ export default function DREPage() {
   const [dreData, setDREData] = useState<DREData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+  const [loadingTipo, setLoadingTipo] = useState<string | null>(null);
 
   /* =========================
      FETCH DRE DATA
@@ -63,18 +67,18 @@ export default function DREPage() {
   ========================= */
   const receitasLineItems: LineItem[] = dreData
     ? [
-        { label: "Receitas Fixas", value: dreData.receitas.fixas },
-        { label: "Receitas Variáveis", value: dreData.receitas.variaveis },
-        { label: "Estornos", value: Math.abs(dreData.receitas.estornos) },
+        { label: "Receitas Fixas", value: dreData.receitas.fixas, tipoRelatorio: "receita", tipo: "F" },
+        { label: "Receitas Variáveis", value: dreData.receitas.variaveis, tipoRelatorio: "receita", tipo: "V" },
+        { label: "Estornos", value: Math.abs(dreData.receitas.estornos), tipoRelatorio: "receita", tipo: "E" },
       ]
     : [];
 
   const despesasLineItems: LineItem[] = dreData
     ? [
-        { label: "Despesas Fixas", value: dreData.despesas.fixas },
-        { label: "Despesas Variáveis", value: dreData.despesas.variaveis },
-        { label: "Comissões", value: dreData.despesas.comissoes },
-        { label: "Reembolsos", value: dreData.despesas.reembolsos },
+        { label: "Despesas Fixas", value: dreData.despesas.fixas, tipoRelatorio: "despesa", tipo: "F" },
+        { label: "Despesas Variáveis", value: dreData.despesas.variaveis, tipoRelatorio: "despesa", tipo: "V" },
+        { label: "Comissões", value: dreData.despesas.comissoes, tipoRelatorio: "despesa", tipo: "C" },
+        { label: "Reembolsos", value: dreData.despesas.reembolsos, tipoRelatorio: "despesa", tipo: "R" },
       ]
     : [];
 
@@ -94,6 +98,31 @@ export default function DREPage() {
       toast.error(errorMessage);
     } finally {
       setLoadingRelatorio(false);
+    }
+  };
+
+  // 📄 Gerar relatório detalhado por tipo
+  const handleGerarRelatorioTipo = async (
+    tipoRelatorio: 'receita' | 'despesa',
+    tipo: string,
+    label: string
+  ) => {
+    const key = `${tipoRelatorio}-${tipo}`;
+    try {
+      setLoadingTipo(key);
+      await gerarRelatorioPDF("dre-detalhe", {
+        mes,
+        ano,
+        tipo_relatorio: tipoRelatorio,
+        tipo,
+      });
+      toast.success(`Relatório de ${label} gerado com sucesso!`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar relatório';
+      console.error(error);
+      toast.error(errorMessage);
+    } finally {
+      setLoadingTipo(null);
     }
   };
 
@@ -180,9 +209,10 @@ export default function DREPage() {
 
           <Card>
             <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-2 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm font-medium text-muted-foreground">
                 <span>Descrição</span>
                 <span className="text-right">Valor</span>
+                <span className="w-6" />
               </div>
 
               <Separator />
@@ -198,7 +228,16 @@ export default function DREPage() {
                   {/* RECEITAS */}
                   <Section title="Receitas">
                     {receitasLineItems.map((item) => (
-                      <Row key={item.label} {...item} />
+                      <Row
+                        key={item.label}
+                        {...item}
+                        loading={loadingTipo === `${item.tipoRelatorio}-${item.tipo}`}
+                        onDownload={
+                          item.tipoRelatorio && item.tipo
+                            ? () => handleGerarRelatorioTipo(item.tipoRelatorio!, item.tipo!, item.label)
+                            : undefined
+                        }
+                      />
                     ))}
                     <TotalRow
                       label="Total de Receitas"
@@ -209,7 +248,16 @@ export default function DREPage() {
                   {/* DESPESAS */}
                   <Section title="Despesas">
                     {despesasLineItems.map((item) => (
-                      <Row key={item.label} {...item} />
+                      <Row
+                        key={item.label}
+                        {...item}
+                        loading={loadingTipo === `${item.tipoRelatorio}-${item.tipo}`}
+                        onDownload={
+                          item.tipoRelatorio && item.tipo
+                            ? () => handleGerarRelatorioTipo(item.tipoRelatorio!, item.tipo!, item.label)
+                            : undefined
+                        }
+                      />
                     ))}
                     <TotalRow
                       label="Total de Despesas"
@@ -264,15 +312,30 @@ function Section({
   );
 }
 
-function Row({ label, value }: LineItem) {
+function Row({
+  label,
+  value,
+  onDownload,
+  loading,
+}: LineItem & { onDownload?: () => void; loading?: boolean }) {
   return (
-    <div className="grid grid-cols-2 text-sm">
+    <div className="grid grid-cols-[1fr_auto_auto] items-center text-sm gap-2">
       <span>{label}</span>
-      <span
-        className={`text-right ${value < 0 ? "text-red-500" : ""}`}
-      >
+      <span className={`text-right ${value < 0 ? "text-red-500" : ""}`}>
         {formatCurrencyBR(value)}
       </span>
+      {onDownload ? (
+        <button
+          onClick={onDownload}
+          disabled={loading}
+          title={`Gerar relatório de ${label}`}
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+        >
+          <FileDown className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+        </button>
+      ) : (
+        <span className="w-6" />
+      )}
     </div>
   );
 }

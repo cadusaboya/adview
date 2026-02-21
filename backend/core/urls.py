@@ -28,6 +28,7 @@ from .pdf_views import (
     recibo_pagamento,
     relatorio_comissionamento_pdf,
     relatorio_balanco_pdf,
+    relatorio_dre_detalhe,
 )
 
 router = DefaultRouter()
@@ -101,6 +102,9 @@ urlpatterns = [
 
     # 10. Relatório de Balanço (Fluxo de Caixa por banco/tipo)
     path('pdf/balanco/', relatorio_balanco_pdf, name='relatorio-balanco-pdf'),
+
+    # 11. Relatório DRE Detalhe (por tipo de receita/despesa)
+    path('pdf/dre-detalhe/', relatorio_dre_detalhe, name='relatorio-dre-detalhe'),
 
 ]
 
