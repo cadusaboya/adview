@@ -70,14 +70,12 @@ export default function GenericTable<T extends object>({
       }
     }
 
-    // Emit sort change
+    // Emit sort change (only when user interacted with a sortable column)
     if (onSortChange) {
       const s = Array.isArray(sorter) ? sorter[0] : sorter;
-      if (s.order && s.field) {
+      if (s.field) {
         const field = String(s.field);
-        onSortChange(s.order === 'ascend' ? field : `-${field}`);
-      } else {
-        onSortChange('');
+        onSortChange(s.order === 'ascend' ? field : s.order === 'descend' ? `-${field}` : '');
       }
     }
   };
