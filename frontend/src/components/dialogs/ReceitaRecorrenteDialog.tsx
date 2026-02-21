@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DialogBase from './DialogBase';
-import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
+import { SelectWithCreate } from '@/components/ui/SelectWithCreate';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
@@ -20,8 +20,7 @@ import {
   ReceitaRecorrenteCreate,
   ReceitaRecorrenteUpdate,
 } from '@/types/receitasRecorrentes';
-import { Cliente } from '@/types/clientes';
-import { getClientes } from '@/services/clientes';
+import { getClientes, createCliente } from '@/services/clientes';
 import { getFuncionarios } from '@/services/funcionarios';
 
 interface Props {
@@ -46,6 +45,7 @@ export default function ReceitaRecorrenteDialog({
     errorMessage: 'Erro ao carregar clientes',
     cacheData: false,
   });
+
 
   const { data: funcionarios } = useLoadAuxiliaryData({
     loadFn: async () => (await getFuncionarios({ page_size: 1000 })).results,
@@ -134,11 +134,24 @@ export default function ReceitaRecorrenteDialog({
     <DialogBase open={open} onClose={onClose} title={receita ? 'Editar Receita Recorrente' : 'Nova Receita Recorrente'} onSubmit={handleSubmitWrapper} loading={isSubmitting}>
       <div className="grid grid-cols-1 gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Cliente <span className="text-red-500">*</span></label>
-            <AntdSelect showSearch placeholder="Selecione um cliente" value={formData.cliente_id || undefined} options={clientes?.map((c: Cliente) => ({ value: c.id, label: c.nome })) || []} onChange={(val) => setFormData(prev => ({ ...prev, cliente_id: val ?? 0 }))} style={{ width: '100%' }} status={getFieldProps('cliente_id').error ? 'error' : undefined} />
-            {getFieldProps('cliente_id').error && <p className="text-xs text-red-500 flex items-center gap-1"><span className="font-medium">⚠</span> {getFieldProps('cliente_id').error}</p>}
-          </div>
+          <SelectWithCreate
+            label="Cliente"
+            required
+            placeholder="Selecione um cliente"
+            value={formData.cliente_id || undefined}
+            options={clientes?.map((c) => ({ value: c.id, label: c.nome })) || []}
+            onChange={(val) => setFormData(prev => ({ ...prev, cliente_id: val ?? 0 }))}
+            error={getFieldProps('cliente_id').error}
+            createTypes={[{ value: 'A', label: 'Avulso' }, { value: 'F', label: 'Fixo' }]}
+            defaultCreateType="A"
+            entityLabel="Cliente"
+            onCreate={async (nome, tipo) => {
+              const novo = await createCliente({ nome, tipo: tipo as 'F' | 'A', formas_cobranca: [] });
+              clientes?.push(novo);
+              return novo;
+            }}
+            style={{ width: '100%' }}
+          />
           <FormInput label="Nome da Receita" required placeholder="Ex: Mensalidade Consultoria" value={formData.nome} onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))} error={getFieldProps('nome').error} />
         </div>
         <FormInput label="Descrição" placeholder="Detalhes sobre a receita recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />
