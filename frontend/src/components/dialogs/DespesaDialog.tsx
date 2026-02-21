@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
+import { SelectWithCreate } from '@/components/ui/SelectWithCreate';
 import { toast } from 'sonner';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
@@ -103,27 +104,6 @@ export default function DespesaDialog({
     despesaCreateSchema
   );
 
-  // Criar favorecido inline
-  const [favorecidoSearch, setFavorecidoSearch] = useState('');
-  const [favorecidoNovoTipo, setFavorecidoNovoTipo] = useState<'F' | 'P' | 'O'>('O');
-  const [criandoFavorecido, setCriandoFavorecido] = useState(false);
-
-  const handleCriarFavorecido = async () => {
-    const nome = favorecidoSearch.trim();
-    if (!nome) return;
-    setCriandoFavorecido(true);
-    try {
-      const novo = await createFavorecido({ nome, tipo: favorecidoNovoTipo });
-      favorecidos?.push(novo);
-      setFormData((prev) => ({ ...prev, responsavel_id: novo.id }));
-      setFavorecidoSearch('');
-      toast.success(`Favorecido "${novo.nome}" criado com sucesso`);
-    } catch {
-      toast.error('Erro ao criar favorecido');
-    } finally {
-      setCriandoFavorecido(false);
-    }
-  };
 
   // Installments state (only for creation)
   const [numParcelas, setNumParcelas] = useState('');
@@ -228,82 +208,28 @@ export default function DespesaDialog({
         <div className="grid grid-cols-1 gap-4">
         {/* Favorecido + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">
-              Favorecido <span className="text-red-500">*</span>
-            </label>
-            <AntdSelect
-              showSearch
-              allowClear
-              placeholder="Selecione um favorecido"
-              value={formData.responsavel_id || undefined}
-              options={favorecidos?.map((f: Favorecido) => ({
-                value: f.id,
-                label: f.nome,
-              })) || []}
-              onChange={(val) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  responsavel_id: val ?? 0,
-                }))
-              }
-              onSearch={setFavorecidoSearch}
-              searchValue={favorecidoSearch}
-              filterOption={(input, option) =>
-                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-              status={getFieldProps('responsavel_id').error ? 'error' : undefined}
-              dropdownRender={(menu) => (
-                <>
-                  {menu}
-                  {favorecidoSearch.trim() && (
-                    <div className="border-t px-3 py-2 space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Criar <strong>&quot;{favorecidoSearch.trim()}&quot;</strong> como:
-                      </p>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => setFavorecidoNovoTipo('O')}
-                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'O' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                        >
-                          Fornecedor
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFavorecidoNovoTipo('F')}
-                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'F' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                        >
-                          Funcionário
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFavorecidoNovoTipo('P')}
-                          className={`text-xs px-2 py-1 rounded border transition-colors ${favorecidoNovoTipo === 'P' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                        >
-                          Parceiro
-                        </button>
-                        <button
-                          type="button"
-                          disabled={criandoFavorecido}
-                          onClick={handleCriarFavorecido}
-                          className="ml-auto text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          {criandoFavorecido ? 'Criando...' : '+ Criar'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            />
-            {getFieldProps('responsavel_id').error && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <span className="font-medium">⚠</span> {getFieldProps('responsavel_id').error}
-              </p>
-            )}
-          </div>
+          <SelectWithCreate
+            label="Favorecido"
+            required
+            placeholder="Selecione um favorecido"
+            value={formData.responsavel_id || undefined}
+            options={favorecidos?.map((f: Favorecido) => ({ value: f.id, label: f.nome })) || []}
+            onChange={(val) => setFormData((prev) => ({ ...prev, responsavel_id: val ?? 0 }))}
+            error={getFieldProps('responsavel_id').error}
+            createTypes={[
+              { value: 'O', label: 'Fornecedor' },
+              { value: 'F', label: 'Funcionário' },
+              { value: 'P', label: 'Parceiro' },
+            ]}
+            defaultCreateType="O"
+            entityLabel="Favorecido"
+            onCreate={async (nome, tipo) => {
+              const novo = await createFavorecido({ nome, tipo: tipo as 'F' | 'P' | 'O' });
+              favorecidos?.push(novo);
+              return novo;
+            }}
+            style={{ width: '100%' }}
+          />
 
           <FormInput
             label="Nome"

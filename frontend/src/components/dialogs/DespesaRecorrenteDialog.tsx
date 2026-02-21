@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DialogBase from './DialogBase';
-import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
+import { SelectWithCreate } from '@/components/ui/SelectWithCreate';
 
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { useLoadAuxiliaryData } from '@/hooks/useLoadAuxiliaryData';
@@ -19,7 +19,7 @@ import {
   DespesaRecorrenteUpdate,
 } from '@/types/despesasRecorrentes';
 import { Favorecido } from '@/types/favorecidos';
-import { getFavorecidos } from '@/services/favorecidos';
+import { getFavorecidos, createFavorecido } from '@/services/favorecidos';
 
 interface Props {
   open: boolean;
@@ -108,11 +108,28 @@ export default function DespesaRecorrenteDialog({
     <DialogBase open={open} onClose={onClose} title={despesa ? 'Editar Despesa Recorrente' : 'Nova Despesa Recorrente'} onSubmit={handleSubmitWrapper} loading={isSubmitting}>
       <div className="grid grid-cols-1 gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Favorecido <span className="text-red-500">*</span></label>
-            <AntdSelect showSearch placeholder="Selecione um favorecido" value={formData.responsavel_id || undefined} options={favorecidos?.map((f: Favorecido) => ({ value: f.id, label: f.nome })) || []} onChange={(val) => setFormData(prev => ({ ...prev, responsavel_id: val ?? 0 }))} style={{ width: '100%' }} status={getFieldProps('responsavel_id').error ? 'error' : undefined} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} />
-            {getFieldProps('responsavel_id').error && <p className="text-xs text-red-500 flex items-center gap-1"><span className="font-medium">⚠</span> {getFieldProps('responsavel_id').error}</p>}
-          </div>
+          <SelectWithCreate
+            label="Favorecido"
+            required
+            placeholder="Selecione um favorecido"
+            value={formData.responsavel_id || undefined}
+            options={favorecidos?.map((f: Favorecido) => ({ value: f.id, label: f.nome })) || []}
+            onChange={(val) => setFormData(prev => ({ ...prev, responsavel_id: val ?? 0 }))}
+            error={getFieldProps('responsavel_id').error}
+            createTypes={[
+              { value: 'O', label: 'Fornecedor' },
+              { value: 'F', label: 'Funcionário' },
+              { value: 'P', label: 'Parceiro' },
+            ]}
+            defaultCreateType="O"
+            entityLabel="Favorecido"
+            onCreate={async (nome, tipo) => {
+              const novo = await createFavorecido({ nome, tipo: tipo as 'F' | 'P' | 'O' });
+              favorecidos?.push(novo);
+              return novo;
+            }}
+            style={{ width: '100%' }}
+          />
           <FormInput label="Nome da Despesa" required placeholder="Ex: Aluguel Escritório" value={formData.nome} onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))} error={getFieldProps('nome').error} />
         </div>
         <FormInput label="Descrição" placeholder="Detalhes sobre a despesa recorrente" value={formData.descricao} onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))} error={getFieldProps('descricao').error} />

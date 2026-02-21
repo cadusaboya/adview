@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import DialogBase from '@/components/dialogs/DialogBase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SortedSelect as AntdSelect } from '@/components/ui/SortedSelect';
+import { SelectWithCreate } from '@/components/ui/SelectWithCreate';
 import { toast } from 'sonner';
 
 
@@ -125,28 +126,6 @@ export default function ReceitaDialog({
   // Regras de comissão específicas da receita
   const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
 
-  // Criar cliente inline
-  const [clienteSearch, setClienteSearch] = useState('');
-  const [clienteNovoTipo, setClienteNovoTipo] = useState<'F' | 'A'>('A');
-  const [criandoCliente, setCriandoCliente] = useState(false);
-
-  const handleCriarCliente = async () => {
-    const nome = clienteSearch.trim();
-    if (!nome) return;
-    setCriandoCliente(true);
-    try {
-      const novo = await createCliente({ nome, tipo: clienteNovoTipo, formas_cobranca: [] });
-      // Adiciona à lista local e seleciona
-      clientes?.push(novo);
-      setFormData((prev) => ({ ...prev, cliente_id: novo.id }));
-      setClienteSearch('');
-      toast.success(`Cliente "${novo.nome}" criado com sucesso`);
-    } catch {
-      toast.error('Erro ao criar cliente');
-    } finally {
-      setCriandoCliente(false);
-    }
-  };
 
   // Installments state (only for creation)
   const [numParcelas, setNumParcelas] = useState('');
@@ -302,71 +281,24 @@ export default function ReceitaDialog({
         <div className="grid grid-cols-1 gap-4">
         {/* Cliente + Nome */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">
-              Cliente <span className="text-red-500">*</span>
-            </label>
-            <AntdSelect
-              showSearch
-              placeholder="Selecione um cliente"
-              value={formData.cliente_id || undefined}
-              options={clientes?.map((c: Cliente) => ({
-                value: c.id,
-                label: c.nome,
-              })) || []}
-              onChange={(val) =>
-                setFormData((prev) => ({ ...prev, cliente_id: val }))
-              }
-              onSearch={setClienteSearch}
-              searchValue={clienteSearch}
-              filterOption={(input, option) =>
-                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-              status={getFieldProps('cliente_id').error ? 'error' : undefined}
-              dropdownRender={(menu) => (
-                <>
-                  {menu}
-                  {clienteSearch.trim() && (
-                    <div className="border-t px-3 py-2 space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Criar <strong>&quot;{clienteSearch.trim()}&quot;</strong> como:
-                      </p>
-                      <div className="flex gap-2 items-center">
-                        <button
-                          type="button"
-                          onClick={() => setClienteNovoTipo('A')}
-                          className={`text-xs px-2 py-1 rounded border transition-colors ${clienteNovoTipo === 'A' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                        >
-                          Avulso
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setClienteNovoTipo('F')}
-                          className={`text-xs px-2 py-1 rounded border transition-colors ${clienteNovoTipo === 'F' ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                        >
-                          Fixo
-                        </button>
-                        <button
-                          type="button"
-                          disabled={criandoCliente}
-                          onClick={handleCriarCliente}
-                          className="ml-auto text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          {criandoCliente ? 'Criando...' : '+ Criar'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            />
-            {getFieldProps('cliente_id').error && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <span className="font-medium">⚠</span> {getFieldProps('cliente_id').error}
-              </p>
-            )}
-          </div>
+          <SelectWithCreate
+            label="Cliente"
+            required
+            placeholder="Selecione um cliente"
+            value={formData.cliente_id || undefined}
+            options={clientes?.map((c: Cliente) => ({ value: c.id, label: c.nome })) || []}
+            onChange={(val) => setFormData((prev) => ({ ...prev, cliente_id: val ?? 0 }))}
+            error={getFieldProps('cliente_id').error}
+            createTypes={[{ value: 'A', label: 'Avulso' }, { value: 'F', label: 'Fixo' }]}
+            defaultCreateType="A"
+            entityLabel="Cliente"
+            onCreate={async (nome, tipo) => {
+              const novo = await createCliente({ nome, tipo: tipo as 'F' | 'A', formas_cobranca: [] });
+              clientes?.push(novo);
+              return novo;
+            }}
+            style={{ width: '100%' }}
+          />
 
           <FormInput
             label="Nome"
