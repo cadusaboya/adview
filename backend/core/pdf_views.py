@@ -2463,3 +2463,283 @@ def relatorio_dre_detalhe(request):
     pdf.save()
 
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def relatorio_balanco_detalhe(request):
+    """
+    Gera um PDF detalhado com todos os pagamentos de um tipo ou banco específico
+    do Fluxo de Caixa Realizado (regime de caixa).
+
+    Query Parameters:
+    - mes: Mês (1-12)
+    - ano: Ano (YYYY)
+    - direcao: 'entrada' | 'saida'
+    - tipo: nome do tipo (ex: 'Receita Fixa') — use quando agrupamento=tipo
+    - banco: nome do banco — use quando agrupamento=banco
+    """
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+
+    mes = request.query_params.get('mes')
+    ano = request.query_params.get('ano')
+    direcao = request.query_params.get('direcao', '').lower()
+    tipo = request.query_params.get('tipo', '')
+    banco = request.query_params.get('banco', '')
+
+    if direcao not in ('entrada', 'saida'):
+        return Response({"error": "Parâmetro 'direcao' deve ser 'entrada' ou 'saida'."}, status=400)
+
+    if not tipo and not banco:
+        return Response({"error": "Informe 'tipo' ou 'banco'."}, status=400)
+
+    if not mes or not ano:
+        hoje = datetime.now()
+        mes, ano = hoje.month, hoje.year
+    else:
+        mes, ano = int(mes), int(ano)
+
+    data_inicio = f"{ano}-{str(mes).zfill(2)}-01"
+    if mes == 12:
+        data_fim_raw = f"{ano + 1}-01-01"
+    else:
+        data_fim_raw = f"{ano}-{str(mes + 1).zfill(2)}-01"
+    data_fim = (datetime.strptime(data_fim_raw, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    meses_nomes = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    periodo_str = f"{meses_nomes[mes - 1]} de {ano}"
+
+    tipo_pag = 'E' if direcao == 'entrada' else 'S'
+    direcao_label = 'Entradas' if direcao == 'entrada' else 'Saídas'
+
+    TIPO_RECEITA_MAP = {
+        'F': 'Receita Fixa',
+        'V': 'Receita Variável',
+        'E': 'Estorno',
+    }
+    TIPO_DESPESA_MAP = {
+        'F': 'Despesa Fixa',
+        'V': 'Despesa Variável',
+        'C': 'Comissionamento',
+        'R': 'Reembolso',
+    }
+    custodia_tipo = 'Valores Reembolsados' if tipo_pag == 'E' else 'Valores Reembolsáveis'
+
+    payment_ids_transferencia = Allocation.objects.filter(
+        payment__company=company,
+        payment__data_pagamento__gte=data_inicio,
+        payment__data_pagamento__lte=data_fim,
+        transfer__isnull=False
+    ).values_list('payment_id', flat=True)
+
+    rows = []
+    total = Decimal('0.00')
+
+    # ── MODO BANCO ────────────────────────────────────────────────────────────
+    if banco:
+        titulo = f"Fluxo de Caixa — {banco} ({direcao_label})"
+        banco_ascii = (
+            banco.lower()
+            .replace(' ', '_').replace('á', 'a').replace('ã', 'a')
+            .replace('é', 'e').replace('í', 'i').replace('ó', 'o')
+            .replace('ú', 'u').replace('ç', 'c').replace('â', 'a')
+            .replace('ê', 'e')
+        )
+        filename = f"fluxo_{direcao}_{banco_ascii}_{mes:02d}_{ano}.pdf"
+
+        pagamentos = Payment.objects.filter(
+            company=company,
+            tipo=tipo_pag,
+            conta_bancaria__nome=banco,
+            data_pagamento__gte=data_inicio,
+            data_pagamento__lte=data_fim
+        ).exclude(
+            id__in=payment_ids_transferencia
+        ).select_related('conta_bancaria').prefetch_related(
+            'allocations__receita__cliente',
+            'allocations__despesa__responsavel',
+            'allocations__custodia',
+        ).order_by('data_pagamento')
+
+        for pag in pagamentos:
+            allocs = [a for a in pag.allocations.all() if a.transfer_id is None]
+            if allocs:
+                for alloc in allocs:
+                    if alloc.receita:
+                        tipo_nome = TIPO_RECEITA_MAP.get(alloc.receita.tipo, 'Outro')
+                        pessoa = truncate_text(alloc.receita.cliente.nome if alloc.receita.cliente else '-', 28)
+                        descricao = truncate_text(alloc.receita.nome, 38)
+                        valor = alloc.valor
+                    elif alloc.despesa:
+                        tipo_nome = TIPO_DESPESA_MAP.get(alloc.despesa.tipo, 'Outro')
+                        pessoa = truncate_text(alloc.despesa.responsavel.nome if alloc.despesa.responsavel else '-', 28)
+                        descricao = truncate_text(alloc.despesa.nome, 38)
+                        valor = alloc.valor
+                    elif alloc.custodia:
+                        tipo_nome = custodia_tipo
+                        pessoa = '-'
+                        descricao = truncate_text(alloc.custodia.descricao or 'Custódia', 38)
+                        valor = alloc.valor
+                    else:
+                        continue
+                    rows.append({
+                        'data': format_date_br(pag.data_pagamento),
+                        'tipo': truncate_text(tipo_nome, 22),
+                        'pessoa': pessoa,
+                        'descricao': descricao,
+                        'valor': valor,
+                    })
+                    total += valor
+            else:
+                rows.append({
+                    'data': format_date_br(pag.data_pagamento),
+                    'tipo': 'Não Alocado',
+                    'pessoa': '-',
+                    'descricao': truncate_text(pag.observacao or 'Sem descrição', 38),
+                    'valor': pag.valor,
+                })
+                total += pag.valor
+
+        columns = [
+            {"label": "Data", "key": "data", "x": margin if False else 40},
+            {"label": "Tipo", "key": "tipo", "x": 40 + 80},
+            {"label": "Pessoa", "key": "pessoa", "x": 40 + 240},
+            {"label": "Descrição", "key": "descricao", "x": 40 + 390},
+            {"label": "Valor", "key": "valor", "x": 0, "is_amount": True},
+        ]
+
+    # ── MODO TIPO ─────────────────────────────────────────────────────────────
+    else:
+        titulo = f"Fluxo de Caixa — {tipo} ({direcao_label})"
+        tipo_ascii = (
+            tipo.lower()
+            .replace(' ', '_').replace('á', 'a').replace('ã', 'a')
+            .replace('é', 'e').replace('í', 'i').replace('ó', 'o')
+            .replace('ú', 'u').replace('ç', 'c').replace('â', 'a')
+            .replace('ê', 'e')
+        )
+        filename = f"fluxo_{direcao}_{tipo_ascii}_{mes:02d}_{ano}.pdf"
+
+        if tipo == 'Não Alocado':
+            pagamentos_com_alocacao = Allocation.objects.filter(
+                payment__company=company,
+                payment__data_pagamento__gte=data_inicio,
+                payment__data_pagamento__lte=data_fim,
+                transfer__isnull=True
+            ).values_list('payment_id', flat=True)
+
+            pagamentos = Payment.objects.filter(
+                company=company,
+                tipo=tipo_pag,
+                data_pagamento__gte=data_inicio,
+                data_pagamento__lte=data_fim
+            ).exclude(
+                id__in=payment_ids_transferencia
+            ).exclude(
+                id__in=pagamentos_com_alocacao
+            ).select_related('conta_bancaria').order_by('data_pagamento')
+
+            for pag in pagamentos:
+                rows.append({
+                    'data': format_date_br(pag.data_pagamento),
+                    'banco': truncate_text(pag.conta_bancaria.nome, 20),
+                    'pessoa': '-',
+                    'descricao': truncate_text(pag.observacao or 'Sem descrição', 38),
+                    'valor': pag.valor,
+                })
+                total += pag.valor
+        else:
+            allocations = Allocation.objects.filter(
+                payment__company=company,
+                payment__tipo=tipo_pag,
+                payment__data_pagamento__gte=data_inicio,
+                payment__data_pagamento__lte=data_fim,
+                transfer__isnull=True
+            ).exclude(
+                payment_id__in=payment_ids_transferencia
+            ).select_related(
+                'payment', 'payment__conta_bancaria',
+                'receita', 'receita__cliente',
+                'despesa', 'despesa__responsavel',
+                'custodia'
+            ).order_by('payment__data_pagamento')
+
+            for alloc in allocations:
+                if alloc.receita:
+                    tipo_nome = TIPO_RECEITA_MAP.get(alloc.receita.tipo, 'Outro')
+                    pessoa = truncate_text(alloc.receita.cliente.nome if alloc.receita.cliente else '-', 28)
+                    descricao = truncate_text(alloc.receita.nome, 38)
+                elif alloc.despesa:
+                    tipo_nome = TIPO_DESPESA_MAP.get(alloc.despesa.tipo, 'Outro')
+                    pessoa = truncate_text(alloc.despesa.responsavel.nome if alloc.despesa.responsavel else '-', 28)
+                    descricao = truncate_text(alloc.despesa.nome, 38)
+                elif alloc.custodia:
+                    tipo_nome = custodia_tipo
+                    pessoa = '-'
+                    descricao = truncate_text(alloc.custodia.descricao or 'Custódia', 38)
+                else:
+                    continue
+
+                if tipo_nome != tipo:
+                    continue
+
+                rows.append({
+                    'data': format_date_br(alloc.payment.data_pagamento),
+                    'banco': truncate_text(alloc.payment.conta_bancaria.nome, 20),
+                    'pessoa': pessoa,
+                    'descricao': descricao,
+                    'valor': alloc.valor,
+                })
+                total += alloc.valor
+
+        columns = [
+            {"label": "Data", "key": "data", "x": 40},
+            {"label": "Banco", "key": "banco", "x": 40 + 80},
+            {"label": "Pessoa", "key": "pessoa", "x": 40 + 210},
+            {"label": "Descrição", "key": "descricao", "x": 40 + 370},
+            {"label": "Valor", "key": "valor", "x": 0, "is_amount": True},
+        ]
+
+    # ── PDF ────────────────────────────────────────────────────────────────────
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename={filename}"
+
+    pdf = canvas.Canvas(response, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    margin = 40
+
+    # Fix the x=0 sentinel for the last column (Valor)
+    for col in columns:
+        if col["x"] == 0:
+            col["x"] = width - 100
+
+    report = PDFReportBase(titulo, company.name, company.logo)
+    y = report.draw_header(pdf, width, height, "", periodo_str)
+    y = report.draw_table_header(pdf, y, columns, width, height)
+
+    for row in rows:
+        y = report.check_page_break(pdf, y, width, height, columns)
+        y = report.draw_row(pdf, y, row, columns)
+
+    if rows:
+        y -= 5
+        report.draw_total_row(
+            pdf,
+            y,
+            "TOTAL",
+            total,
+            columns[-2]["x"],
+            columns[-1]["x"],
+        )
+
+    report.draw_footer(pdf, width)
+    pdf.showPage()
+    pdf.save()
+
+    return response
