@@ -22,7 +22,8 @@ import { getReceitasAbertas, createReceita } from '@/services/receitas';
 import { getDespesasAbertas, createDespesa } from '@/services/despesas';
 import { getCustodiasAbertas, createCustodia } from '@/services/custodias';
 import { transfersService } from '@/services/transfers';
-import { getClientes } from '@/services/clientes';
+import { getClientes, createCliente } from '@/services/clientes';
+import { SelectWithCreate } from '@/components/ui/SelectWithCreate';
 import { getFavorecidos } from '@/services/favorecidos';
 
 import { Banco } from '@/types/bancos';
@@ -324,6 +325,12 @@ export default function PaymentDialog({
     } catch {
       toast.error('Erro ao carregar listas');
     }
+  };
+
+  const handleCriarCliente = async (nome: string, tipo: string): Promise<{ id: number; nome: string }> => {
+    const novo = await createCliente({ nome, tipo });
+    setClientesLista((prev) => [...prev, novo]);
+    return { id: novo.id, nome: novo.nome };
   };
 
   const abrirCriarNovo = (allocationId: string, entityTipo: 'receita' | 'despesa' | 'custodia') => {
@@ -821,19 +828,22 @@ export default function PaymentDialog({
                       </div>
 
                       {criarEntityTipo === 'receita' && (
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">Cliente *</label>
-                          <AntdSelect
-                            showSearch
-                            placeholder="Selecione um cliente"
-                            value={criarClienteId}
-                            options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
-                            onChange={setCriarClienteId}
-                            filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                            style={{ width: '100%' }}
-                            size="small"
-                          />
-                        </div>
+                        <SelectWithCreate
+                          label="Cliente"
+                          required
+                          placeholder="Selecione um cliente"
+                          value={criarClienteId}
+                          onChange={setCriarClienteId}
+                          options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
+                          createTypes={[
+                            { value: 'Fixo', label: 'Fixo' },
+                            { value: 'Avulso', label: 'Avulso' },
+                          ]}
+                          defaultCreateType="Fixo"
+                          entityLabel="Cliente"
+                          onCreate={handleCriarCliente}
+                          style={{ width: '100%' }}
+                        />
                       )}
 
                       {criarEntityTipo === 'despesa' && (
