@@ -95,7 +95,7 @@ export default function PaymentDialog({
   const [criarValorDisplay, setCriarValorDisplay] = useState('');
   const [criarData, setCriarData] = useState('');
   const [criarClienteId, setCriarClienteId] = useState<number | undefined>();
-  const [criarReceitaTipo, setCriarReceitaTipo] = useState<'F' | 'V' | 'E'>('F');
+  const [criarReceitaTipo, setCriarReceitaTipo] = useState<'F' | 'V'>('F');
   const [criarFormaPagamento, setCriarFormaPagamento] = useState<'P' | 'B'>('P');
   const [criarFavorecidoId, setCriarFavorecidoId] = useState<number | undefined>();
   const [criarDespesaTipo, setCriarDespesaTipo] = useState<'F' | 'V' | 'C' | 'R'>('F');
@@ -925,10 +925,10 @@ export default function PaymentDialog({
                           <div className="space-y-1">
                             <label className="text-xs font-medium">Tipo *</label>
                             <div className="flex gap-1">
-                              {(['F', 'V', 'E'] as const).map((t) => (
+                              {(['F', 'V'] as const).map((t) => (
                                 <button key={t} type="button" onClick={() => setCriarReceitaTipo(t)}
                                   className={`text-xs px-2 py-1 rounded border transition-colors ${criarReceitaTipo === t ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
-                                  {t === 'F' ? 'Fixo' : t === 'V' ? 'Variável' : 'Êxito'}
+                                  {t === 'F' ? 'Fixo' : 'Variável'}
                                 </button>
                               ))}
                             </div>
