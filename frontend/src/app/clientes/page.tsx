@@ -7,7 +7,6 @@ import {
   deleteCliente,
   createCliente,
   updateCliente,
-  gerarComissoes,
 } from '@/services/clientes';
 
 import {
@@ -42,22 +41,7 @@ import {
   Trash,
   FileText,
   DollarSign,
-  Coins,
 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 
 export default function ClientePage() {
   const { guard, isUpgradeDialogOpen, closeUpgradeDialog, blockedFeatureLabel } = useUpgradeGuard();
@@ -89,11 +73,6 @@ export default function ClientePage() {
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  // Gerar comissões state
-  const [openGerarComissoes, setOpenGerarComissoes] = useState(false);
-  const [mesComissao, setMesComissao] = useState(new Date().getMonth() + 1);
-  const [anoComissao, setAnoComissao] = useState(new Date().getFullYear());
-  const [loadingComissoes, setLoadingComissoes] = useState(false);
 
   // ======================
   // 🔄 LOAD
@@ -225,30 +204,6 @@ export default function ClientePage() {
     }
   };
 
-  // ======================
-  // 💰 GERAR COMISSÕES
-  // ======================
-  const handleGerarComissoes = async () => {
-    try {
-      setLoadingComissoes(true);
-      const result = await gerarComissoes(mesComissao, anoComissao);
-
-      if (result.comissionados && result.comissionados.length > 0) {
-        toast.success(
-          `Comissões geradas com sucesso! ${result.comissionados.length} comissionado(s), total: R$ ${result.total.toFixed(2)}`
-        );
-      } else {
-        toast.info(`Nenhuma comissão gerada para ${mesComissao}/${anoComissao}`);
-      }
-
-      setOpenGerarComissoes(false);
-    } catch (error: unknown) {
-      console.error(error);
-      toast.error(getErrorMessage(error, 'Erro ao gerar comissões'));
-    } finally {
-      setLoadingComissoes(false);
-    }
-  };
 
   // ======================
   // 📊 RELATÓRIO
@@ -370,13 +325,6 @@ export default function ClientePage() {
               </Button>
             )}
             <Button
-              className="shadow-md bg-amber-600 text-white hover:bg-amber-700"
-              onClick={() => setOpenGerarComissoes(true)}
-              icon={<Coins className="w-4 h-4" />}
-            >
-              Gerar Comissões
-            </Button>
-            <Button
               className="shadow-md bg-navy text-white hover:bg-navy/90"
               onClick={() => {
                 setEditingCliente(null);
@@ -443,72 +391,6 @@ export default function ClientePage() {
           tipoRelatorio="cliente-especifico"
           clientes={clientes}
         />
-
-        {/* Modal de Gerar Comissões */}
-        <Dialog open={openGerarComissoes} onOpenChange={setOpenGerarComissoes}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Gerar Comissões</DialogTitle>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Mês</label>
-                <Select
-                  value={mesComissao.toString()}
-                  onValueChange={(val) => setMesComissao(Number(val))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                      <SelectItem key={m} value={m.toString()}>
-                        {new Date(2000, m - 1).toLocaleDateString('pt-BR', { month: 'long' })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Ano</label>
-                <Select
-                  value={anoComissao.toString()}
-                  onValueChange={(val) => setAnoComissao(Number(val))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                      <SelectItem key={y} value={y.toString()}>
-                        {y}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                onClick={() => setOpenGerarComissoes(false)}
-                className="mr-2"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleGerarComissoes}
-                className="bg-navy text-white hover:bg-navy/90"
-                loading={loadingComissoes}
-                disabled={loadingComissoes}
-              >
-                Gerar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <UpgradeDialog
           open={isUpgradeDialogOpen}
