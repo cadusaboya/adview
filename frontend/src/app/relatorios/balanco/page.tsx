@@ -19,6 +19,7 @@ type LineItem = {
   label: string;
   value: number;
   direcao?: 'entrada' | 'saida';
+  banco?: string;
 };
 
 type AgrupamentoTipo = 'banco' | 'tipo';
@@ -64,21 +65,21 @@ export default function BalancoPage() {
   };
 
   /* =========================
-     GERAR PDF POR TIPO
+     GERAR PDF POR TIPO / BANCO
   ========================= */
-  const handleGerarPDFTipo = async (
+  const handleGerarPDFDetalhe = async (
     direcao: 'entrada' | 'saida',
-    tipo: string,
-    label: string
+    label: string,
+    params: { tipo?: string; banco?: string }
   ) => {
-    const key = `${direcao}-${tipo}`;
+    const key = `${direcao}-${label}`;
     try {
       setLoadingTipo(key);
       await gerarRelatorioPDF("balanco-detalhe", {
         mes,
         ano,
         direcao,
-        tipo,
+        ...params,
       });
       toast.success(`Relatório de ${label} gerado com sucesso!`);
     } catch (error) {
@@ -117,7 +118,9 @@ export default function BalancoPage() {
     ? agrupamento === 'banco'
       ? balancoData.entradas.por_banco.map(item => ({
           label: item.banco,
-          value: item.valor
+          value: item.valor,
+          direcao: 'entrada' as const,
+          banco: item.banco,
         }))
       : balancoData.entradas.por_tipo
           .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsados')
@@ -132,7 +135,9 @@ export default function BalancoPage() {
     ? agrupamento === 'banco'
       ? balancoData.saidas.por_banco.map(item => ({
           label: item.banco,
-          value: item.valor
+          value: item.valor,
+          direcao: 'saida' as const,
+          banco: item.banco,
         }))
       : balancoData.saidas.por_tipo
           .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsáveis')
@@ -271,10 +276,10 @@ export default function BalancoPage() {
 
           <Card>
             <CardContent className="p-6 space-y-6">
-              <div className={`grid ${agrupamento === 'tipo' ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-2'} gap-2 text-sm font-medium text-muted-foreground`}>
+              <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm font-medium text-muted-foreground">
                 <span>Descrição</span>
                 <span className="text-right">Valor</span>
-                {agrupamento === 'tipo' && <span className="w-6" />}
+                <span className="w-6" />
               </div>
 
               <Separator />
@@ -295,11 +300,15 @@ export default function BalancoPage() {
                           <Row
                             key={item.label}
                             {...item}
-                            showDownload={agrupamento === 'tipo'}
+                            showDownload={!!item.direcao}
                             loading={loadingTipo === `entrada-${item.label}`}
                             onDownload={
-                              agrupamento === 'tipo' && item.direcao
-                                ? () => handleGerarPDFTipo(item.direcao!, item.label, item.label)
+                              item.direcao
+                                ? () => handleGerarPDFDetalhe(
+                                    item.direcao!,
+                                    item.label,
+                                    item.banco ? { banco: item.banco } : { tipo: item.label }
+                                  )
                                 : undefined
                             }
                           />
@@ -324,11 +333,15 @@ export default function BalancoPage() {
                           <Row
                             key={item.label}
                             {...item}
-                            showDownload={agrupamento === 'tipo'}
+                            showDownload={!!item.direcao}
                             loading={loadingTipo === `saida-${item.label}`}
                             onDownload={
-                              agrupamento === 'tipo' && item.direcao
-                                ? () => handleGerarPDFTipo(item.direcao!, item.label, item.label)
+                              item.direcao
+                                ? () => handleGerarPDFDetalhe(
+                                    item.direcao!,
+                                    item.label,
+                                    item.banco ? { banco: item.banco } : { tipo: item.label }
+                                  )
                                 : undefined
                             }
                           />
@@ -400,7 +413,7 @@ function Row({
   loading,
 }: LineItem & { showDownload?: boolean; onDownload?: () => void; loading?: boolean }) {
   return (
-    <div className={`grid ${showDownload ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-2'} items-center text-sm gap-2`}>
+    <div className="grid grid-cols-[1fr_auto_auto] items-center text-sm gap-2">
       <span>{label}</span>
       <span className="text-right">
         {formatCurrencyBR(value)}
@@ -436,12 +449,13 @@ function TotalRow({
 }) {
   return (
     <div
-      className={`grid grid-cols-2 font-semibold ${
+      className={`grid grid-cols-[1fr_auto_auto] font-semibold gap-2 ${
         highlight ? "text-green-600" : negative ? "text-red-600" : ""
       }`}
     >
       <span>{label}</span>
       <span className="text-right">{formatCurrencyBR(value)}</span>
+      <span className="w-6" />
     </div>
   );
 }

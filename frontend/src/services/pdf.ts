@@ -58,12 +58,13 @@ export interface RelatorioDREDetalhePayload {
   tipo: string;
 }
 
-// 🔹 Payload específico para Balanço Detalhe (por tipo no Fluxo de Caixa)
+// 🔹 Payload específico para Balanço Detalhe (por tipo ou banco no Fluxo de Caixa)
 export interface RelatorioBalancoDetalhePayload {
   mes: number;
   ano: number;
   direcao: 'entrada' | 'saida';
-  tipo: string;
+  tipo?: string;
+  banco?: string;
 }
 
 type TipoRelatorioDRE = 'dre-consolidado';
