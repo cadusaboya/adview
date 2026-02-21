@@ -58,11 +58,20 @@ export interface RelatorioDREDetalhePayload {
   tipo: string;
 }
 
+// 🔹 Payload específico para Balanço Detalhe (por tipo no Fluxo de Caixa)
+export interface RelatorioBalancoDetalhePayload {
+  mes: number;
+  ano: number;
+  direcao: 'entrada' | 'saida';
+  tipo: string;
+}
+
 type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
 type TipoRelatorioComissionamento = 'comissionamento';
 type TipoRelatorioBalanco = 'balanco';
 type TipoRelatorioDREDetalhe = 'dre-detalhe';
+type TipoRelatorioBalancoDetalhe = 'balanco-detalhe';
 
 export type TipoRelatorio =
   | TipoRelatorioLista
@@ -70,7 +79,8 @@ export type TipoRelatorio =
   | TipoRelatorioRecibo
   | TipoRelatorioComissionamento
   | TipoRelatorioBalanco
-  | TipoRelatorioDREDetalhe;
+  | TipoRelatorioDREDetalhe
+  | TipoRelatorioBalancoDetalhe;
 
 /* =========================
    CONFIG
@@ -130,6 +140,10 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
     endpoint: '/api/pdf/dre-detalhe/',
     nomeArquivo: 'relatorio_dre_detalhe.pdf',
   },
+  'balanco-detalhe': {
+    endpoint: '/api/pdf/balanco-detalhe/',
+    nomeArquivo: 'relatorio_fluxo_detalhe.pdf',
+  },
 };
 
 /* =========================
@@ -172,10 +186,16 @@ export async function gerarRelatorioPDF(
   filtros: RelatorioDREDetalhePayload
 ): Promise<void>;
 
+// 🔹 Balanço Detalhe
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioBalancoDetalhe,
+  filtros: RelatorioBalancoDetalhePayload
+): Promise<void>;
+
 // 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload | RelatorioDREDetalhePayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload | RelatorioDREDetalhePayload | RelatorioBalancoDetalhePayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -292,6 +312,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'comissionamento': 'Relatório de Comissionamento',
     'balanco': 'Fluxo de Caixa Realizado (Balanço)',
     'dre-detalhe': 'Relatório DRE por Tipo',
+    'balanco-detalhe': 'Relatório Fluxo de Caixa por Tipo',
   };
 
   return nomes[tipoRelatorio];

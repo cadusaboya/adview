@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
+import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +18,7 @@ import { UpgradeDialog } from "@/components/UpgradeDialog";
 type LineItem = {
   label: string;
   value: number;
+  direcao?: 'entrada' | 'saida';
 };
 
 type AgrupamentoTipo = 'banco' | 'tipo';
@@ -38,6 +40,7 @@ export default function BalancoPage() {
   const [agrupamento, setAgrupamento] = useState<AgrupamentoTipo>('banco');
   const [incluirCustodias, setIncluirCustodias] = useState(true);
   const [loadingPDF, setLoadingPDF] = useState(false);
+  const [loadingTipo, setLoadingTipo] = useState<string | null>(null);
 
   /* =========================
      GERAR PDF
@@ -57,6 +60,32 @@ export default function BalancoPage() {
       toast.error(msg);
     } finally {
       setLoadingPDF(false);
+    }
+  };
+
+  /* =========================
+     GERAR PDF POR TIPO
+  ========================= */
+  const handleGerarPDFTipo = async (
+    direcao: 'entrada' | 'saida',
+    tipo: string,
+    label: string
+  ) => {
+    const key = `${direcao}-${tipo}`;
+    try {
+      setLoadingTipo(key);
+      await gerarRelatorioPDF("balanco-detalhe", {
+        mes,
+        ano,
+        direcao,
+        tipo,
+      });
+      toast.success(`Relatório de ${label} gerado com sucesso!`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro ao gerar relatório";
+      toast.error(msg);
+    } finally {
+      setLoadingTipo(null);
     }
   };
 
@@ -94,7 +123,8 @@ export default function BalancoPage() {
           .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsados')
           .map(item => ({
             label: item.tipo,
-            value: item.valor
+            value: item.valor,
+            direcao: 'entrada' as const,
           }))
     : [];
 
@@ -108,7 +138,8 @@ export default function BalancoPage() {
           .filter(item => incluirCustodias || item.tipo !== 'Valores Reembolsáveis')
           .map(item => ({
             label: item.tipo,
-            value: item.valor
+            value: item.valor,
+            direcao: 'saida' as const,
           }))
     : [];
 
@@ -240,9 +271,10 @@ export default function BalancoPage() {
 
           <Card>
             <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-2 text-sm font-medium text-muted-foreground">
+              <div className={`grid ${agrupamento === 'tipo' ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-2'} gap-2 text-sm font-medium text-muted-foreground`}>
                 <span>Descrição</span>
                 <span className="text-right">Valor</span>
+                {agrupamento === 'tipo' && <span className="w-6" />}
               </div>
 
               <Separator />
@@ -260,7 +292,17 @@ export default function BalancoPage() {
                     {entradasLineItems.length > 0 ? (
                       <>
                         {entradasLineItems.map((item) => (
-                          <Row key={item.label} {...item} />
+                          <Row
+                            key={item.label}
+                            {...item}
+                            showDownload={agrupamento === 'tipo'}
+                            loading={loadingTipo === `entrada-${item.label}`}
+                            onDownload={
+                              agrupamento === 'tipo' && item.direcao
+                                ? () => handleGerarPDFTipo(item.direcao!, item.label, item.label)
+                                : undefined
+                            }
+                          />
                         ))}
                         <TotalRow
                           label="Total de Entradas"
@@ -279,7 +321,17 @@ export default function BalancoPage() {
                     {saidasLineItems.length > 0 ? (
                       <>
                         {saidasLineItems.map((item) => (
-                          <Row key={item.label} {...item} />
+                          <Row
+                            key={item.label}
+                            {...item}
+                            showDownload={agrupamento === 'tipo'}
+                            loading={loadingTipo === `saida-${item.label}`}
+                            onDownload={
+                              agrupamento === 'tipo' && item.direcao
+                                ? () => handleGerarPDFTipo(item.direcao!, item.label, item.label)
+                                : undefined
+                            }
+                          />
                         ))}
                         <TotalRow
                           label="Total de Saídas"
@@ -340,13 +392,33 @@ function Section({
   );
 }
 
-function Row({ label, value }: LineItem) {
+function Row({
+  label,
+  value,
+  showDownload,
+  onDownload,
+  loading,
+}: LineItem & { showDownload?: boolean; onDownload?: () => void; loading?: boolean }) {
   return (
-    <div className="grid grid-cols-2 text-sm">
+    <div className={`grid ${showDownload ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-2'} items-center text-sm gap-2`}>
       <span>{label}</span>
       <span className="text-right">
         {formatCurrencyBR(value)}
       </span>
+      {showDownload ? (
+        onDownload ? (
+          <button
+            onClick={onDownload}
+            disabled={loading}
+            title={`Gerar relatório de ${label}`}
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <FileDown className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+          </button>
+        ) : (
+          <span className="w-6" />
+        )
+      ) : null}
     </div>
   );
 }
