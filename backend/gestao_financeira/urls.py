@@ -7,11 +7,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
+from core.views.mixins import AuthThrottle
 
 
 class CustomTokenObtainPairView(APIView):
     permission_classes = []
     authentication_classes = []
+    throttle_classes = [AuthThrottle]
 
     def post(self, request):
         User = get_user_model()

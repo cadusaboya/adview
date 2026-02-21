@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions, serializers
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -21,7 +21,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.conf import settings
 import resend
-from .mixins import CompanyScopedViewSetMixin
+from .mixins import CompanyScopedViewSetMixin, AuthThrottle
 from ..models import Company, CustomUser
 from ..serializers import CompanySerializer, CustomUserSerializer
 
@@ -65,7 +65,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
 class CustomUserViewSet(viewsets.ModelViewSet):
     """API endpoint for Users. Allows creation and management within a company context."""
-    queryset = CustomUser.objects.all()
+    queryset = CustomUser.objects.none()
     serializer_class = CustomUserSerializer
     permission_classes = [permissions.IsAuthenticated] # Start with authenticated, refine later if needed
 
@@ -113,6 +113,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([AuthThrottle])
 def password_reset_request(request):
     """
     POST /api/password-reset/
@@ -162,6 +163,7 @@ def password_reset_request(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([AuthThrottle])
 def password_reset_confirm(request):
     """
     POST /api/password-reset/confirm/
@@ -195,6 +197,7 @@ def password_reset_confirm(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([AuthThrottle])
 def verify_email(request):
     """
     POST /api/verify-email/

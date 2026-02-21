@@ -42,7 +42,7 @@ if not SECRET_KEY:
 DEBUG = ENV == "development"
 
 # Adjust allowed hosts via env (comma-separated)
-ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1,creatural-aphetically-lynda.ngrok-free.dev")
+ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # Application definition
 
@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     # Local apps
     'core',
@@ -183,6 +184,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_THROTTLE_RATES': {
+        'anon_auth': os.getenv('AUTH_THROTTLE_RATE', '10/hour'),
         'payment': os.getenv('PAYMENT_THROTTLE_RATE', '5/hour'),
     },
 }
@@ -191,7 +193,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),  # Token lasts 1 day
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Refresh token lasts 7 days
     "ROTATE_REFRESH_TOKENS": True,  # Generate a new refresh token on each use
-    "BLACKLIST_AFTER_ROTATION": False,  # Prevents old refresh tokens from being blacklisted
+    "BLACKLIST_AFTER_ROTATION": True,  # Invalidate old refresh tokens after rotation
 }
 
 if ENV == "production":

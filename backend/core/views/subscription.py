@@ -3,7 +3,7 @@ import json
 import secrets
 import resend
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.http import JsonResponse
@@ -17,7 +17,7 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from requests.exceptions import RequestException, HTTPError
 from .mixins import (
-    CompanyScopedViewSetMixin, PaymentRateThrottle,
+    CompanyScopedViewSetMixin, AuthThrottle, PaymentRateThrottle,
     _add_one_year_safe, _add_one_month_safe,
     _normalize_digits, _is_valid_cpf_cnpj
 )
@@ -455,6 +455,7 @@ class AssinaturaViewSet(viewsets.GenericViewSet):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthThrottle])
 def register_view(request):
     """
     POST /api/register/
@@ -483,7 +484,7 @@ def register_view(request):
     if not email:
         errors['email'] = 'E-mail é obrigatório.'
     elif CustomUser.objects.filter(email=email).exists():
-        errors['email'] = 'Este e-mail já está cadastrado.'
+        errors['email'] = 'Este e-mail não está disponível para cadastro.'
     if not senha:
         errors['senha'] = 'Senha é obrigatória.'
     elif len(senha) < 8:
@@ -560,7 +561,7 @@ def asaas_webhook(request):
     token = (
         request.headers.get('asaas-access-token')
         or request.headers.get('x-asaas-access-token')
-        or request.GET.get('token', '')
+        or ''
     )
     configured_token = (django_settings.ASAAS_WEBHOOK_TOKEN or '').strip()
     # Fail closed when webhook secret is not configured.

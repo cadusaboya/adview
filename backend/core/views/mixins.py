@@ -1,6 +1,6 @@
 import logging
 from rest_framework import permissions
-from rest_framework.throttling import UserRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from ..models import Company
 from ..permissions import IsSubscriptionActive
 
@@ -71,6 +71,10 @@ def _is_valid_cpf_cnpj(value: str) -> bool:
     if len(digits) == 14:
         return _is_valid_cnpj(digits)
     return False
+
+
+class AuthThrottle(AnonRateThrottle):
+    scope = 'anon_auth'
 
 
 class PaymentRateThrottle(UserRateThrottle):
