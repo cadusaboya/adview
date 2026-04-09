@@ -269,8 +269,12 @@ def dashboard_view(request):
     meses_data = []
 
     for i in range(5, -1, -1):
-        ref = inicio_mes - timedelta(days=30 * i)
-        mes_inicio = ref.replace(day=1)
+        year = inicio_mes.year
+        month = inicio_mes.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        mes_inicio = date(year, month, 1)
         mes_fim = (mes_inicio.replace(day=28) + timedelta(days=4)).replace(
             day=1
         ) - timedelta(days=1)
@@ -308,8 +312,12 @@ def dashboard_view(request):
     fluxo_caixa_data = []
 
     for i in range(5, -1, -1):
-        ref = inicio_mes - timedelta(days=30 * i)
-        mes_inicio = ref.replace(day=1)
+        year = inicio_mes.year
+        month = inicio_mes.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        mes_inicio = date(year, month, 1)
         mes_fim = (mes_inicio.replace(day=28) + timedelta(days=4)).replace(
             day=1
         ) - timedelta(days=1)
