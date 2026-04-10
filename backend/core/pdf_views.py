@@ -2802,6 +2802,10 @@ def relatorio_conciliacao_bancaria_pdf(request):
     conciliados = [p for p in pagamentos if p.total_alocado is not None and abs(float(p.total_alocado) - float(p.valor)) < 0.01]
     nao_conciliados = [p for p in pagamentos if p.total_alocado is None or abs(float(p.total_alocado) - float(p.valor)) >= 0.01]
 
+    # Ordenar por data (mais antigo primeiro)
+    conciliados.sort(key=lambda p: p.data_pagamento)
+    nao_conciliados.sort(key=lambda p: p.data_pagamento)
+
     total_lancamentos = len(pagamentos)
     total_conciliados = len(conciliados)
     total_nao_conciliados = len(nao_conciliados)
@@ -2970,26 +2974,27 @@ def relatorio_conciliacao_bancaria_pdf(request):
     # ── Desenho ───────────────────────────────────────────────────────────────
     y = draw_header(height - margin)
 
-    # ── Resumo Geral (ambos os modos) ────────────────────────────────────────
-    y = section_header("RESUMO DA CONCILIAÇÃO", y)
-    y = label_value_row("Status", status_geral, y)
-    y = label_value_row("Percentual Conciliado", f"{percentual:.1f}%", y)
-    y = label_value_row("Total de Lançamentos", str(total_lancamentos), y)
-    y = label_value_row("Conciliados", str(total_conciliados), y)
-    y = label_value_row("Pendentes", str(total_nao_conciliados), y)
-    y -= 10
+    if modo == "completo":
+        # ── Resumo Geral ─────────────────────────────────────────────────────
+        y = section_header("RESUMO DA CONCILIAÇÃO", y)
+        y = label_value_row("Status", status_geral, y)
+        y = label_value_row("Percentual Conciliado", f"{percentual:.1f}%", y)
+        y = label_value_row("Total de Lançamentos", str(total_lancamentos), y)
+        y = label_value_row("Conciliados", str(total_conciliados), y)
+        y = label_value_row("Pendentes", str(total_nao_conciliados), y)
+        y -= 10
 
-    # ── Valores ──────────────────────────────────────────────────────────────
-    y = section_header("VALORES DO PERÍODO", y)
-    y = item_row("Total de Entradas", valor_entradas, y, C_GREEN)
-    y = item_row("   Conciliadas", valor_entradas_conc, y)
-    y = item_row("   Pendentes", valor_entradas_pend, y)
-    y -= 5
-    y = item_row("Total de Saídas", valor_saidas, y, C_RED)
-    y = item_row("   Conciliadas", valor_saidas_conc, y)
-    y = item_row("   Pendentes", valor_saidas_pend, y)
-    saldo = valor_entradas - valor_saidas
-    y = subtotal_row("Saldo do Período", saldo, y, C_GREEN if saldo >= 0 else C_RED)
+        # ── Valores ──────────────────────────────────────────────────────────
+        y = section_header("VALORES DO PERÍODO", y)
+        y = item_row("Total de Entradas", valor_entradas, y, C_GREEN)
+        y = item_row("   Conciliadas", valor_entradas_conc, y)
+        y = item_row("   Pendentes", valor_entradas_pend, y)
+        y -= 5
+        y = item_row("Total de Saídas", valor_saidas, y, C_RED)
+        y = item_row("   Conciliadas", valor_saidas_conc, y)
+        y = item_row("   Pendentes", valor_saidas_pend, y)
+        saldo = valor_entradas - valor_saidas
+        y = subtotal_row("Saldo do Período", saldo, y, C_GREEN if saldo >= 0 else C_RED)
 
     # ── Vinculações ──────────────────────────────────────────────────────────
     if modo == "completo":
@@ -3051,16 +3056,15 @@ def relatorio_conciliacao_bancaria_pdf(request):
     if nao_conciliados:
         y = section_header("LANÇAMENTOS PENDENTES DE CONCILIAÇÃO", y)
 
-        # Header da tabela
+        # Header da tabela: Data, Tipo, Conta, Valor Não Vinculado, Observação
         y = check_page(y, 30)
         pdf.setFont("Helvetica-Bold", 8)
         pdf.setFillColor(C_MUTED)
         pdf.drawString(margin + 8, y, "Data")
         pdf.drawString(margin + 60, y, "Tipo")
-        pdf.drawString(margin + 105, y, "Conta")
-        pdf.drawRightString(right_col - 120, y, "Valor")
-        pdf.drawRightString(right_col - 40, y, "Alocado")
-        pdf.drawRightString(right_col, y, "Pendente")
+        pdf.drawString(margin + 110, y, "Conta")
+        pdf.drawRightString(right_col - 130, y, "Vlr Não Vinculado")
+        pdf.drawString(right_col - 120, y, "Observação")
         y -= 4
         pdf.setStrokeColor(C_LINE)
         pdf.line(margin, y, right_col, y)
@@ -3082,34 +3086,15 @@ def relatorio_conciliacao_bancaria_pdf(request):
             pdf.drawString(margin + 60, y, tipo_label)
 
             pdf.setFillColor(C_BLACK)
-            pdf.drawString(margin + 105, y, truncate_text(p.conta_bancaria.nome, 18))
-            pdf.drawRightString(right_col - 120, y, format_currency(float(p.valor)))
-            pdf.drawRightString(right_col - 40, y, format_currency(valor_alocado))
+            pdf.drawString(margin + 110, y, truncate_text(p.conta_bancaria.nome, 16))
             pdf.setFont("Helvetica-Bold", 8)
-            pdf.setFillColor(C_RED)
-            pdf.drawRightString(right_col, y, format_currency(valor_pend))
+            pdf.setFillColor(C_BLACK)
+            pdf.drawRightString(right_col - 130, y, format_currency(valor_pend))
+            pdf.setFont("Helvetica", 7)
+            pdf.setFillColor(C_MUTED)
+            obs = p.observacao or "-"
+            pdf.drawString(right_col - 120, y, truncate_text(obs, 25))
             y -= 14
-
-        # Total pendentes
-        total_valor_pend_e = sum(
-            float(p.valor) - sum(float(a.valor) for a in allocations if a.payment_id == p.id)
-            for p in nao_conciliados if p.tipo == 'E'
-        )
-        total_valor_pend_s = sum(
-            float(p.valor) - sum(float(a.valor) for a in allocations if a.payment_id == p.id)
-            for p in nao_conciliados if p.tipo == 'S'
-        )
-        y -= 2
-        y = check_page(y, 30)
-        pdf.setStrokeColor(C_LINE)
-        pdf.line(margin, y + 8, right_col, y + 8)
-        y -= 6
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.setFillColor(C_GREEN)
-        pdf.drawString(margin + 8, y, f"Total Entradas Pendentes: {format_currency(total_valor_pend_e)}")
-        pdf.setFillColor(C_RED)
-        pdf.drawRightString(right_col, y, f"Total Saídas Pendentes: {format_currency(total_valor_pend_s)}")
-        y -= 16
 
     # ── Lançamentos Conciliados (só no modo completo) ────────────────────────
     if modo == "completo" and conciliados:
