@@ -21,9 +21,11 @@ import {
   FileCheck,
   FileX,
   Link,
+  FileText,
 } from "lucide-react";
 import VincularLancamentoDialog from "@/components/dialogs/VincularLancamentoDialog";
 import { Button } from "@/components/ui/button";
+import { gerarRelatorioPDF } from "@/services/pdf";
 
 export default function RelatorioConciliacaoBancariaPage() {
   /* ========================= FILTRO (MÊS / ANO) ========================= */
@@ -94,6 +96,15 @@ export default function RelatorioConciliacaoBancariaPage() {
     }
   };
 
+  const handleExportarPDF = async (modo: 'completo' | 'pendentes') => {
+    try {
+      await gerarRelatorioPDF('conciliacao-bancaria', { mes, ano, modo });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro ao gerar PDF";
+      toast.error(msg);
+    }
+  };
+
   return (
     <div className="flex">
       <NavbarNested />
@@ -110,6 +121,27 @@ export default function RelatorioConciliacaoBancariaPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 Visualize o status completo da conciliação do período selecionado
               </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExportarPDF('pendentes')}
+                disabled={loading || !relatorioData}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                PDF Pendentes
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleExportarPDF('completo')}
+                disabled={loading || !relatorioData}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                PDF Completo
+              </Button>
             </div>
           </div>
 

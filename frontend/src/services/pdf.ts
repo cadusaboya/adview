@@ -67,12 +67,20 @@ export interface RelatorioBalancoDetalhePayload {
   banco?: string;
 }
 
+// 🔹 Payload específico para Conciliação Bancária
+export interface RelatorioConciliacaoPayload {
+  mes: number;
+  ano: number;
+  modo?: 'completo' | 'pendentes';
+}
+
 type TipoRelatorioDRE = 'dre-consolidado';
 type TipoRelatorioRecibo = 'recibo-pagamento';
 type TipoRelatorioComissionamento = 'comissionamento';
 type TipoRelatorioBalanco = 'balanco';
 type TipoRelatorioDREDetalhe = 'dre-detalhe';
 type TipoRelatorioBalancoDetalhe = 'balanco-detalhe';
+type TipoRelatorioConciliacao = 'conciliacao-bancaria';
 
 export type TipoRelatorio =
   | TipoRelatorioLista
@@ -81,7 +89,8 @@ export type TipoRelatorio =
   | TipoRelatorioComissionamento
   | TipoRelatorioBalanco
   | TipoRelatorioDREDetalhe
-  | TipoRelatorioBalancoDetalhe;
+  | TipoRelatorioBalancoDetalhe
+  | TipoRelatorioConciliacao;
 
 /* =========================
    CONFIG
@@ -145,6 +154,10 @@ const RELATORIOS: Record<TipoRelatorio, RelatorioConfig> = {
     endpoint: '/api/pdf/balanco-detalhe/',
     nomeArquivo: 'relatorio_fluxo_detalhe.pdf',
   },
+  'conciliacao-bancaria': {
+    endpoint: '/api/pdf/conciliacao-bancaria/',
+    nomeArquivo: 'relatorio_conciliacao_bancaria.pdf',
+  },
 };
 
 /* =========================
@@ -193,10 +206,16 @@ export async function gerarRelatorioPDF(
   filtros: RelatorioBalancoDetalhePayload
 ): Promise<void>;
 
+// 🔹 Conciliação Bancária
+export async function gerarRelatorioPDF(
+  tipoRelatorio: TipoRelatorioConciliacao,
+  filtros: RelatorioConciliacaoPayload
+): Promise<void>;
+
 // 🔹 Implementação
 export async function gerarRelatorioPDF(
   tipoRelatorio: TipoRelatorio,
-  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload | RelatorioDREDetalhePayload | RelatorioBalancoDetalhePayload
+  filtros: RelatorioFiltros | RelatorioReciboPayload | RelatorioDREPayload | RelatorioComissionamentoPayload | RelatorioBalancoPayload | RelatorioDREDetalhePayload | RelatorioBalancoDetalhePayload | RelatorioConciliacaoPayload
 ): Promise<void> {
   const config = RELATORIOS[tipoRelatorio];
 
@@ -314,6 +333,7 @@ export function obterNomeRelatorio(tipoRelatorio: TipoRelatorio): string {
     'balanco': 'Fluxo de Caixa Realizado (Balanço)',
     'dre-detalhe': 'Relatório DRE por Tipo',
     'balanco-detalhe': 'Relatório Fluxo de Caixa por Tipo',
+    'conciliacao-bancaria': 'Relatório de Conciliação Bancária',
   };
 
   return nomes[tipoRelatorio];

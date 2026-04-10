@@ -2743,3 +2743,426 @@ def relatorio_balanco_detalhe(request):
     pdf.save()
 
     return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def relatorio_conciliacao_bancaria_pdf(request):
+    """
+    Gera PDF do relatório de conciliação bancária.
+
+    Query Parameters:
+    - mes (int)
+    - ano (int)
+    - modo: 'completo' | 'pendentes'  (padrão: 'completo')
+    """
+    from reportlab.lib import colors
+    from django.db.models import Count
+
+    try:
+        company = get_company_from_request(request)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+
+    mes_param = request.query_params.get('mes')
+    ano_param = request.query_params.get('ano')
+    modo = request.query_params.get('modo', 'completo')
+
+    if not mes_param or not ano_param:
+        hoje = datetime.now()
+        mes, ano = hoje.month, hoje.year
+    else:
+        mes, ano = int(mes_param), int(ano_param)
+
+    data_inicio = date(ano, mes, 1)
+    if mes == 12:
+        data_fim = date(ano + 1, 1, 1) - timedelta(days=1)
+    else:
+        data_fim = date(ano, mes + 1, 1) - timedelta(days=1)
+
+    # ── Buscar dados ─────────────────────────────────────────────────────────
+    pagamentos = list(
+        Payment.objects.filter(
+            company=company,
+            data_pagamento__gte=data_inicio,
+            data_pagamento__lte=data_fim,
+        )
+        .select_related('conta_bancaria')
+        .annotate(
+            num_allocations=Count('allocations'),
+            total_alocado=Sum('allocations__valor'),
+        )
+    )
+
+    allocations = list(
+        Allocation.objects.filter(payment__in=pagamentos)
+        .select_related('payment', 'receita', 'despesa', 'custodia')
+    )
+
+    conciliados = [p for p in pagamentos if p.total_alocado is not None and abs(float(p.total_alocado) - float(p.valor)) < 0.01]
+    nao_conciliados = [p for p in pagamentos if p.total_alocado is None or abs(float(p.total_alocado) - float(p.valor)) >= 0.01]
+
+    total_lancamentos = len(pagamentos)
+    total_conciliados = len(conciliados)
+    total_nao_conciliados = len(nao_conciliados)
+    percentual = (total_conciliados / total_lancamentos * 100) if total_lancamentos > 0 else 0
+
+    valor_entradas = sum(float(p.valor) for p in pagamentos if p.tipo == 'E')
+    valor_saidas = sum(float(p.valor) for p in pagamentos if p.tipo == 'S')
+    valor_entradas_conc = sum(float(p.valor) for p in conciliados if p.tipo == 'E')
+    valor_saidas_conc = sum(float(p.valor) for p in conciliados if p.tipo == 'S')
+    valor_entradas_pend = sum(float(p.valor) for p in nao_conciliados if p.tipo == 'E')
+    valor_saidas_pend = sum(float(p.valor) for p in nao_conciliados if p.tipo == 'S')
+
+    receitas_vinc = [a for a in allocations if a.receita is not None]
+    despesas_vinc = [a for a in allocations if a.despesa is not None]
+    custodias_vinc = [a for a in allocations if a.custodia is not None]
+
+    # Por conta bancária
+    contas_resumo = {}
+    for p in pagamentos:
+        bid = p.conta_bancaria.id
+        if bid not in contas_resumo:
+            contas_resumo[bid] = {
+                'nome': p.conta_bancaria.nome, 'total': 0,
+                'conciliados': 0, 'pendentes': 0, 'entradas': 0, 'saidas': 0,
+            }
+        contas_resumo[bid]['total'] += 1
+        is_conc = p.total_alocado is not None and abs(float(p.total_alocado) - float(p.valor)) < 0.01
+        if is_conc:
+            contas_resumo[bid]['conciliados'] += 1
+        else:
+            contas_resumo[bid]['pendentes'] += 1
+        if p.tipo == 'E':
+            contas_resumo[bid]['entradas'] += float(p.valor)
+        else:
+            contas_resumo[bid]['saidas'] += float(p.valor)
+
+    if total_nao_conciliados == 0:
+        status_geral = 'Concluída'
+    elif percentual >= 80:
+        status_geral = 'Quase Concluída'
+    elif percentual >= 50:
+        status_geral = 'Em Andamento'
+    else:
+        status_geral = 'Pendente'
+
+    # ── PDF ───────────────────────────────────────────────────────────────────
+    nome_modo = "completo" if modo == "completo" else "pendentes"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"inline; filename=conciliacao_{nome_modo}_{mes:02d}_{ano}.pdf"
+
+    pdf = canvas.Canvas(response, pagesize=A4)
+    width, height = A4
+    margin = 60
+    right_col = width - margin
+
+    C_BLACK = colors.HexColor("#111827")
+    C_DARK = colors.HexColor("#374151")
+    C_MUTED = colors.HexColor("#6B7280")
+    C_LINE = colors.HexColor("#D1D5DB")
+    C_BG = colors.HexColor("#F3F4F6")
+    C_GREEN = colors.HexColor("#14532D")
+    C_RED = colors.HexColor("#7F1D1D")
+
+    MESES_NOMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    page_num = [1]
+
+    def draw_header(y_pos):
+        """Desenha cabeçalho com logo e título."""
+        if company.logo:
+            try:
+                logo_w, logo_h = 140, 60
+                pdf.drawImage(
+                    company.logo.path,
+                    (width - logo_w) / 2, y_pos - 55,
+                    width=logo_w, height=logo_h,
+                    preserveAspectRatio=True, mask='auto',
+                )
+                y_pos -= 72
+            except Exception:
+                pdf.setFont("Helvetica-Bold", 15)
+                pdf.setFillColor(C_BLACK)
+                pdf.drawCentredString(width / 2, y_pos - 10, company.name)
+                y_pos -= 28
+        else:
+            pdf.setFont("Helvetica-Bold", 15)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawCentredString(width / 2, y_pos - 10, company.name)
+            y_pos -= 28
+
+        titulo = "CONCILIAÇÃO BANCÁRIA" if modo == "completo" else "LANÇAMENTOS PENDENTES DE CONCILIAÇÃO"
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawCentredString(width / 2, y_pos, titulo)
+        y_pos -= 16
+
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawCentredString(width / 2, y_pos, f"{MESES_NOMES[mes - 1]} de {ano}")
+        y_pos -= 10
+
+        pdf.setStrokeColor(C_LINE)
+        pdf.setLineWidth(0.5)
+        pdf.line(margin, y_pos, right_col, y_pos)
+        y_pos -= 24
+        return y_pos
+
+    def draw_footer():
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin, 40, f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
+        pdf.drawRightString(right_col, 40, f"Página {page_num[0]}")
+
+    def new_page():
+        draw_footer()
+        pdf.showPage()
+        page_num[0] += 1
+        return draw_header(height - margin)
+
+    def check_page(y_pos, needed=60):
+        if y_pos < margin + needed:
+            return new_page()
+        return y_pos
+
+    def section_header(label, y_pos, bg=C_BG):
+        y_pos = check_page(y_pos, 40)
+        pdf.setFillColor(bg)
+        pdf.rect(margin, y_pos - 3, width - 2 * margin, 20, fill=True, stroke=False)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(C_DARK)
+        pdf.drawString(margin + 8, y_pos + 4, label)
+        return y_pos - 26
+
+    def item_row(label, value, y_pos, color=C_BLACK):
+        y_pos = check_page(y_pos)
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawString(margin + 20, y_pos, label)
+        pdf.setFillColor(color)
+        pdf.drawRightString(right_col, y_pos, format_currency(value))
+        return y_pos - 15
+
+    def label_value_row(label, value_text, y_pos):
+        y_pos = check_page(y_pos)
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 20, y_pos, label)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.setFillColor(C_BLACK)
+        pdf.drawRightString(right_col, y_pos, value_text)
+        return y_pos - 15
+
+    def subtotal_row(label, value, y_pos, color=C_DARK):
+        y_pos = check_page(y_pos, 30)
+        y_pos += 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.setLineWidth(0.5)
+        pdf.line(margin, y_pos, right_col, y_pos)
+        y_pos -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(color)
+        pdf.drawString(margin + 8, y_pos, label)
+        pdf.drawRightString(right_col, y_pos, format_currency(value))
+        return y_pos - 22
+
+    # ── Desenho ───────────────────────────────────────────────────────────────
+    y = draw_header(height - margin)
+
+    # ── Resumo Geral (ambos os modos) ────────────────────────────────────────
+    y = section_header("RESUMO DA CONCILIAÇÃO", y)
+    y = label_value_row("Status", status_geral, y)
+    y = label_value_row("Percentual Conciliado", f"{percentual:.1f}%", y)
+    y = label_value_row("Total de Lançamentos", str(total_lancamentos), y)
+    y = label_value_row("Conciliados", str(total_conciliados), y)
+    y = label_value_row("Pendentes", str(total_nao_conciliados), y)
+    y -= 10
+
+    # ── Valores ──────────────────────────────────────────────────────────────
+    y = section_header("VALORES DO PERÍODO", y)
+    y = item_row("Total de Entradas", valor_entradas, y, C_GREEN)
+    y = item_row("   Conciliadas", valor_entradas_conc, y)
+    y = item_row("   Pendentes", valor_entradas_pend, y)
+    y -= 5
+    y = item_row("Total de Saídas", valor_saidas, y, C_RED)
+    y = item_row("   Conciliadas", valor_saidas_conc, y)
+    y = item_row("   Pendentes", valor_saidas_pend, y)
+    saldo = valor_entradas - valor_saidas
+    y = subtotal_row("Saldo do Período", saldo, y, C_GREEN if saldo >= 0 else C_RED)
+
+    # ── Vinculações ──────────────────────────────────────────────────────────
+    if modo == "completo":
+        y = section_header("RESUMO DE VINCULAÇÕES", y)
+        y = label_value_row(
+            f"Receitas ({len(receitas_vinc)})",
+            format_currency(sum(float(a.valor) for a in receitas_vinc)),
+            y,
+        )
+        y = label_value_row(
+            f"Despesas ({len(despesas_vinc)})",
+            format_currency(sum(float(a.valor) for a in despesas_vinc)),
+            y,
+        )
+        y = label_value_row(
+            f"Custódias ({len(custodias_vinc)})",
+            format_currency(sum(float(a.valor) for a in custodias_vinc)),
+            y,
+        )
+        y -= 10
+
+    # ── Resumo por Conta ─────────────────────────────────────────────────────
+    if modo == "completo" and contas_resumo:
+        y = section_header("RESUMO POR CONTA BANCÁRIA", y)
+        # Header da tabela
+        y = check_page(y, 30)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 8, y, "Conta")
+        pdf.drawString(margin + 180, y, "Total")
+        pdf.drawString(margin + 220, y, "Conc.")
+        pdf.drawString(margin + 260, y, "Pend.")
+        pdf.drawRightString(right_col - 80, y, "Entradas")
+        pdf.drawRightString(right_col, y, "Saídas")
+        y -= 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.line(margin, y, right_col, y)
+        y -= 14
+
+        for conta in contas_resumo.values():
+            y = check_page(y, 18)
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(C_BLACK)
+            nome_conta = truncate_text(conta['nome'], 28)
+            pdf.drawString(margin + 8, y, nome_conta)
+            pdf.drawString(margin + 187, y, str(conta['total']))
+            pdf.setFillColor(C_GREEN)
+            pdf.drawString(margin + 227, y, str(conta['conciliados']))
+            pdf.setFillColor(C_RED)
+            pdf.drawString(margin + 267, y, str(conta['pendentes']))
+            pdf.setFillColor(C_GREEN)
+            pdf.drawRightString(right_col - 80, y, format_currency(conta['entradas']))
+            pdf.setFillColor(C_RED)
+            pdf.drawRightString(right_col, y, format_currency(conta['saidas']))
+            y -= 14
+        y -= 10
+
+    # ── Lançamentos Pendentes ────────────────────────────────────────────────
+    if nao_conciliados:
+        y = section_header("LANÇAMENTOS PENDENTES DE CONCILIAÇÃO", y)
+
+        # Header da tabela
+        y = check_page(y, 30)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 8, y, "Data")
+        pdf.drawString(margin + 60, y, "Tipo")
+        pdf.drawString(margin + 105, y, "Conta")
+        pdf.drawRightString(right_col - 120, y, "Valor")
+        pdf.drawRightString(right_col - 40, y, "Alocado")
+        pdf.drawRightString(right_col, y, "Pendente")
+        y -= 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.line(margin, y, right_col, y)
+        y -= 14
+
+        for p in nao_conciliados:
+            y = check_page(y, 18)
+            p_allocs = [a for a in allocations if a.payment_id == p.id]
+            valor_alocado = sum(float(a.valor) for a in p_allocs)
+            valor_pend = float(p.valor) - valor_alocado
+
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawString(margin + 8, y, p.data_pagamento.strftime('%d/%m/%Y'))
+
+            tipo_label = "Entrada" if p.tipo == 'E' else "Saída"
+            tipo_color = C_GREEN if p.tipo == 'E' else C_RED
+            pdf.setFillColor(tipo_color)
+            pdf.drawString(margin + 60, y, tipo_label)
+
+            pdf.setFillColor(C_BLACK)
+            pdf.drawString(margin + 105, y, truncate_text(p.conta_bancaria.nome, 18))
+            pdf.drawRightString(right_col - 120, y, format_currency(float(p.valor)))
+            pdf.drawRightString(right_col - 40, y, format_currency(valor_alocado))
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.setFillColor(C_RED)
+            pdf.drawRightString(right_col, y, format_currency(valor_pend))
+            y -= 14
+
+        # Total pendentes
+        total_valor_pend_e = sum(
+            float(p.valor) - sum(float(a.valor) for a in allocations if a.payment_id == p.id)
+            for p in nao_conciliados if p.tipo == 'E'
+        )
+        total_valor_pend_s = sum(
+            float(p.valor) - sum(float(a.valor) for a in allocations if a.payment_id == p.id)
+            for p in nao_conciliados if p.tipo == 'S'
+        )
+        y -= 2
+        y = check_page(y, 30)
+        pdf.setStrokeColor(C_LINE)
+        pdf.line(margin, y + 8, right_col, y + 8)
+        y -= 6
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(C_GREEN)
+        pdf.drawString(margin + 8, y, f"Total Entradas Pendentes: {format_currency(total_valor_pend_e)}")
+        pdf.setFillColor(C_RED)
+        pdf.drawRightString(right_col, y, f"Total Saídas Pendentes: {format_currency(total_valor_pend_s)}")
+        y -= 16
+
+    # ── Lançamentos Conciliados (só no modo completo) ────────────────────────
+    if modo == "completo" and conciliados:
+        y = section_header("LANÇAMENTOS CONCILIADOS", y)
+
+        y = check_page(y, 30)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(C_MUTED)
+        pdf.drawString(margin + 8, y, "Data")
+        pdf.drawString(margin + 60, y, "Tipo")
+        pdf.drawString(margin + 105, y, "Conta")
+        pdf.drawRightString(right_col - 80, y, "Valor")
+        pdf.drawString(right_col - 70, y, "Vinculação")
+        y -= 4
+        pdf.setStrokeColor(C_LINE)
+        pdf.line(margin, y, right_col, y)
+        y -= 14
+
+        for p in conciliados:
+            y = check_page(y, 18)
+            p_allocs = [a for a in allocations if a.payment_id == p.id]
+
+            vinc_desc = ""
+            for a in p_allocs[:1]:
+                if a.receita:
+                    vinc_desc = "Receita"
+                elif a.despesa:
+                    vinc_desc = "Despesa"
+                elif a.custodia:
+                    vinc_desc = "Custódia"
+            if len(p_allocs) > 1:
+                vinc_desc += f" +{len(p_allocs) - 1}"
+
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawString(margin + 8, y, p.data_pagamento.strftime('%d/%m/%Y'))
+
+            tipo_label = "Entrada" if p.tipo == 'E' else "Saída"
+            tipo_color = C_GREEN if p.tipo == 'E' else C_RED
+            pdf.setFillColor(tipo_color)
+            pdf.drawString(margin + 60, y, tipo_label)
+
+            pdf.setFillColor(C_BLACK)
+            pdf.drawString(margin + 105, y, truncate_text(p.conta_bancaria.nome, 18))
+            pdf.drawRightString(right_col - 80, y, format_currency(float(p.valor)))
+            pdf.setFillColor(C_MUTED)
+            pdf.setFont("Helvetica", 7)
+            pdf.drawString(right_col - 70, y, truncate_text(vinc_desc, 15))
+            y -= 14
+
+    # ── Rodapé final ─────────────────────────────────────────────────────────
+    draw_footer()
+    pdf.showPage()
+    pdf.save()
+
+    return response

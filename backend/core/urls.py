@@ -30,6 +30,7 @@ from .pdf_views import (
     relatorio_balanco_pdf,
     relatorio_dre_detalhe,
     relatorio_balanco_detalhe,
+    relatorio_conciliacao_bancaria_pdf,
 )
 
 router = DefaultRouter()
@@ -109,6 +110,9 @@ urlpatterns = [
 
     # 12. Relatório Balanço Detalhe (por tipo no Fluxo de Caixa)
     path('pdf/balanco-detalhe/', relatorio_balanco_detalhe, name='relatorio-balanco-detalhe'),
+
+    # 13. Relatório de Conciliação Bancária
+    path('pdf/conciliacao-bancaria/', relatorio_conciliacao_bancaria_pdf, name='relatorio-conciliacao-bancaria-pdf'),
 
 ]
 
