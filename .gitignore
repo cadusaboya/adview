@@ -5,7 +5,7 @@
 # Documentos de revisão e auditoria
 REVIEW_*.md
 AUDIT_*.md
-reports/
+/reports/
 
 # Claude Code (configurações locais)
 .claude/
