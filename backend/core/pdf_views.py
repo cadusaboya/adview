@@ -3056,15 +3056,15 @@ def relatorio_conciliacao_bancaria_pdf(request):
     if nao_conciliados:
         y = section_header("LANÇAMENTOS PENDENTES DE CONCILIAÇÃO", y)
 
-        # Header da tabela: Data, Tipo, Conta, Valor Não Vinculado, Observação
+        # Header da tabela: Data, Tipo, Conta, Observação, Vlr Não Vinculado
         y = check_page(y, 30)
         pdf.setFont("Helvetica-Bold", 8)
         pdf.setFillColor(C_MUTED)
         pdf.drawString(margin + 8, y, "Data")
         pdf.drawString(margin + 60, y, "Tipo")
         pdf.drawString(margin + 110, y, "Conta")
-        pdf.drawRightString(right_col - 130, y, "Vlr Não Vinculado")
-        pdf.drawString(right_col - 120, y, "Observação")
+        pdf.drawString(margin + 200, y, "Observação")
+        pdf.drawRightString(right_col, y, "Vlr Não Vinculado")
         y -= 4
         pdf.setStrokeColor(C_LINE)
         pdf.line(margin, y, right_col, y)
@@ -3086,14 +3086,14 @@ def relatorio_conciliacao_bancaria_pdf(request):
             pdf.drawString(margin + 60, y, tipo_label)
 
             pdf.setFillColor(C_BLACK)
-            pdf.drawString(margin + 110, y, truncate_text(p.conta_bancaria.nome, 16))
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.setFillColor(C_BLACK)
-            pdf.drawRightString(right_col - 130, y, format_currency(valor_pend))
+            pdf.drawString(margin + 110, y, truncate_text(p.conta_bancaria.nome, 14))
             pdf.setFont("Helvetica", 7)
             pdf.setFillColor(C_MUTED)
             obs = p.observacao or "-"
-            pdf.drawString(right_col - 120, y, truncate_text(obs, 25))
+            pdf.drawString(margin + 200, y, truncate_text(obs, 40))
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.setFillColor(C_BLACK)
+            pdf.drawRightString(right_col, y, format_currency(valor_pend))
             y -= 14
 
     # ── Lançamentos Conciliados (só no modo completo) ────────────────────────
