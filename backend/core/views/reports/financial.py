@@ -477,7 +477,7 @@ def relatorio_conciliacao_bancaria(request):
             company=request.user.company,
             data_pagamento__gte=data_inicio,
             data_pagamento__lte=data_fim
-        ).select_related('conta_bancaria')
+        ).select_related('conta_bancaria').order_by('data_pagamento')
 
         # Filtrar por conta bancária específica se fornecida
         if conta_bancaria_id:
