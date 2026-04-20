@@ -30,6 +30,31 @@ def _normalize_digits(value: str) -> str:
     return ''.join(ch for ch in str(value or '') if ch.isdigit())
 
 
+def normalize_money_search(s: str) -> str:
+    """Converte um termo de busca monetário em formato BR para o formato
+    armazenado no banco (ex.: "1.500,00" → "1500.00", "R$ 1500" → "1500",
+    "1.500" → "1500").
+
+    Mantém strings que não parecem valores (sem dígitos) inalteradas para não
+    quebrar buscas textuais.
+    """
+    if not s:
+        return s
+    raw = str(s).strip().replace('R$', '').replace(' ', '')
+    if not any(ch.isdigit() for ch in raw):
+        return s
+    if ',' in raw:
+        # Vírgula é separador decimal; pontos são separadores de milhar
+        return raw.replace('.', '').replace(',', '.')
+    if '.' in raw:
+        # Sem vírgula: pontos são separadores de milhar em BR se cada grupo
+        # após o primeiro tem exatamente 3 dígitos (ex.: 1.500, 12.345.678).
+        parts = raw.split('.')
+        if all(p.isdigit() for p in parts) and all(len(p) == 3 for p in parts[1:]):
+            return raw.replace('.', '')
+    return raw
+
+
 def _is_valid_cpf(cpf: str) -> bool:
     cpf = _normalize_digits(cpf)
     if len(cpf) != 11 or cpf == cpf[0] * 11:

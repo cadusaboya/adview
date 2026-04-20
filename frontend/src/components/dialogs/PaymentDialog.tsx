@@ -776,7 +776,7 @@ export default function PaymentDialog({
                             return sum + (a.valor || 0);
                           }, 0);
 
-                          const remaining = formData.valor - totalAllocated;
+                          const remaining = Math.round((formData.valor - totalAllocated) * 100) / 100;
 
                           if (remaining > 0) {
                             updateAllocation(alloc.id, 'valorDisplay', formatCurrencyInput(remaining));
@@ -836,10 +836,10 @@ export default function PaymentDialog({
                           onChange={setCriarClienteId}
                           options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                           createTypes={[
-                            { value: 'Fixo', label: 'Fixo' },
-                            { value: 'Avulso', label: 'Avulso' },
+                            { value: 'F', label: 'Fixo' },
+                            { value: 'A', label: 'Avulso' },
                           ]}
-                          defaultCreateType="Fixo"
+                          defaultCreateType="F"
                           entityLabel="Cliente"
                           onCreate={handleCriarCliente}
                           style={{ width: '100%' }}

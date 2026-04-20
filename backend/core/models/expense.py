@@ -47,6 +47,9 @@ class Despesa(models.Model):
     def atualizar_status(self):
         total_pago = self.allocations.aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
+        if total_pago > self.valor:
+            self.valor = total_pago
+
         if total_pago >= self.valor:
             self.situacao = 'P'
         elif self.data_vencimento and self.data_vencimento < timezone.now().date():

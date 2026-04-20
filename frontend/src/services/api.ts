@@ -36,11 +36,15 @@ api.interceptors.response.use(
       // Ignore 401 from the login endpoint — the page handles those messages itself
       if (!url.includes('/api/token/')) {
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         sessionStorage.removeItem('token');
-        toast.error('Sessão expirada. Por favor, faça login novamente.');
-        setTimeout(() => {
+        sessionStorage.removeItem('refresh_token');
+        const currentPath =
+          typeof window !== 'undefined' ? window.location.pathname : '';
+        if (currentPath !== '/') {
+          toast.error('Sessão expirada. Por favor, faça login novamente.');
           window.location.href = '/';
-        }, 1500);
+        }
       }
     }
 

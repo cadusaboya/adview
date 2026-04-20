@@ -2569,42 +2569,40 @@ def relatorio_balanco_detalhe(request):
 
         for pag in pagamentos:
             allocs = [a for a in pag.allocations.all() if a.transfer_id is None]
-            if allocs:
-                for alloc in allocs:
-                    if alloc.receita:
-                        tipo_nome = TIPO_RECEITA_MAP.get(alloc.receita.tipo, 'Outro')
-                        pessoa = truncate_text(alloc.receita.cliente.nome if alloc.receita.cliente else '-', 28)
-                        descricao = truncate_text(alloc.receita.nome, 38)
-                        valor = alloc.valor
-                    elif alloc.despesa:
-                        tipo_nome = TIPO_DESPESA_MAP.get(alloc.despesa.tipo, 'Outro')
-                        pessoa = truncate_text(alloc.despesa.responsavel.nome if alloc.despesa.responsavel else '-', 28)
-                        descricao = truncate_text(alloc.despesa.nome, 38)
-                        valor = alloc.valor
-                    elif alloc.custodia:
-                        tipo_nome = custodia_tipo
-                        pessoa = '-'
-                        descricao = truncate_text(alloc.custodia.descricao or 'Custódia', 38)
-                        valor = alloc.valor
-                    else:
-                        continue
-                    rows.append({
-                        'data': format_date_br(pag.data_pagamento),
-                        'tipo': truncate_text(tipo_nome, 22),
-                        'pessoa': pessoa,
-                        'descricao': descricao,
-                        'valor': valor,
-                    })
-                    total += valor
+            tipos_set = []
+            pessoas_set = []
+            descricoes_set = []
+            for alloc in allocs:
+                if alloc.receita:
+                    tipos_set.append(TIPO_RECEITA_MAP.get(alloc.receita.tipo, 'Outro'))
+                    pessoas_set.append(alloc.receita.cliente.nome if alloc.receita.cliente else '-')
+                    descricoes_set.append(alloc.receita.nome)
+                elif alloc.despesa:
+                    tipos_set.append(TIPO_DESPESA_MAP.get(alloc.despesa.tipo, 'Outro'))
+                    pessoas_set.append(alloc.despesa.responsavel.nome if alloc.despesa.responsavel else '-')
+                    descricoes_set.append(alloc.despesa.nome)
+                elif alloc.custodia:
+                    tipos_set.append(custodia_tipo)
+                    pessoas_set.append('-')
+                    descricoes_set.append(alloc.custodia.descricao or 'Custódia')
+
+            if tipos_set:
+                tipo_nome = ', '.join(dict.fromkeys(tipos_set))
+                pessoa = ', '.join(dict.fromkeys(pessoas_set))
+                descricao = ', '.join(dict.fromkeys(descricoes_set))
             else:
-                rows.append({
-                    'data': format_date_br(pag.data_pagamento),
-                    'tipo': 'Não Alocado',
-                    'pessoa': '-',
-                    'descricao': truncate_text(pag.observacao or 'Sem descrição', 38),
-                    'valor': pag.valor,
-                })
-                total += pag.valor
+                tipo_nome = 'Não Alocado'
+                pessoa = '-'
+                descricao = pag.observacao or 'Sem descrição'
+
+            rows.append({
+                'data': format_date_br(pag.data_pagamento),
+                'tipo': truncate_text(tipo_nome, 22),
+                'pessoa': truncate_text(pessoa, 28),
+                'descricao': truncate_text(descricao, 38),
+                'valor': pag.valor,
+            })
+            total += pag.valor
 
         columns = [
             {"label": "Data", "key": "data", "x": margin if False else 40},

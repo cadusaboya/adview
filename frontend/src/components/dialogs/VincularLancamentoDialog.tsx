@@ -41,6 +41,10 @@ interface AllocationForm {
   valorDisplay: string;
   isExisting?: boolean; // Flag para indicar se é uma alocação existente
   isDeleted?: boolean; // Flag para indicar que esta alocação existente deve ser deletada
+  // Snapshot dos valores originais (só em existentes) para detectar modificação
+  originalTipo?: 'receita' | 'despesa' | 'custodia' | 'transfer';
+  originalEntidadeId?: number;
+  originalValor?: number;
 }
 
 interface Props {
@@ -175,14 +179,18 @@ export default function VincularLancamentoDialog({
             entidade_id = alloc.transfer;
           }
 
+          const valorNum = Number(alloc.valor) || 0;
           return {
             id: `existing-${alloc.id}`,
             allocation_id: alloc.id,
             tipo,
             entidade_id,
-            valor: Number(alloc.valor) || 0,
-            valorDisplay: formatCurrencyInput(Number(alloc.valor) || 0),
+            valor: valorNum,
+            valorDisplay: formatCurrencyInput(valorNum),
             isExisting: true,
+            originalTipo: tipo,
+            originalEntidadeId: entidade_id,
+            originalValor: valorNum,
           };
         });
 
@@ -229,14 +237,18 @@ export default function VincularLancamentoDialog({
   // Reset quando o diálogo abrir/fechar
   useEffect(() => {
     if (open && lancamento) {
-      // Carregar entidades
-      loadReceitas();
-      loadDespesas();
-      loadCustodias();
-      loadTransfers();
-
-      // Carregar alocações existentes
-      loadExistingAllocations();
+      (async () => {
+        // Carregar entidades abertas ANTES de carregar alocações existentes,
+        // para evitar que setReceitas/setDespesas sobrescrevam as entidades
+        // já vinculadas (que loadExistingAllocations adiciona via merge).
+        await Promise.all([
+          loadReceitas(),
+          loadDespesas(),
+          loadCustodias(),
+          loadTransfers(),
+        ]);
+        await loadExistingAllocations();
+      })();
     } else {
       setAllocations([]);
     }
@@ -450,22 +462,42 @@ export default function VincularLancamentoDialog({
     // Filtrar alocações não deletadas
     const activeAllocations = allocations.filter((a) => !a.isDeleted);
 
-    // Filtrar apenas as novas alocações (não existentes e não deletadas)
-    const newAllocations = activeAllocations.filter(
-      (a) => !a.isExisting && a.entidade_id > 0 && a.valor > 0
+    // Detecta alocações existentes que foram modificadas (tipo, entidade ou valor).
+    // Modificadas são tratadas como delete da antiga + create da nova.
+    const modifiedExisting = activeAllocations.filter(
+      (a) =>
+        a.isExisting &&
+        a.allocation_id &&
+        a.entidade_id > 0 &&
+        a.valor > 0 &&
+        (a.tipo !== a.originalTipo ||
+          a.entidade_id !== a.originalEntidadeId ||
+          Math.abs(a.valor - (a.originalValor ?? 0)) > 0.001)
     );
+
+    // Filtrar apenas as novas alocações (não existentes e não deletadas)
+    // + as existentes modificadas (serão recriadas)
+    const newAllocations = [
+      ...activeAllocations.filter(
+        (a) => !a.isExisting && a.entidade_id > 0 && a.valor > 0
+      ),
+      ...modifiedExisting,
+    ];
 
     // Filtrar alocações existentes que foram marcadas para deletar
-    const allocationsToDelete = allocations.filter(
-      (a) => a.isExisting && a.isDeleted && a.allocation_id
-    );
+    // + as existentes modificadas (precisa deletar antes de recriar)
+    const allocationsToDelete = [
+      ...allocations.filter((a) => a.isExisting && a.isDeleted && a.allocation_id),
+      ...modifiedExisting,
+    ];
 
-    // Verificar se há pelo menos uma alocação ativa válida
+    // Verificar se há pelo menos uma alocação ativa válida.
+    // Permite zero alocações ativas se o usuário está apenas desvinculando (deletando existentes).
     const allValidAllocations = activeAllocations.filter(
       (a) => a.entidade_id > 0 && a.valor > 0
     );
 
-    if (allValidAllocations.length === 0) {
+    if (allValidAllocations.length === 0 && allocationsToDelete.length === 0) {
       toast.error('Adicione pelo menos uma alocação válida');
       return;
     }
@@ -713,7 +745,7 @@ export default function VincularLancamentoDialog({
                       );
                     }}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -819,7 +851,7 @@ export default function VincularLancamentoDialog({
                         updateAllocation(alloc.id, 'valor', valorAberto);
                       }
                     }}
-                    className="h-9 [&_.ant-select-selector]:!h-9 [&_.ant-select-selector]:!py-0 [&_.ant-select-selection-search]:!h-9 [&_.ant-select-selection-item]:!leading-9"
+                    size="large"
                     style={{ width: '100%' }}
                     filterOption={(input, option) =>
                       String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
@@ -884,7 +916,6 @@ export default function VincularLancamentoDialog({
                       );
                       updateAllocation(alloc.id, 'valor', parsed);
                     }}
-                    className="h-9"
                   />
                 </div>
 
@@ -933,10 +964,10 @@ export default function VincularLancamentoDialog({
                         onChange={setCriarClienteId}
                         options={clientesLista.map((c) => ({ value: c.id, label: c.nome }))}
                         createTypes={[
-                          { value: 'Fixo', label: 'Fixo' },
-                          { value: 'Avulso', label: 'Avulso' },
+                          { value: 'F', label: 'Fixo' },
+                          { value: 'A', label: 'Avulso' },
                         ]}
-                        defaultCreateType="Fixo"
+                        defaultCreateType="F"
                         entityLabel="Cliente"
                         onCreate={handleCriarCliente}
                         style={{ width: '100%' }}

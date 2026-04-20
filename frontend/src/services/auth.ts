@@ -69,8 +69,32 @@ export async function confirmPasswordReset(uid: string, token: string, password:
   await api.post('/api/password-reset/confirm/', { uid, token, password });
 }
 
+/**
+ * Retorna true apenas se existe um access token E ele ainda não expirou
+ * (baseado no campo `exp` do JWT). Se o token existir mas estiver expirado,
+ * remove-o do storage para evitar loops de auto-login.
+ */
 export function isLoggedIn() {
-  return !!getAccessToken();
+  const token = getAccessToken();
+  if (!token) return false;
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] ?? ''));
+    const expMs = typeof payload?.exp === 'number' ? payload.exp * 1000 : 0;
+    if (expMs && expMs <= Date.now()) {
+      // Token expirado: limpa storage e sinaliza deslogado
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('refresh_token');
+      return false;
+    }
+  } catch {
+    // Token malformado: trata como deslogado
+    return false;
+  }
+
+  return true;
 }
 
 export function getAccessToken() {

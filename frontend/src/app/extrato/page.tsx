@@ -11,6 +11,7 @@ import PaymentDialog from '@/components/dialogs/PaymentDialog';
 import ImportExtratoDialog from '@/components/dialogs/ImportExtratoDialog';
 import ConciliacaoBancariaDialog from '@/components/dialogs/ConciliacaoBancariaDialog';
 import { Input } from '@/components/ui/input';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 
 import { getPayments, createPayment, updatePayment, deletePayment } from '@/services/payments';
 import { createAllocation, deleteAllocation } from '@/services/allocations';
@@ -70,6 +71,10 @@ export default function ExtratoPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // 📅 Filtro por data
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+
   // Row selection state
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -82,7 +87,7 @@ export default function ExtratoPage() {
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, startDate, endDate]);
 
   // Clear selection when page or pageSize changes
   useEffect(() => {
@@ -100,6 +105,8 @@ export default function ExtratoPage() {
         page,
         page_size: pageSize,
         search: debouncedSearch,
+        start_date: startDate,
+        end_date: endDate,
       });
 
       setPayments(res.results);
@@ -110,7 +117,7 @@ export default function ExtratoPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, startDate, endDate]);
 
   useEffect(() => {
     loadData();
@@ -452,6 +459,15 @@ export default function ExtratoPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-80"
+            />
+
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(s, e) => {
+                setStartDate(s);
+                setEndDate(e);
+              }}
             />
 
             {selectedRowKeys.length > 0 && (

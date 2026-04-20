@@ -182,5 +182,7 @@ class Allocation(models.Model):
                 )
 
     def save(self, *args, **kwargs):
+        if self.valor is not None:
+            self.valor = Decimal(self.valor).quantize(Decimal('0.01'))
         self.clean()
         super().save(*args, **kwargs)

@@ -95,7 +95,7 @@ def gerar_despesas_comissao(company, mes: int, ano: int) -> list[dict]:
         if valor_comissao <= 0:
             continue
 
-        Despesa.objects.update_or_create(
+        despesa, created = Despesa.objects.update_or_create(
             company=company,
             responsavel=comissionado,
             tipo='C',
@@ -104,9 +104,16 @@ def gerar_despesas_comissao(company, mes: int, ano: int) -> list[dict]:
                 'nome': f'Comissão {mes}/{ano} - {comissionado.nome}',
                 'descricao': f'Comissão referente aos pagamentos de {mes}/{ano}',
                 'valor': valor_comissao,
+            },
+            create_defaults={
+                'nome': f'Comissão {mes}/{ano} - {comissionado.nome}',
+                'descricao': f'Comissão referente aos pagamentos de {mes}/{ano}',
+                'valor': valor_comissao,
                 'situacao': 'A',
             },
         )
+        # Recalcula situacao baseado nas alocações existentes (preserva 'P' se já pago)
+        despesa.atualizar_status()
 
         resultado.append({
             'id': comissionado.id,

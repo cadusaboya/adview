@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
-from .mixins import CompanyScopedViewSetMixin
+from .mixins import CompanyScopedViewSetMixin, normalize_money_search
 from ..models import Receita, ReceitaRecorrente, ReceitaComissao, ClienteComissao
 from ..serializers import ReceitaSerializer, ReceitaAbertaSerializer, ReceitaRecorrenteSerializer
 from ..pagination import DynamicPageSizePagination
@@ -50,11 +50,12 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # FILTRO GLOBAL
         search = params.get("search")
         if search:
+            search_money = normalize_money_search(search)
             queryset = queryset.filter(
                 Q(nome__icontains=search) |
                 Q(descricao__icontains=search) |
                 Q(cliente__nome__icontains=search) |
-                Q(valor__icontains=search) |
+                Q(valor__icontains=search_money) |
                 Q(data_vencimento__icontains=search)
             )
 
@@ -208,6 +209,10 @@ class ReceitaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
                         f"Conta bancária {conta_bancaria_id} não encontrada ao processar receita {receita.id}. "
                         "Pagamento não criado."
                     )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.atualizar_status()
 
 
 class ReceitaRecorrenteViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):

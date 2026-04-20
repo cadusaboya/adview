@@ -11,6 +11,7 @@ import type { TableColumnsType } from 'antd';
 
 import { ActionsDropdown } from '@/components/imports/ActionsDropdown';
 import { Input } from '@/components/ui/input';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { Pencil, Trash } from 'lucide-react';
 import { useDeleteConfirmation } from '@/hooks/useDeleteConfirmation';
 import { DeleteConfirmationDialog } from '@/components/dialogs/DeleteConfirmationDialog';
@@ -61,6 +62,10 @@ export default function DespesasPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // 📅 Filtro por data
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+
   // Sort state
   const [ordering, setOrdering] = useState('');
 
@@ -88,7 +93,7 @@ export default function DespesasPage() {
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, startDate, endDate]);
 
   // Clear selection when page or pageSize changes
   useEffect(() => {
@@ -107,6 +112,8 @@ export default function DespesasPage() {
         page_size: pageSize,
         search: debouncedSearch,
         ordering: ordering || undefined,
+        start_date: startDate,
+        end_date: endDate,
       });
 
       setDespesas(res.results);
@@ -117,7 +124,7 @@ export default function DespesasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, ordering]);
+  }, [page, pageSize, debouncedSearch, ordering, startDate, endDate]);
 
   useEffect(() => {
     loadDespesas();
@@ -393,6 +400,15 @@ export default function DespesasPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full md:w-80"
+            />
+
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(s, e) => {
+                setStartDate(s);
+                setEndDate(e);
+              }}
             />
 
             {selectedRowKeys.length > 0 && (

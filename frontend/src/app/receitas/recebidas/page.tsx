@@ -15,6 +15,7 @@ import GenericTable from '@/components/imports/GenericTable';
 import ReceitaDialog from '@/components/dialogs/ReceitaDialog';
 import RelatorioFiltrosModal from '@/components/dialogs/RelatorioFiltrosModal';
 import { Input } from '@/components/ui/input';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 
 import { Cliente } from '@/types/clientes';
 import { Receita, ReceitaUpdate } from '@/types/receitas';
@@ -71,6 +72,10 @@ export default function ReceitaRecebidasPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // 📅 Filtro por data
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+
   // Sort state
   const [ordering, setOrdering] = useState('');
 
@@ -82,7 +87,7 @@ export default function ReceitaRecebidasPage() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, funcionarioFiltro]);
+  }, [debouncedSearch, funcionarioFiltro, startDate, endDate]);
 
   // Clear selection when page or pageSize changes
   useEffect(() => {
@@ -167,6 +172,8 @@ export default function ReceitaRecebidasPage() {
         situacao: 'P',
         ordering: ordering || undefined,
         funcionario_id: funcionarioFiltro,
+        start_date: startDate,
+        end_date: endDate,
       });
 
       setReceitas(res.results);
@@ -177,7 +184,7 @@ export default function ReceitaRecebidasPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, ordering, funcionarioFiltro]);
+  }, [page, pageSize, debouncedSearch, ordering, funcionarioFiltro, startDate, endDate]);
 
   useEffect(() => {
     loadData();
@@ -410,6 +417,15 @@ export default function ReceitaRecebidasPage() {
               options={funcionarios.map((f) => ({ value: f.id, label: f.nome }))}
               showSearch
               optionFilterProp="label"
+            />
+
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(s, e) => {
+                setStartDate(s);
+                setEndDate(e);
+              }}
             />
 
             {selectedRowKeys.length > 0 && (

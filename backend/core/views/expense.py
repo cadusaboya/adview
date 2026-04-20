@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
 from django.utils import timezone
-from .mixins import CompanyScopedViewSetMixin
+from .mixins import CompanyScopedViewSetMixin, normalize_money_search
 from ..models import Despesa, DespesaRecorrente
 from ..serializers import DespesaSerializer, DespesaAbertaSerializer, DespesaRecorrenteSerializer
 from ..pagination import DynamicPageSizePagination
@@ -50,11 +50,12 @@ class DespesaViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # BUSCA
         search = params.get("search")
         if search:
+            search_money = normalize_money_search(search)
             queryset = queryset.filter(
                 Q(nome__icontains=search) |
                 Q(descricao__icontains=search) |
                 Q(responsavel__nome__icontains=search) |
-                Q(valor__icontains=search) |
+                Q(valor__icontains=search_money) |
                 Q(data_vencimento__icontains=search)
             )
 

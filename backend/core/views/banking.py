@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from django.db.models import Q, Sum, F, Count, Prefetch
 from django.db.models.functions import Coalesce
 from decimal import Decimal
-from .mixins import CompanyScopedViewSetMixin
+from .mixins import CompanyScopedViewSetMixin, normalize_money_search
 from ..models import Payment, ContaBancaria, Custodia, Transfer, Allocation, Receita, Despesa
 from ..serializers import PaymentSerializer, ContaBancariaSerializer, CustodiaSerializer, TransferSerializer, AllocationSerializer
 from ..pagination import DynamicPageSizePagination
@@ -73,8 +73,9 @@ class PaymentViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # Busca global
         search = params.get('search')
         if search:
+            search_money = normalize_money_search(search)
             queryset = queryset.filter(
-                Q(valor__icontains=search) |
+                Q(valor__icontains=search_money) |
                 Q(observacao__icontains=search) |
                 Q(data_pagamento__icontains=search) |
                 # Filtro por nome do banco
@@ -1366,9 +1367,10 @@ class AllocationViewSet(CompanyScopedViewSetMixin, viewsets.ModelViewSet):
         # Busca global
         search = params.get('search')
         if search:
+            search_money = normalize_money_search(search)
             queryset = queryset.filter(
                 Q(observacao__icontains=search) |
-                Q(valor__icontains=search) |
+                Q(valor__icontains=search_money) |
                 Q(payment__observacao__icontains=search) |
                 Q(receita__nome__icontains=search) |
                 Q(despesa__nome__icontains=search) |
