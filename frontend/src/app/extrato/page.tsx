@@ -449,65 +449,70 @@ export default function ExtratoPage() {
 
       <main className="main-content-with-navbar bg-muted min-h-screen w-full p-6">
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h1 className="text-2xl font-serif font-bold text-navy">
+          <h1 className="text-2xl font-serif font-bold text-navy whitespace-nowrap">
             Extrato de Pagamentos
           </h1>
 
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex flex-nowrap gap-2 items-center overflow-x-auto">
             <Input
-              placeholder="Buscar pagamentos..."
+              placeholder="Buscar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-80"
+              className="w-48 shrink-0"
             />
 
-            <DateRangeFilter
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(s, e) => {
-                setStartDate(s);
-                setEndDate(e);
-              }}
-            />
+            <div className="shrink-0">
+              <DateRangeFilter
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(s, e) => {
+                  setStartDate(s);
+                  setEndDate(e);
+                }}
+              />
+            </div>
 
             {selectedRowKeys.length > 0 && (
               <Button
                 danger
-                className="shadow-md"
+                className="shadow-md shrink-0"
                 onClick={handleBulkDelete}
                 icon={<Trash className="w-4 h-4" />}
               >
-                Excluir {selectedRowKeys.length} selecionado(s)
+                Excluir ({selectedRowKeys.length})
               </Button>
             )}
 
             <Button
-              className="shadow-md bg-amber-600 text-white hover:bg-amber-700"
+              className="shadow-md bg-amber-600 text-white hover:bg-amber-700 shrink-0"
               onClick={() => setOpenGerarComissoes(true)}
               icon={<Coins className="w-4 h-4" />}
+              title="Gerar Comissões de Clientes"
             >
-              Gerar Comissões de Clientes
+              Comissões
             </Button>
 
             <Button
-              className="shadow-md"
+              className="shadow-md shrink-0"
               onClick={() => setOpenConciliacaoDialog(true)}
               icon={<GitMerge className="w-4 h-4" />}
+              title="Automatizar Conciliação"
             >
-              Automatizar Conciliação
+              Conciliação
             </Button>
 
             <Button
-              className="shadow-md"
+              className="shadow-md shrink-0"
               onClick={() => setOpenImportDialog(true)}
               icon={<Upload className="w-4 h-4" />}
+              title="Importar Extrato"
             >
               Importar
             </Button>
 
             <Button
               type="primary"
-              className="shadow-md bg-navy text-white hover:bg-navy/90"
+              className="shadow-md bg-navy text-white hover:bg-navy/90 shrink-0"
               onClick={() => {
                 setEditingPayment(null);
                 setOpenDialog(true);

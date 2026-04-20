@@ -7,6 +7,8 @@ import ptBR from 'antd/es/date-picker/locale/pt_BR';
 
 dayjs.locale('pt-br');
 
+const { RangePicker } = DatePicker;
+
 interface DateRangeFilterProps {
   startDate?: string;
   endDate?: string;
@@ -33,33 +35,18 @@ export default function DateRangeFilter({
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex flex-col">
-        <span className="text-xs text-muted-foreground mb-1">{labelStart}</span>
-        <DatePicker
-          locale={ptBR}
-          format="DD/MM/YYYY"
-          placeholder="dd/mm/aaaa"
-          value={parseDate(startDate)}
-          onChange={(d) =>
-            onChange(d ? d.format('YYYY-MM-DD') : undefined, endDate)
-          }
-          allowClear
-        />
-      </div>
-      <div className="flex flex-col">
-        <span className="text-xs text-muted-foreground mb-1">{labelEnd}</span>
-        <DatePicker
-          locale={ptBR}
-          format="DD/MM/YYYY"
-          placeholder="dd/mm/aaaa"
-          value={parseDate(endDate)}
-          onChange={(d) =>
-            onChange(startDate, d ? d.format('YYYY-MM-DD') : undefined)
-          }
-          allowClear
-        />
-      </div>
-    </div>
+    <RangePicker
+      locale={ptBR}
+      format="DD/MM/YYYY"
+      placeholder={[labelStart, labelEnd]}
+      value={[parseDate(startDate), parseDate(endDate)]}
+      onChange={(dates) => {
+        const start = dates?.[0] ? dates[0].format('YYYY-MM-DD') : undefined;
+        const end = dates?.[1] ? dates[1].format('YYYY-MM-DD') : undefined;
+        onChange(start, end);
+      }}
+      allowEmpty={[true, true]}
+      allowClear
+    />
   );
 }
