@@ -199,6 +199,64 @@ export interface ConciliacaoBancariaRelatorioData {
   total_pendentes: number;
 }
 
+/* ======================
+   RELATÓRIO DE COMISSÕES
+====================== */
+
+export interface ComissaoPagamento {
+  allocation_id: number;
+  receita_id: number;
+  cliente_id: number;
+  cliente_nome: string;
+  data_pagamento: string;
+  valor_pagamento: number;
+  percentual: number;
+  valor_comissao: number;
+  origem_regra: 'receita' | 'cliente';
+}
+
+export interface ComissionadoDetalhe {
+  funcionario: {
+    id: number;
+    nome: string;
+    tipo: 'F' | 'P' | 'O';
+    tipo_display: string;
+  };
+  pagamentos: ComissaoPagamento[];
+  total_comissao: number;
+  total_pagamentos: number;
+}
+
+export interface ComissoesRelatorioData {
+  periodo: { mes: number; ano: number };
+  funcionario_id: number | null;
+  resumo: {
+    total_comissao: number;
+    total_comissionados: number;
+    total_pagamentos: number;
+    percentual_medio: number;
+  };
+  comissionados: ComissionadoDetalhe[];
+}
+
+export async function getRelatorioComissoes(
+  mes: number,
+  ano: number,
+  funcionarioId?: number
+): Promise<ComissoesRelatorioData> {
+  const params: { mes: number; ano: number; funcionario_id?: number } = {
+    mes,
+    ano,
+  };
+  if (funcionarioId) params.funcionario_id = funcionarioId;
+
+  const response = await api.get<ComissoesRelatorioData>(
+    '/api/relatorios/comissionamento/',
+    { params }
+  );
+  return response.data;
+}
+
 /**
  * Busca o relatório completo de conciliação bancária mensal
  * @param mes - Mês (1-12)

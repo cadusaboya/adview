@@ -320,53 +320,106 @@ class RelatorioFolhaSalarialView(BaseReportView):
         })
 
 class RelatorioComissionamentoView(BaseReportView):
-    """Relatório de Comissionamento por Mês por Pessoa ou Todos."""
+    """
+    Relatório detalhado de Comissionamento por Mês.
+
+    Retorna por comissionado (funcionário/parceiro) a lista de alocações de receitas
+    pagas no período e o valor da comissão calculada, usando a hierarquia
+    ReceitaComissao → ClienteComissao.
+    """
     def get(self, request):
         params = request.query_params
         try:
-            year = int(params.get('year', date.today().year))
-            month = int(params.get('month', date.today().month))
+            mes = int(params.get('mes') or params.get('month') or date.today().month)
+            ano = int(params.get('ano') or params.get('year') or date.today().year)
+            if not (1 <= mes <= 12):
+                raise ValueError()
         except ValueError:
             return Response({"detail": "Ano e/ou mês inválidos."}, status=status.HTTP_400_BAD_REQUEST)
 
-        funcionario_id = params.get('funcionario_id')
+        funcionario_id_param = params.get('funcionario_id')
+        filter_func_id = int(funcionario_id_param) if funcionario_id_param else None
 
-        # Filter commission expenses ('C') paid in the given month/year
-        despesas_comissao_qs = self.get_company_queryset(Despesa).filter(
-            tipo='C',
-            # Assuming commission is relevant based on when the *expense* is paid
-            # Or should it be based on when the *receita* was paid?
-            # Model currently creates commission expense when receita is paid, due immediately.
-            # Let's filter by expense payment date for simplicity.
-            situacao='P',
-            data_pagamento__year=year,
-            data_pagamento__month=month
+        company = request.user.company
+
+        allocations = Allocation.objects.filter(
+            company=company,
+            receita__isnull=False,
+            payment__data_pagamento__month=mes,
+            payment__data_pagamento__year=ano,
+        ).prefetch_related(
+            'receita__comissoes__funcionario',
+            'receita__cliente__comissoes__funcionario',
+        ).select_related('payment', 'receita__cliente')
+
+        comissionados: dict = {}
+
+        for allocation in allocations:
+            regras = list(allocation.receita.comissoes.all())
+            if not regras:
+                regras = list(allocation.receita.cliente.comissoes.all())
+
+            for regra in regras:
+                func = regra.funcionario
+                if filter_func_id and func.id != filter_func_id:
+                    continue
+
+                percentual = Decimal(regra.percentual)
+                valor_comissao = allocation.valor * (percentual / Decimal('100.00'))
+
+                entry = comissionados.setdefault(func.id, {
+                    'funcionario': {
+                        'id': func.id,
+                        'nome': func.nome,
+                        'tipo': func.tipo,
+                        'tipo_display': func.get_tipo_display(),
+                    },
+                    'pagamentos': [],
+                    'total_comissao': Decimal('0.00'),
+                })
+                entry['pagamentos'].append({
+                    'allocation_id': allocation.id,
+                    'receita_id': allocation.receita.id,
+                    'cliente_id': allocation.receita.cliente.id,
+                    'cliente_nome': allocation.receita.cliente.nome,
+                    'data_pagamento': allocation.payment.data_pagamento,
+                    'valor_pagamento': allocation.valor,
+                    'percentual': percentual,
+                    'valor_comissao': valor_comissao,
+                    'origem_regra': 'receita' if allocation.receita.comissoes.exists() else 'cliente',
+                })
+                entry['total_comissao'] += valor_comissao
+
+        comissionados_list = []
+        total_geral = Decimal('0.00')
+        total_pagamentos = 0
+        soma_percentuais = Decimal('0.00')
+        qtd_percentuais = 0
+
+        for entry in comissionados.values():
+            entry['pagamentos'].sort(key=lambda p: p['data_pagamento'])
+            entry['total_pagamentos'] = len(entry['pagamentos'])
+            total_geral += entry['total_comissao']
+            total_pagamentos += entry['total_pagamentos']
+            for p in entry['pagamentos']:
+                soma_percentuais += p['percentual']
+                qtd_percentuais += 1
+            comissionados_list.append(entry)
+
+        comissionados_list.sort(key=lambda e: e['funcionario']['nome'])
+
+        percentual_medio = (
+            float(soma_percentuais / qtd_percentuais) if qtd_percentuais else 0.0
         )
 
-        if funcionario_id:
-            despesas_comissao_qs = despesas_comissao_qs.filter(responsavel_id=funcionario_id)
-            total_comissao = despesas_comissao_qs.aggregate(total=Sum('valor_pago'))['total'] or Decimal('0.00')
-            try:
-                funcionario = self.get_company_queryset(Funcionario).get(pk=funcionario_id)
-                responsavel_nome = funcionario.nome
-            except Funcionario.DoesNotExist:
-                responsavel_nome = f"ID {funcionario_id} (Não encontrado)"
-
-            return Response({
-                "mes": month,
-                "ano": year,
-                "funcionario_id": funcionario_id,
-                "responsavel_nome": responsavel_nome,
-                "total_comissao_paga": total_comissao
-            })
-        else:
-            # Group by responsible person (Funcionario)
-            comissao_por_pessoa = despesas_comissao_qs.values('responsavel__id', 'responsavel__nome')\
-                                   .annotate(total_pago=Sum('valor_pago'))\
-                                   .order_by('responsavel__nome')
-
-            return Response({
-                "mes": month,
-                "ano": year,
-                "comissao_por_pessoa": list(comissao_por_pessoa) # Convert queryset to list for response
-            })
+        return Response({
+            'periodo': {'mes': mes, 'ano': ano},
+            'funcionario_id': filter_func_id,
+            'resumo': {
+                'total_comissao': total_geral,
+                'total_comissionados': len(comissionados_list),
+                'total_pagamentos': total_pagamentos,
+                'percentual_medio': round(percentual_medio, 2),
+            },
+            'comissionados': comissionados_list,
+        }, status=status.HTTP_200_OK)
