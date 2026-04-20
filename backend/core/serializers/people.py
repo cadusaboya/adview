@@ -45,7 +45,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 class ClienteSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-    formas_cobranca = FormaCobrancaSerializer(many=True)
+    formas_cobranca = FormaCobrancaSerializer(many=True, required=False, default=[])
     comissoes = ClienteComissaoSerializer(many=True, default=[])
 
     cpf = serializers.CharField(required=False, allow_null=True, allow_blank=True)
@@ -71,7 +71,7 @@ class ClienteSerializer(serializers.ModelSerializer):
         read_only_fields = ('company', 'tipo_display')
 
     def create(self, validated_data):
-        formas_data = validated_data.pop('formas_cobranca')
+        formas_data = validated_data.pop('formas_cobranca', [])
         comissoes_data = validated_data.pop('comissoes', [])
         cliente = Cliente.objects.create(**validated_data)
         for forma in formas_data:
